@@ -37,6 +37,9 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "API_URL_BACKEND": "https://faultier-nonaristocratically-willene.ngrok-free.dev"
+    }
   }
 }
