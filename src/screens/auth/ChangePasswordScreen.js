@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Button, Alert } from "react-native";
-import { changePasswordApi } from "../api/authApi";
+import { changePasswordApi } from "../../api/authApi";
 
 export default function ChangePasswordScreen() {
   const [oldPassword, setOldPassword] = useState("");
