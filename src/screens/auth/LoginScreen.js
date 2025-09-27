@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,17 +22,32 @@ export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Lỗi", "Vui lòng nhập email và mật khẩu");
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail) {
+      Alert.alert("Lỗi", "Vui lòng nhập email hoặc tên đăng nhập");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (trimmedEmail.includes("@") && !emailRegex.test(trimmedEmail)) {
+      Alert.alert("Lỗi", "Email không hợp lệ");
+      return;
+    }
+
+    if (!trimmedPassword) {
+      Alert.alert("Lỗi", "Vui lòng nhập mật khẩu");
       return;
     }
 
     setLoading(true);
     try {
-      await login(email, password);
+      await login(trimmedEmail, trimmedPassword);
+
       if (rememberMe) {
-        await AsyncStorage.setItem("rememberedEmail", email);
-        await AsyncStorage.setItem("rememberedPassword", password);
+        await AsyncStorage.setItem("rememberedEmail", trimmedEmail);
+        await AsyncStorage.setItem("rememberedPassword", trimmedPassword);
       } else {
         await AsyncStorage.removeItem("rememberedEmail");
         await AsyncStorage.removeItem("rememberedPassword");
@@ -39,7 +55,7 @@ export default function LoginScreen({ navigation }) {
 
       navigation.navigate("BottomTabs");
     } catch (error) {
-      console.error("Login error:", error);
+      console.log("Login error:", error.message);
       Alert.alert("Lỗi đăng nhập", error.message || "Vui lòng thử lại sau");
     } finally {
       setLoading(false);
@@ -114,7 +130,6 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.rememberText}>Ghi nhớ đăng nhập</Text>
           </TouchableOpacity>
 
-          {/* Forgot password */}
           <TouchableOpacity
             onPress={() => navigation.navigate("ResetPassword")}
           >
@@ -155,7 +170,10 @@ export default function LoginScreen({ navigation }) {
           style={styles.googleButton}
           onPress={() => Alert.alert("Google login")}
         >
-          <Ionicons name="logo-google" size={20} color="#DB4437" />
+          <Image
+            source={require("../../../assets/images/Google__G__logo.svg.webp")}
+            style={styles.googleLogo}
+          />
           <Text style={styles.googleText}>Đăng nhập với Google</Text>
         </TouchableOpacity>
 
@@ -182,14 +200,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3f4f6",
     justifyContent: "center",
     alignItems: "center",
-    padding: 15,
+    padding: 10,
   },
   card: {
     width: "100%",
     maxWidth: 380,
     backgroundColor: "white",
     borderRadius: 16,
-    padding: 20,
+    padding: 30,
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -310,6 +328,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 18,
     backgroundColor: "#fff",
+  },
+  googleLogo: {
+    width: 20,
+    height: 20,
+    resizeMode: "contain",
   },
   googleText: {
     marginLeft: 8,

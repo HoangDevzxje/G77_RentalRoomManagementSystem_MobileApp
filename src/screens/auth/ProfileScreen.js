@@ -17,7 +17,6 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     try {
       await logout();
-      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
     } catch (error) {
       console.log("Logout error:", error);
     }
@@ -37,51 +36,55 @@ export default function ProfileScreen() {
             ? user.user?.email || user.email || "Email không có"
             : "Chưa đăng nhập"}
         </Text>
-        {user?.user?.phone && (
-          <Text style={styles.phone}>{user.user.phone}</Text>
-        )}
-      </View>
-
-      {/* Menu Options */}
-      <View style={styles.menuSection}>
-        {/* Đổi mật khẩu */}
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.navigate("ChangePassword")}
-        >
-          <Ionicons name="key-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Đổi mật khẩu</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="settings-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Cài đặt</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="help-circle-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Hỗ trợ</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="information-circle-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Về ứng dụng</Text>
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
-        </TouchableOpacity>
       </View>
 
       {user ? (
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.primaryBtn]}
-          onPress={handleLogout}
-        >
-          <Ionicons name="log-out-outline" size={20} color="#fff" />
-          <Text style={styles.actionText}>Đăng xuất</Text>
-        </TouchableOpacity>
+        <>
+          {/* Menu Options (chỉ hiển thị khi đã đăng nhập) */}
+          <View style={styles.menuSection}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("ChangePassword")}
+            >
+              <Ionicons name="key-outline" size={24} color="#666" />
+              <Text style={styles.menuText}>Đổi mật khẩu</Text>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="settings-outline" size={24} color="#666" />
+              <Text style={styles.menuText}>Cài đặt</Text>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons name="help-circle-outline" size={24} color="#666" />
+              <Text style={styles.menuText}>Hỗ trợ</Text>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <Ionicons
+                name="information-circle-outline"
+                size={24}
+                color="#666"
+              />
+              <Text style={styles.menuText}>Về ứng dụng</Text>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Nút Logout */}
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.primaryBtn]}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#fff" />
+            <Text style={styles.actionText}>Đăng xuất</Text>
+          </TouchableOpacity>
+        </>
       ) : (
+        // Nếu chưa đăng nhập → chỉ hiện nút đăng nhập
         <TouchableOpacity
           style={[styles.actionBtn, styles.primaryBtn]}
           onPress={handleLogin}

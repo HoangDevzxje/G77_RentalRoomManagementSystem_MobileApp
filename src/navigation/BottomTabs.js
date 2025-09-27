@@ -18,7 +18,7 @@ const withHeader =
         <Header />
         <View
           style={[
-            { flex: 1, paddingTop: 60 },
+            { flex: 1, paddingTop: 100 },
             style,
             style?.pointerEvents
               ? { pointerEvents: style.pointerEvents }
@@ -65,7 +65,7 @@ export default function BottomTabs() {
           fontSize: 12,
         },
         tabBarStyle: {
-          height: 60,
+          height: 80,
         },
       })}
     >

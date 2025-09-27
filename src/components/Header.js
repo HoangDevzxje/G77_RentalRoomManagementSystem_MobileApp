@@ -17,7 +17,7 @@ const Header = ({ scrollY }) => {
   }, [scrollY]);
 
   const headerPaddingTop =
-    Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
+    Platform.OS === "android" ? StatusBar.currentHeight || 0 : 30;
 
   return (
     <View
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 50,
-    minHeight: 72,
+    minHeight: 100,
   },
   content: {
     flexDirection: "row",
