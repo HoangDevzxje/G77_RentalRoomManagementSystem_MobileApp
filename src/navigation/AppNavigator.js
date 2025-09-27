@@ -1,50 +1,71 @@
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
-import { View, ActivityIndicator, ScrollView } from "react-native";
-import { useAuth } from "../context/AuthContext";
-import HomeScreen from "../screens/home/HomeScreen";
-import ChangePasswordScreen from "../screens/auth/ChangePasswordScreen";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { View, ActivityIndicator } from "react-native";
+import BottomTabs from "./BottomTabs";
 import LoginScreen from "../screens/auth/LoginScreen";
 import RegisterScreen from "../screens/auth/RegisterScreen";
-import Header from "../components/Header";
+import { useAuth } from "../context/AuthContext";
+import VerifyOtpScreen from "../screens/auth/VerifyOtpScreen";
+import ChangePasswordScreen from "../screens/auth/ChangePasswordScreen";
+import ResetPasswordScreen from "../screens/auth/ChangePasswordScreen";
 
-const Stack = createStackNavigator();
-
-const Boot = () => (
-  <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-    <ActivityIndicator size="large" />
-  </View>
-);
+const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
-  const { booting } = useAuth();
-  if (booting) return <Boot />;
+  const { loading } = useAuth(); // Bỏ check user ở đây
 
-  const withHeader = (Component) => (props) =>
-    (
-      <View style={{ flex: 1 }}>
-        <Header />
-        <ScrollView contentContainerStyle={{ paddingTop: 80 }}>
-          <Component {...props} />
-        </ScrollView>
+  // Hiển thị loading khi đang check auth status
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#14b8a6" />
       </View>
     );
+  }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{ headerShown: false }}
-        initialRouteName="Home"
-      >
-        <Stack.Screen name="Home" component={withHeader(HomeScreen)} />
-        <Stack.Screen
-          name="ChangePassword"
-          component={withHeader(ChangePasswordScreen)}
-        />
-        <Stack.Screen name="Login" component={withHeader(LoginScreen)} />
-        <Stack.Screen name="Register" component={withHeader(RegisterScreen)} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="BottomTabs" component={BottomTabs} />
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{
+          presentation: "modal",
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{
+          presentation: "modal",
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="VerifyOtp"
+        component={VerifyOtpScreen}
+        options={{
+          presentation: "modal",
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="ChangePassword"
+        component={ChangePasswordScreen}
+        options={{
+          presentation: "modal",
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{
+          presentation: "modal",
+          gestureEnabled: true,
+        }}
+      />
+    </Stack.Navigator>
   );
 }

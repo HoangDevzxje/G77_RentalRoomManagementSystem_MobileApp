@@ -2,7 +2,6 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 const extra = Constants.expoConfig?.extra ?? {};
-console.log("Expo extra config:", extra);
 
 let API_URL = extra.API_URL_BACKEND;
 

@@ -41,11 +41,7 @@ api.interceptors.response.use(
 );
 
 export const loginApi = async (email, password) => {
-  console.log("Sending login data:", { email, password });
-
   const res = await api.post("/login", { email, password });
-  console.log("Raw login response:", res.data);
-
   const { accessToken, access_token, role } = res.data;
   const finalAccessToken = accessToken || access_token;
 

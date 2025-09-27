@@ -9,7 +9,6 @@ export default function HomeScreen({ navigation }) {
     <View
       style={{
         flex: 1,
-        marginTop: 300,
         justifyContent: "center",
         alignItems: "center",
       }}
