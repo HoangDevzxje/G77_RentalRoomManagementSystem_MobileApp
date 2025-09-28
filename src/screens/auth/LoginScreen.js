@@ -130,9 +130,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.rememberText}>Ghi nhớ đăng nhập</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => navigation.navigate("ResetPassword")}
-          >
+          <TouchableOpacity onPress={() => navigation.navigate("SendOtp")}>
             <Text style={styles.forgotPassword}>Quên mật khẩu?</Text>
           </TouchableOpacity>
         </View>

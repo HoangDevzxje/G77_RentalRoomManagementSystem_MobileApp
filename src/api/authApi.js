@@ -1,4 +1,5 @@
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import API_URL from "../config/api";
 import { getAccessToken, setTokens, removeTokens } from "../utils/storage";
 
@@ -18,7 +19,6 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const originalRequest = error.config;
-
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
@@ -44,23 +44,11 @@ export const loginApi = async (email, password) => {
   const res = await api.post("/login", { email, password });
   const { accessToken, access_token, role } = res.data;
   const finalAccessToken = accessToken || access_token;
-
-  if (!finalAccessToken) {
-    throw new Error("Token không tồn tại trong phản hồi");
-  }
-
+  if (!finalAccessToken) throw new Error("Token không tồn tại trong phản hồi");
   await setTokens(finalAccessToken);
 
-  const userInfo = {
-    email: email,
-    name: email.split("@")[0],
-  };
-
-  return {
-    accessToken: finalAccessToken,
-    role,
-    user: userInfo,
-  };
+  const userInfo = { email, name: email.split("@")[0] };
+  return { accessToken: finalAccessToken, role, user: userInfo };
 };
 
 export const registerApi = (payload) =>
@@ -69,11 +57,70 @@ export const registerApi = (payload) =>
 export const sendOtpApi = (email, type) =>
   api.post("/send-otp", { email, type }).then((res) => res.data);
 
-export const verifyOtpApi = (email, type, otp) =>
-  api.post("/verify-otp", { email, type, otp }).then((res) => res.data);
+export const verifyOtpApi = async (email, type, otp) => {
+  try {
+    const res = await api.post("/verify-otp", { email, type, otp });
+    if (res.data.token || res.data.verificationToken) {
+      const token = res.data.token || res.data.verificationToken;
+      await AsyncStorage.setItem(
+        `otpVerificationToken_${email}_${type}`,
+        token
+      );
+    }
+    await AsyncStorage.setItem(`otpVerified_${email}_${type}`, "true");
 
-export const resetPasswordApi = (email, newPassword) =>
-  api.post("/reset-password", { email, newPassword }).then((res) => res.data);
+    return res.data;
+  } catch (error) {
+    await AsyncStorage.removeItem(`otpVerificationToken_${email}_${type}`);
+    await AsyncStorage.removeItem(`otpVerified_${email}_${type}`);
+    throw error;
+  }
+};
+
+export const resetPasswordApi = async (
+  email,
+  newPassword,
+  confirmNewPassword = null
+) => {
+  try {
+    const verificationToken = await AsyncStorage.getItem(
+      `otpVerificationToken_${email}_reset-password`
+    );
+    const isVerified = await AsyncStorage.getItem(
+      `otpVerified_${email}_reset-password`
+    );
+
+    if (!isVerified || isVerified !== "true") {
+      throw new Error("OTP chưa được xác thực. Vui lòng xác thực OTP trước.");
+    }
+
+    const payload = {
+      email,
+      newPassword,
+    };
+
+    if (confirmNewPassword) {
+      payload.confirmNewPassword = confirmNewPassword;
+    }
+
+    if (verificationToken) {
+      payload.token = verificationToken;
+      payload.verificationToken = verificationToken;
+    }
+
+    const res = await api.post("/reset-password", payload);
+
+    await AsyncStorage.removeItem(
+      `otpVerificationToken_${email}_reset-password`
+    );
+    await AsyncStorage.removeItem(`otpVerified_${email}_reset-password`);
+
+    return res.data;
+  } catch (error) {
+    console.log("Reset password error:", error.response?.data || error.message);
+    throw error;
+  }
+};
 
 export const changePasswordApi = (oldPassword, newPassword) =>
   api
@@ -84,7 +131,6 @@ export const refreshTokenApi = async () => {
   const res = await api.post("/refresh-token");
   const { accessToken, access_token } = res.data;
   const newAccessToken = accessToken || access_token;
-
   await setTokens(newAccessToken);
   return newAccessToken;
 };
@@ -94,5 +140,15 @@ export const logoutApi = async () => {
     await api.post("/logout");
   } catch {}
   await removeTokens();
+
+  const keys = await AsyncStorage.getAllKeys();
+  const otpKeys = keys.filter(
+    (key) =>
+      key.startsWith("otpVerificationToken_") || key.startsWith("otpVerified_")
+  );
+  if (otpKeys.length > 0) {
+    await AsyncStorage.multiRemove(otpKeys);
+  }
+
   return true;
 };

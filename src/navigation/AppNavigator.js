@@ -8,6 +8,7 @@ import VerifyOtpScreen from "../screens/auth/VerifyOtpScreen";
 import ChangePasswordScreen from "../screens/auth/ChangePasswordScreen";
 import ResetPasswordScreen from "../screens/auth/ResetPasswordScreen"; // sửa đúng tên
 import { useAuth } from "../context/AuthContext";
+import SendOtpScreen from "../screens/auth/SendOtpScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -30,6 +31,7 @@ export default function AppNavigator() {
       <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="SendOtp" component={SendOtpScreen} />
     </Stack.Navigator>
   );
 }
