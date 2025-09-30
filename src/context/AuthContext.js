@@ -1,55 +1,63 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
-import { getToken, setToken, removeToken } from "../utils/storage";
-import { logoutApi } from "../api/authApi";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { loginApi, logoutApi } from "../api/authApi";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [token, setTokenState] = useState(null);
-  const [booting, setBooting] = useState(true);
-
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const initAuth = async () => {
+    const checkAuthStatus = async () => {
       try {
-        const storedToken = await getToken();
-        if (storedToken) {
-          setTokenState(storedToken);
+        const token = await AsyncStorage.getItem("accessToken");
+        const userData = await AsyncStorage.getItem("user");
+        const userRole = await AsyncStorage.getItem("role");
+
+        if (token && userData) {
+          setUser({
+            accessToken: token,
+            user: JSON.parse(userData),
+            role: userRole,
+          });
         }
       } catch (error) {
+        console.error("Error checking auth status:", error);
       } finally {
-        setBooting(false);
+        setLoading(false);
       }
     };
 
-    initAuth();
+    checkAuthStatus();
   }, []);
 
-  const login = async (newToken) => {
-    if (!newToken) {
-      return;
+  const login = async (email, password) => {
+    try {
+      const data = await loginApi(email, password);
+      await AsyncStorage.setItem("accessToken", data.accessToken);
+      await AsyncStorage.setItem("user", JSON.stringify(data.user));
+      await AsyncStorage.setItem("role", data.role);
+      setUser(data);
+    } catch (error) {
+      throw error;
     }
-    await setToken(newToken);
-    setTokenState(newToken);
   };
 
   const logout = async () => {
     try {
       await logoutApi();
-    } catch (error) {
+    } catch (err) {
     } finally {
-      await removeToken();
-      setTokenState(null);
+      await AsyncStorage.multiRemove(["accessToken", "user", "role"]);
+      setUser(null);
     }
   };
 
-  const value = {
-    token,
-    booting,
-    login,
-    logout,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
