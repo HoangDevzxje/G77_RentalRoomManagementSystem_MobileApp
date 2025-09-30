@@ -1,12 +1,15 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
-import { View } from "react-native";
+import { View, ScrollView } from "react-native";
+
 import HomeScreen from "../screens/home/HomeScreen";
 import MessagesScreen from "../screens/messages/MessagesScreen";
 import FindRoomScreen from "../screens/Room/FindRoomScreen";
 import ProfileScreen from "../screens/auth/ProfileScreen";
+
 import Header from "../components/Header";
+import Footer from "../components/Footer";
 
 const Tab = createBottomTabNavigator();
 
@@ -16,17 +19,26 @@ const withHeader =
     return (
       <View style={{ flex: 1 }}>
         <Header />
-        <View
-          style={[
-            { flex: 1, paddingTop: 100 },
-            style,
-            style?.pointerEvents
-              ? { pointerEvents: style.pointerEvents }
-              : null,
-          ]}
-        >
+        <View style={[{ flex: 1, paddingTop: 100 }, style]}>
           <Component {...props} />
         </View>
+      </View>
+    );
+  };
+
+const withHeaderAndFooter =
+  (Component) =>
+  ({ style, ...props }) => {
+    return (
+      <View style={{ flex: 1 }}>
+        <Header />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingTop: 100 }}
+          style={style}
+        >
+          <Component {...props} />
+          <Footer />
+        </ScrollView>
       </View>
     );
   };
@@ -69,7 +81,10 @@ export default function BottomTabs() {
         },
       })}
     >
-      <Tab.Screen name="Trang chủ" component={withHeader(HomeScreen)} />
+      <Tab.Screen
+        name="Trang chủ"
+        component={withHeaderAndFooter(HomeScreen)}
+      />
       <Tab.Screen name="Nhắn tin" component={withHeader(MessagesScreen)} />
       <Tab.Screen name="Tìm phòng" component={withHeader(FindRoomScreen)} />
       <Tab.Screen name="Tài khoản" component={withHeader(ProfileScreen)} />
