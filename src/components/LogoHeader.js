@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, Animated, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { StyleSheet } from "react-native";
 
 const LogoHeader = ({ isScrolled, onPress }) => {
   return (
@@ -70,19 +69,12 @@ const LogoHeader = ({ isScrolled, onPress }) => {
             Quản lý phòng trọ
           </Text>
         </View>
-
-        <View
-          style={[
-            styles.underline,
-            isScrolled ? styles.underlineScrolled : styles.underlineNormal,
-          ]}
-        />
       </View>
     </TouchableOpacity>
   );
 };
 
-const styles = {
+const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
@@ -98,17 +90,22 @@ const styles = {
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    boxShadow: "0px 2px 4px rgba(0,0,0,0.1)",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 3,
   },
-
   logoContainerNormal: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.3)",
   },
   logoContainerScrolled: {
-    backgroundColor: "linear-gradient(135deg, #0d9488, #0891b2, #2563eb)",
+    backgroundColor: "#0d9488", // Fallback color thay vì gradient
   },
   mainIcon: {
     zIndex: 10,
@@ -165,13 +162,7 @@ const styles = {
     color: "#fff",
   },
   mainTextScrolled: {
-    backgroundGradient: {
-      colors: ["#0d9488", "#0891b2", "#2563eb"],
-      start: { x: 0, y: 0 },
-      end: { x: 1, y: 0 },
-    },
-    color: "transparent",
-    backgroundClip: "text",
+    color: "#0d9488", // Thay vì gradient text (không hỗ trợ trong RN)
   },
   subText: {
     fontSize: 10,
@@ -185,31 +176,6 @@ const styles = {
   subTextScrolled: {
     color: "#0d9488",
   },
-  underline: {
-    position: "absolute",
-    bottom: -4,
-    left: 0,
-    height: 2,
-    width: 0,
-  },
-  underlineNormal: {
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-  },
-  underlineScrolled: {
-    backgroundColor: "linear-gradient(to right, #0d9488, #0891b2)",
-  },
-};
-
-// Chuyển đổi styles thành StyleSheet
-const stylesheet = StyleSheet.create(
-  Object.fromEntries(
-    Object.entries(styles).map(([key, value]) => {
-      if (typeof value === "object" && !Array.isArray(value)) {
-        return [key, value];
-      }
-      return [key, value];
-    })
-  )
-);
+});
 
 export default LogoHeader;

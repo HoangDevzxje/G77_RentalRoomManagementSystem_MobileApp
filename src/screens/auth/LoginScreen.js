@@ -68,7 +68,7 @@ export default function LoginScreen({ navigation }) {
         {/* Logo + Home */}
         <TouchableOpacity
           style={styles.logo}
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => navigation.navigate("BottomTabs")}
         >
           <Ionicons name="home" size={26} color="#fff" />
         </TouchableOpacity>

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from "react";
 import { View, StyleSheet, StatusBar, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../context/AuthContext";
+import { useNavigation } from "@react-navigation/native";
 import LogoHeader from "./LogoHeader";
 
 const Header = ({ scrollY }) => {
   const { user } = useAuth();
+  const navigation = useNavigation();
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -18,6 +20,10 @@ const Header = ({ scrollY }) => {
 
   const headerPaddingTop =
     Platform.OS === "android" ? StatusBar.currentHeight || 0 : 30;
+
+  const handleLogoPress = () => {
+    navigation.navigate("BottomTabs");
+  };
 
   return (
     <View
@@ -41,8 +47,7 @@ const Header = ({ scrollY }) => {
       )}
 
       <View style={styles.content}>
-        {/* Logo */}
-        <LogoHeader isScrolled={isScrolled} />
+        <LogoHeader isScrolled={isScrolled} onPress={handleLogoPress} />
       </View>
     </View>
   );
