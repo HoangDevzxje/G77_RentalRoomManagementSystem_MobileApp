@@ -40,8 +40,17 @@ export default function ProfileScreen() {
 
       {user ? (
         <>
-          {/* Menu Options (chỉ hiển thị khi đã đăng nhập) */}
+          {/* Menu Options */}
           <View style={styles.menuSection}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("Account")}
+            >
+              <Ionicons name="person-outline" size={24} color="#666" />
+              <Text style={styles.menuText}>Tài khoản</Text>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => navigation.navigate("ChangePassword")}
@@ -74,9 +83,8 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Nút Logout */}
           <TouchableOpacity
-            style={[styles.actionBtn, styles.primaryBtn]}
+            style={[styles.actionBtn, styles.logoutBtn]}
             onPress={handleLogout}
           >
             <Ionicons name="log-out-outline" size={20} color="#fff" />
@@ -84,7 +92,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </>
       ) : (
-        // Nếu chưa đăng nhập → chỉ hiện nút đăng nhập
         <TouchableOpacity
           style={[styles.actionBtn, styles.primaryBtn]}
           onPress={handleLogin}
@@ -112,12 +119,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginTop: 10,
-  },
-  phone: {
-    color: "#fff",
-    fontSize: 16,
-    marginTop: 4,
-    opacity: 0.9,
   },
   menuSection: {
     backgroundColor: "#fff",
@@ -153,14 +154,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
+    gap: 8,
   },
   primaryBtn: {
     backgroundColor: "#14b8a6",
+  },
+  logoutBtn: {
+    backgroundColor: "#ef4444",
   },
   actionText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-    marginLeft: 8,
   },
 });
