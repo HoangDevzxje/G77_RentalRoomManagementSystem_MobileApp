@@ -69,8 +69,8 @@ export default function BottomTabs() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: "#14b8a6",
-        tabBarInactiveTintColor: "#9ca3af",
+        tabBarActiveTintColor: "#3b82f6",
+        tabBarInactiveTintColor: "#94a3b8",
         headerShown: false,
         tabBarLabelStyle: {
           marginBottom: 5,

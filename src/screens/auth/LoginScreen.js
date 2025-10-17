@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../../context/AuthContext";
+import Logo from "../../components/Logo";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -62,16 +63,15 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  const handleLogoPress = () => {
+    navigation.navigate("BottomTabs");
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        {/* Logo + Home */}
-        <TouchableOpacity
-          style={styles.logo}
-          onPress={() => navigation.navigate("BottomTabs")}
-        >
-          <Ionicons name="home" size={26} color="#fff" />
-        </TouchableOpacity>
+        {/* Sử dụng component Logo */}
+        <Logo isScrolled={false} onPress={handleLogoPress} size={55} />
 
         {/* Title */}
         <Text style={styles.title}>Chào mừng trở lại</Text>
@@ -210,22 +210,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 4,
+    alignItems: "center", // Thêm để căn giữa logo
   },
-  logo: {
-    width: 48,
-    height: 48,
-    backgroundColor: "#14b8a6",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    alignSelf: "center",
-    marginBottom: 20,
-  },
+  // Đã xóa phần styles logo cũ
   title: {
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
     color: "#111",
+    marginTop: 20, // Thêm margin top để tách biệt với logo
+    marginBottom: 8,
   },
   description: {
     textAlign: "center",
@@ -242,6 +236,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 10,
     height: 48,
+    width: "100%", // Đảm bảo input chiếm full width
   },
   inputIcon: {
     fontSize: 20,
@@ -261,6 +256,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 18,
+    width: "100%", // Đảm bảo row chiếm full width
   },
   rememberMe: {
     flexDirection: "row",
@@ -295,6 +291,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     marginBottom: 18,
+    width: "100%", // Đảm bảo button chiếm full width
   },
   loginText: {
     color: "white",
@@ -305,6 +302,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 10,
+    width: "100%", // Đảm bảo separator chiếm full width
   },
   separator: {
     flex: 1,
@@ -326,6 +324,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 18,
     backgroundColor: "#fff",
+    width: "100%", // Đảm bảo button chiếm full width
   },
   googleLogo: {
     width: 20,
