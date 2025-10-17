@@ -5,7 +5,7 @@ import { View, ScrollView } from "react-native";
 
 import HomeScreen from "../screens/home/HomeScreen";
 import MessagesScreen from "../screens/messages/MessagesScreen";
-import FindRoomScreen from "../screens/Room/FindRoomScreen";
+import RoomListScreen from "../screens/room/RoomListScreen";
 import ProfileScreen from "../screens/auth/ProfileScreen";
 
 import Header from "../components/Header";
@@ -69,8 +69,8 @@ export default function BottomTabs() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: "#14b8a6",
-        tabBarInactiveTintColor: "#9ca3af",
+        tabBarActiveTintColor: "#3b82f6",
+        tabBarInactiveTintColor: "#94a3b8",
         headerShown: false,
         tabBarLabelStyle: {
           marginBottom: 5,
@@ -86,7 +86,11 @@ export default function BottomTabs() {
         component={withHeaderAndFooter(HomeScreen)}
       />
       <Tab.Screen name="Nhắn tin" component={withHeader(MessagesScreen)} />
-      <Tab.Screen name="Tìm phòng" component={withHeader(FindRoomScreen)} />
+      <Tab.Screen
+        name="Tìm phòng"
+        component={withHeader(RoomListScreen)}
+        initialParams={{ buildingId: null }}
+      />
       <Tab.Screen name="Tài khoản" component={withHeader(ProfileScreen)} />
     </Tab.Navigator>
   );

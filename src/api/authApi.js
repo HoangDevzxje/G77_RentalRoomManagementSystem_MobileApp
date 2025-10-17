@@ -6,7 +6,6 @@ import { getAccessToken, setTokens, removeTokens } from "../utils/storage";
 const api = axios.create({
   baseURL: `${API_URL}/auth`,
   timeout: 15000,
-  withCredentials: true,
 });
 
 api.interceptors.request.use(async (config) => {
@@ -42,13 +41,23 @@ api.interceptors.response.use(
 
 export const loginApi = async (email, password) => {
   const res = await api.post("/login", { email, password });
-  const { accessToken, access_token, role } = res.data;
+  const { accessToken, access_token, role, user } = res.data;
   const finalAccessToken = accessToken || access_token;
-  if (!finalAccessToken) throw new Error("Token không tồn tại trong phản hồi");
-  await setTokens(finalAccessToken);
 
-  const userInfo = { email, name: email.split("@")[0] };
-  return { accessToken: finalAccessToken, role, user: userInfo };
+  if (!finalAccessToken) throw new Error("Token không tồn tại trong phản hồi");
+
+  const userInfo = user || {
+    email,
+    name: email.split("@")[0],
+    role: role,
+  };
+
+  await setTokens(finalAccessToken, userInfo, role);
+  return {
+    accessToken: finalAccessToken,
+    role,
+    user: userInfo,
+  };
 };
 
 export const registerApi = (payload) =>

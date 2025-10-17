@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, StatusBar, Platform } from "react-native";
+import { View, Text, StyleSheet, StatusBar, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
-import LogoHeader from "./LogoHeader";
+import Logo from "./Logo";
 
 const Header = ({ scrollY }) => {
   const { user } = useAuth();
@@ -47,7 +47,38 @@ const Header = ({ scrollY }) => {
       )}
 
       <View style={styles.content}>
-        <LogoHeader isScrolled={isScrolled} onPress={handleLogoPress} />
+        <View style={styles.logoContainer}>
+          <Logo isScrolled={isScrolled} onPress={handleLogoPress} size={45} />
+
+          {/* Text đã được chuyển từ LogoHeader sang đây */}
+          <View style={styles.textContainer}>
+            {isScrolled ? (
+              <LinearGradient
+                colors={["#0d9488", "#0891b2", "#2563eb"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.gradientText}
+              >
+                <Text style={[styles.mainText, styles.gradientTextStyle]}>
+                  Rental Room
+                </Text>
+              </LinearGradient>
+            ) : (
+              <Text style={[styles.mainText, styles.mainTextNormal]}>
+                Rental Room
+              </Text>
+            )}
+
+            <Text
+              style={[
+                styles.subText,
+                isScrolled ? styles.subTextScrolled : styles.subTextNormal,
+              ]}
+            >
+              Quản lý phòng trọ
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -68,6 +99,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     minHeight: 64,
+  },
+  logoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  textContainer: {
+    marginLeft: 12,
+  },
+  mainText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    letterSpacing: -0.5,
+  },
+  gradientText: {
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
+  gradientTextStyle: {
+    color: "transparent",
+  },
+  mainTextNormal: {
+    color: "#fff",
+  },
+  subText: {
+    fontSize: 11,
+    fontWeight: "500",
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  subTextNormal: {
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  subTextScrolled: {
+    color: "#0d9488",
   },
 });
 
