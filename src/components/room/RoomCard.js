@@ -12,7 +12,7 @@ export default function RoomCard({ room, onPress, cardWidth, cardHeight }) {
       <Image
         source={{
           uri:
-            room.imageUrl ||
+            room.images[0] ||
             "https://bandon.vn/uploads/posts/thiet-ke-nha-tro-dep-2020-bandon-0.jpg",
         }}
         style={[styles.roomImage, { height: cardHeight * 0.6 }]}
