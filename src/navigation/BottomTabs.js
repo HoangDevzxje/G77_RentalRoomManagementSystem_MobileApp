@@ -8,8 +8,8 @@ import MessagesScreen from "../screens/messages/MessagesScreen";
 import RoomListScreen from "../screens/room/RoomListScreen";
 import ProfileScreen from "../screens/auth/ProfileScreen";
 
-import Header from "../components/Header";
-import Footer from "../components/Footer";
+import Footer from "../components/footer/Footer";
+import Header from "../components/header/Header";
 
 const Tab = createBottomTabNavigator();
 
@@ -69,7 +69,7 @@ export default function BottomTabs() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: "#3b82f6",
+        tabBarActiveTintColor: "#14b8a6",
         tabBarInactiveTintColor: "#94a3b8",
         headerShown: false,
         tabBarLabelStyle: {

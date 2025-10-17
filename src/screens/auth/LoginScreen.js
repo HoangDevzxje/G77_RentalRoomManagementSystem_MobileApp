@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../../context/AuthContext";
-import Logo from "../../components/Logo";
+import Logo from "../../components/logo/Logo";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -20,25 +20,39 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showCustomAlert, setShowCustomAlert] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    type: "",
+    message: "",
+  });
   const { login } = useAuth();
+
+  const showAlert = (type, message) => {
+    setAlertConfig({ type, message });
+    setShowCustomAlert(true);
+
+    setTimeout(() => {
+      setShowCustomAlert(false);
+    }, 2000);
+  };
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
 
     if (!trimmedEmail) {
-      Alert.alert("Lỗi", "Vui lòng nhập email hoặc tên đăng nhập");
+      showAlert("error", "Vui lòng nhập email hoặc tên đăng nhập");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (trimmedEmail.includes("@") && !emailRegex.test(trimmedEmail)) {
-      Alert.alert("Lỗi", "Email không hợp lệ");
+      showAlert("error", "Email không hợp lệ");
       return;
     }
 
     if (!trimmedPassword) {
-      Alert.alert("Lỗi", "Vui lòng nhập mật khẩu");
+      showAlert("error", "Vui lòng nhập mật khẩu");
       return;
     }
 
@@ -57,7 +71,41 @@ export default function LoginScreen({ navigation }) {
       navigation.navigate("BottomTabs");
     } catch (error) {
       console.log("Login error:", error.message);
-      Alert.alert("Lỗi đăng nhập", error.message || "Vui lòng thử lại sau");
+
+      const errorMsg = error.message || "Đăng nhập thất bại";
+      let displayMessage = "Vui lòng thử lại sau";
+
+      const lowerMsg = errorMsg.toLowerCase();
+
+      if (
+        lowerMsg.includes("password") ||
+        lowerMsg.includes("mật khẩu") ||
+        lowerMsg.includes("incorrect password") ||
+        lowerMsg.includes("wrong password") ||
+        lowerMsg.includes("invalid password")
+      ) {
+        displayMessage = "Mật khẩu không đúng!";
+      } else if (
+        lowerMsg.includes("user not found") ||
+        lowerMsg.includes("email not found") ||
+        lowerMsg.includes("không tìm thấy") ||
+        lowerMsg.includes("not found") ||
+        lowerMsg.includes("không tồn tại") ||
+        lowerMsg.includes("does not exist")
+      ) {
+        displayMessage = "Email không tồn tại!";
+      } else if (
+        lowerMsg.includes("invalid credentials") ||
+        lowerMsg.includes("thông tin không chính xác")
+      ) {
+        displayMessage = "Email hoặc mật khẩu không đúng!";
+      } else if (lowerMsg.includes("kết nối") || lowerMsg.includes("server")) {
+        displayMessage = "Không thể kết nối đến server";
+      } else {
+        displayMessage = errorMsg;
+      }
+
+      showAlert("error", displayMessage);
     } finally {
       setLoading(false);
     }
@@ -69,6 +117,18 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {showCustomAlert && alertConfig.type === "error" && (
+        <View style={[styles.topAlert, styles.errorAlert]}>
+          <Ionicons
+            name="close-circle"
+            size={20}
+            color="white"
+            style={styles.alertIcon}
+          />
+          <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+        </View>
+      )}
+
       <View style={styles.card}>
         {/* Sử dụng component Logo */}
         <Logo isScrolled={false} onPress={handleLogoPress} size={55} />
@@ -200,6 +260,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 10,
   },
+
+  topAlert: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    zIndex: 1000,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  successAlert: {
+    backgroundColor: "#10B981",
+  },
+  errorAlert: {
+    backgroundColor: "#EF4444",
+  },
+  alertIcon: {
+    marginRight: 8,
+  },
+  alertMessage: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
+  },
   card: {
     width: "100%",
     maxWidth: 380,
@@ -210,15 +306,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 4,
-    alignItems: "center", // Thêm để căn giữa logo
+    alignItems: "center",
   },
-  // Đã xóa phần styles logo cũ
   title: {
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
     color: "#111",
-    marginTop: 20, // Thêm margin top để tách biệt với logo
+    marginTop: 20,
     marginBottom: 8,
   },
   description: {
@@ -236,7 +331,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 10,
     height: 48,
-    width: "100%", // Đảm bảo input chiếm full width
+    width: "100%",
   },
   inputIcon: {
     fontSize: 20,
@@ -256,7 +351,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 18,
-    width: "100%", // Đảm bảo row chiếm full width
+    width: "100%",
   },
   rememberMe: {
     flexDirection: "row",
@@ -291,7 +386,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     marginBottom: 18,
-    width: "100%", // Đảm bảo button chiếm full width
+    width: "100%",
   },
   loginText: {
     color: "white",
@@ -302,7 +397,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 10,
-    width: "100%", // Đảm bảo separator chiếm full width
+    width: "100%",
   },
   separator: {
     flex: 1,
@@ -324,7 +419,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 18,
     backgroundColor: "#fff",
-    width: "100%", // Đảm bảo button chiếm full width
+    width: "100%",
   },
   googleLogo: {
     width: 20,
