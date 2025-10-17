@@ -40,24 +40,41 @@ api.interceptors.response.use(
 );
 
 export const loginApi = async (email, password) => {
-  const res = await api.post("/login", { email, password });
-  const { accessToken, access_token, role, user } = res.data;
-  const finalAccessToken = accessToken || access_token;
+  try {
+    const res = await api.post("/login", { email, password });
+    const { accessToken, access_token, role, user } = res.data;
+    const finalAccessToken = accessToken || access_token;
 
-  if (!finalAccessToken) throw new Error("Token không tồn tại trong phản hồi");
+    if (!finalAccessToken)
+      throw new Error("Token không tồn tại trong phản hồi");
 
-  const userInfo = user || {
-    email,
-    name: email.split("@")[0],
-    role: role,
-  };
+    const userInfo = user || {
+      email,
+      name: email.split("@")[0],
+      role: role,
+    };
 
-  await setTokens(finalAccessToken, userInfo, role);
-  return {
-    accessToken: finalAccessToken,
-    role,
-    user: userInfo,
-  };
+    await setTokens(finalAccessToken, userInfo, role);
+    return {
+      accessToken: finalAccessToken,
+      role,
+      user: userInfo,
+    };
+  } catch (error) {
+    // Xử lý lỗi từ API
+    if (error.response) {
+      // Lỗi từ server (4xx, 5xx)
+      const message =
+        error.response.data?.message || error.response.data?.error;
+      throw new Error(message || "Đăng nhập thất bại");
+    } else if (error.request) {
+      // Không nhận được phản hồi từ server
+      throw new Error("Không thể kết nối đến server");
+    } else {
+      // Lỗi khác
+      throw error;
+    }
+  }
 };
 
 export const registerApi = (payload) =>

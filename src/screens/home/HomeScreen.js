@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,8 @@ import {
   Wallet,
   UserCog,
 } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import HeroSection from "../../components/Homepage/HeroSection";
 import StatsSection from "../../components/Homepage/StatsSection";
 import WhyChoose from "../../components/Homepage/WhyChoose";
@@ -29,8 +31,49 @@ import Testimonials from "../../components/Homepage/Testimonials";
 
 const { width } = Dimensions.get("window");
 
-const HomeScreen = ({ navigation }) => {
+const HomeScreen = ({ navigation, route }) => {
   const scrollViewRef = useRef(null);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+
+  useEffect(() => {
+    checkLoginSuccess();
+  }, []);
+
+  // Kiểm tra xem có phải vừa đăng nhập thành công không
+  const checkLoginSuccess = async () => {
+    try {
+      const justLoggedIn = await AsyncStorage.getItem("justLoggedIn");
+
+      if (justLoggedIn === "true") {
+        // Hiển thị thông báo thành công
+        setShowSuccessAlert(true);
+
+        // Xóa flag sau khi hiển thị
+        await AsyncStorage.removeItem("justLoggedIn");
+
+        // Tự động ẩn thông báo sau 2 giây
+        const timer = setTimeout(() => {
+          setShowSuccessAlert(false);
+        }, 2000);
+
+        return () => clearTimeout(timer);
+      }
+    } catch (error) {
+      console.log("Error checking login status:", error);
+    }
+  };
+
+  // Kiểm tra nếu có param từ navigation
+  useEffect(() => {
+    if (route.params?.fromLogin) {
+      setShowSuccessAlert(true);
+      const timer = setTimeout(() => {
+        setShowSuccessAlert(false);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [route.params]);
 
   const features = [
     {
@@ -122,115 +165,134 @@ const HomeScreen = ({ navigation }) => {
     },
   ];
 
+  const handleRegister = () => {
+    navigation.navigate("Register");
+  };
+
   return (
-    <ScrollView style={styles.container} ref={scrollViewRef}>
-      {/* Hero Section */}
-      <HeroSection navigation={navigation} />
-
-      {/* Stats Section */}
-      <StatsSection />
-
-      {/* Multi-Platform Section */}
-      <View style={styles.platformSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>QUẢN LÝ TRÊN ĐA NỀN TẢNG</Text>
-          <Text style={styles.sectionSubtitle}>
-            ĐIỆN THOẠI - IPAD - MÁY TÍNH - WEBSITE
-          </Text>
-          <Text style={styles.sectionDescription}>
-            Với sự đa dạng về nền tảng sẽ giúp bạn quản lý nhà trọ linh động
-            hơn, thay vì mẫu excel phức tạp hay sổ sách rờm rà. Thật tuyệt vời
-            khi nay bạn đã có thể quản lý nhà trọ của mình trên mọi thiết bị bạn
-            có.
-          </Text>
+    <View style={styles.container}>
+      {/* Thông báo thành công khi đăng nhập - CHỈ HIỆN KHI VỪA ĐĂNG NHẬP */}
+      {showSuccessAlert && (
+        <View style={[styles.topAlert, styles.successAlert]}>
+          <Ionicons
+            name="checkmark-circle"
+            size={20}
+            color="white"
+            style={styles.alertIcon}
+          />
+          <Text style={styles.alertMessage}>Đăng nhập thành công</Text>
         </View>
+      )}
 
-        <View style={styles.platformGrid}>
-          {platforms.map((platform, index) => (
-            <View key={index} style={styles.platformCard}>
-              <Image
-                source={{ uri: platform.image }}
-                style={styles.platformImage}
-                resizeMode="cover"
-              />
-              <View style={styles.platformContent}>
-                <View
-                  style={[
-                    styles.platformButton,
-                    { backgroundColor: platform.gradient[0] },
-                  ]}
-                >
-                  <Text style={styles.platformButtonText}>
-                    {platform.title}
+      <ScrollView style={styles.scrollView} ref={scrollViewRef}>
+        {/* Hero Section */}
+        <HeroSection navigation={navigation} />
+
+        {/* Stats Section */}
+        <StatsSection />
+
+        {/* Multi-Platform Section */}
+        <View style={styles.platformSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>QUẢN LÝ TRÊN ĐA NỀN TẢNG</Text>
+            <Text style={styles.sectionSubtitle}>
+              ĐIỆN THOẠI - IPAD - MÁY TÍNH - WEBSITE
+            </Text>
+            <Text style={styles.sectionDescription}>
+              Với sự đa dạng về nền tảng sẽ giúp bạn quản lý nhà trọ linh động
+              hơn, thay vì mẫu excel phức tạp hay sổ sách rờm rà. Thật tuyệt vời
+              khi nay bạn đã có thể quản lý nhà trọ của mình trên mọi thiết bị
+              bạn có.
+            </Text>
+          </View>
+
+          <View style={styles.platformGrid}>
+            {platforms.map((platform, index) => (
+              <View key={index} style={styles.platformCard}>
+                <Image
+                  source={{ uri: platform.image }}
+                  style={styles.platformImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.platformContent}>
+                  <View
+                    style={[
+                      styles.platformButton,
+                      { backgroundColor: platform.gradient[0] },
+                    ]}
+                  >
+                    <Text style={styles.platformButtonText}>
+                      {platform.title}
+                    </Text>
+                  </View>
+                  <Text style={styles.platformDescription}>
+                    {platform.description}
                   </Text>
                 </View>
-                <Text style={styles.platformDescription}>
-                  {platform.description}
-                </Text>
               </View>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Features Section */}
-      <View style={styles.featuresSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.featureTitle}>Tính Năng Nổi Bật</Text>
-          <Text style={styles.sectionDescription}>
-            Giải pháp toàn diện từ A-Z cho việc quản lý phòng trọ hiện đại
-          </Text>
-        </View>
-
-        <View style={styles.featuresGrid}>
-          {features.map((feature, index) => {
-            const IconComponent = feature.icon;
-            return (
-              <View key={index} style={styles.featureCard}>
-                <View
-                  style={[
-                    styles.featureIcon,
-                    { backgroundColor: feature.gradient[0] },
-                  ]}
-                >
-                  <IconComponent size={32} color="#fff" strokeWidth={2} />
-                </View>
-                <Text style={styles.featureCardTitle}>{feature.title}</Text>
-                <Text style={styles.featureCardDescription}>
-                  {feature.description}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Why Choose Section */}
-      <WhyChoose />
-
-      {/* Testimonials Section */}
-      <Testimonials />
-
-      {/* CTA Section */}
-      <View style={styles.ctaSection}>
-        <View style={styles.ctaCard}>
-          <Globe size={64} color="#2563eb" strokeWidth={2} />
-          <Text style={styles.ctaTitle}>Sẵn Sàng Bắt Đầu?</Text>
-          <Text style={styles.ctaDescription}>
-            Đăng ký ngay để trải nghiệm 30 ngày miễn phí và nhận hỗ trợ setup từ
-            đội ngũ chuyên gia
-          </Text>
-          <TouchableOpacity style={styles.ctaButton}>
-            <Text style={styles.ctaButtonText}>Đăng Ký Ngay</Text>
-            <ArrowRight size={20} color="#fff" strokeWidth={2} />
-          </TouchableOpacity>
-          <View style={styles.ctaNote}>
-            <CheckCircle size={20} color="#10b981" strokeWidth={2} />
-            <Text style={styles.ctaNoteText}>Không cần thẻ tín dụng</Text>
+            ))}
           </View>
         </View>
-      </View>
-    </ScrollView>
+
+        {/* Features Section */}
+        <View style={styles.featuresSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.featureTitle}>Tính Năng Nổi Bật</Text>
+            <Text style={styles.sectionDescription}>
+              Giải pháp toàn diện từ A-Z cho việc quản lý phòng trọ hiện đại
+            </Text>
+          </View>
+
+          <View style={styles.featuresGrid}>
+            {features.map((feature, index) => {
+              const IconComponent = feature.icon;
+              return (
+                <View key={index} style={styles.featureCard}>
+                  <View
+                    style={[
+                      styles.featureIcon,
+                      { backgroundColor: feature.gradient[0] },
+                    ]}
+                  >
+                    <IconComponent size={32} color="#fff" strokeWidth={2} />
+                  </View>
+                  <Text style={styles.featureCardTitle}>{feature.title}</Text>
+                  <Text style={styles.featureCardDescription}>
+                    {feature.description}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Why Choose Section */}
+        <WhyChoose />
+
+        {/* Testimonials Section */}
+        <Testimonials />
+
+        {/* CTA Section */}
+        <View style={styles.ctaSection}>
+          <View style={styles.ctaCard}>
+            <Globe size={64} color="#2563eb" strokeWidth={2} />
+            <Text style={styles.ctaTitle}>Sẵn Sàng Bắt Đầu?</Text>
+            <Text style={styles.ctaDescription}>
+              Đăng ký ngay để trải nghiệm 30 ngày miễn phí và nhận hỗ trợ setup
+              từ đội ngũ chuyên gia
+            </Text>
+            <TouchableOpacity style={styles.ctaButton} onPress={handleRegister}>
+              <Text style={styles.ctaButtonText}>Đăng Ký Ngay</Text>
+              <ArrowRight size={20} color="#fff" strokeWidth={2} />
+            </TouchableOpacity>
+            <View style={styles.ctaNote}>
+              <CheckCircle size={20} color="#10b981" strokeWidth={2} />
+              <Text style={styles.ctaNoteText}>Không cần thẻ tín dụng</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -238,6 +300,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f0f9ff",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  // Top Alert Styles
+  topAlert: {
+    position: "absolute",
+    top: 10,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    zIndex: 1000,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  successAlert: {
+    backgroundColor: "#10B981",
+  },
+  alertIcon: {
+    marginRight: 8,
+  },
+  alertMessage: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
   },
   platformSection: {
     paddingVertical: 48,
