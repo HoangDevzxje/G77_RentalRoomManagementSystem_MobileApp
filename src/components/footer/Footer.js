@@ -84,10 +84,8 @@ const contactInfo = [
   { icon: MapPin, text: "Hà Nội, Việt Nam", href: "#" },
 ];
 
-// 👉 Hàm xử lý mở link
 const handleLinkPress = (href, navigation) => {
   if (href.startsWith("/")) {
-    // Link nội bộ → map route
     switch (href) {
       case "/Home":
         navigation.navigate("Trang chủ");
@@ -99,13 +97,12 @@ const handleLinkPress = (href, navigation) => {
         navigation.navigate("Đăng tin phòng");
         break;
       case "/contact":
-        navigation.navigate("Tài khoản"); // Hoặc màn Liên hệ riêng nếu có
+        navigation.navigate("Tài khoản");
         break;
       default:
         console.warn("Chưa map route:", href);
     }
   } else {
-    // Link ngoài → mở bằng Linking
     Linking.openURL(href);
   }
 };

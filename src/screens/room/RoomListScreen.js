@@ -86,7 +86,10 @@ export default function RoomListScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#14b8a6" />
+        <View style={styles.loadingIconContainer}>
+          <Ionicons name="home-outline" size={48} color="#0d9488" />
+        </View>
+        <ActivityIndicator size="large" color="#0d9488" />
         <Text style={styles.loadingText}>Đang tải danh sách phòng...</Text>
       </View>
     );
@@ -95,12 +98,21 @@ export default function RoomListScreen({ route, navigation }) {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.error}>❌ {error}</Text>
+        <View style={styles.errorIconContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
+        </View>
+        <Text style={styles.error}>{error}</Text>
         {!isAuthenticated && (
           <TouchableOpacity
             style={styles.button}
             onPress={() => navigation.navigate("Login")}
           >
+            <Ionicons
+              name="log-in-outline"
+              size={18}
+              color="white"
+              style={styles.buttonIcon}
+            />
             <Text style={styles.buttonText}>Đăng nhập</Text>
           </TouchableOpacity>
         )}
@@ -110,7 +122,6 @@ export default function RoomListScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchWrapper}>
           <Ionicons
@@ -126,19 +137,29 @@ export default function RoomListScreen({ route, navigation }) {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {searchQuery !== "" && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={20} color="#94a3b8" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* Results Count */}
       <View style={styles.resultCountContainer}>
-        <Text style={styles.resultCount}>
-          Tìm thấy {filteredRooms.length} phòng
-        </Text>
+        <View style={styles.resultCountWrapper}>
+          <Ionicons name="list-outline" size={18} color="#0d9488" />
+          <Text style={styles.resultCount}>
+            Tìm thấy {filteredRooms.length} phòng
+          </Text>
+        </View>
       </View>
 
       {filteredRooms.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.noRooms}>📭 Không tìm thấy phòng nào</Text>
+          <View style={styles.emptyIconContainer}>
+            <Ionicons name="file-tray-outline" size={64} color="#94a3b8" />
+          </View>
+          <Text style={styles.noRooms}>Không tìm thấy phòng nào</Text>
           <Text style={styles.noRoomsSub}>
             {searchQuery
               ? `với số phòng "${searchQuery}"`
@@ -151,6 +172,12 @@ export default function RoomListScreen({ route, navigation }) {
               style={styles.button}
               onPress={() => setSearchQuery("")}
             >
+              <Ionicons
+                name="refresh-outline"
+                size={18}
+                color="white"
+                style={styles.buttonIcon}
+              />
               <Text style={styles.buttonText}>Xóa tìm kiếm</Text>
             </TouchableOpacity>
           )}
@@ -181,6 +208,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     backgroundColor: "#f8fafc",
+  },
+  loadingIconContainer: {
+    marginBottom: 16,
+    opacity: 0.8,
+  },
+  errorIconContainer: {
+    marginBottom: 16,
+  },
+  emptyIconContainer: {
+    marginBottom: 16,
+    opacity: 0.6,
   },
   searchContainer: {
     backgroundColor: "white",
@@ -214,6 +252,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
+  resultCountWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   resultCount: {
     fontSize: 15,
     fontWeight: "600",
@@ -244,6 +287,7 @@ const styles = StyleSheet.create({
   },
   noRooms: {
     fontSize: 18,
+    fontWeight: "600",
     color: "#64748b",
     marginBottom: 8,
     textAlign: "center",
@@ -255,10 +299,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   button: {
-    backgroundColor: "#14b8a6",
+    backgroundColor: "#0d9488",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
+    shadowColor: "#0d9488",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  buttonIcon: {
+    marginRight: 4,
   },
   buttonText: {
     color: "white",

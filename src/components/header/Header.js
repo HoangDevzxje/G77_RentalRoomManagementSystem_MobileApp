@@ -50,7 +50,6 @@ const Header = ({ scrollY }) => {
         <View style={styles.logoContainer}>
           <Logo isScrolled={isScrolled} onPress={handleLogoPress} size={45} />
 
-          {/* Text đã được chuyển từ LogoHeader sang đây */}
           <View style={styles.textContainer}>
             {isScrolled ? (
               <LinearGradient

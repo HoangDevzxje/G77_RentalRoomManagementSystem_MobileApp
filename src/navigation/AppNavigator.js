@@ -12,8 +12,8 @@ import SendOtpScreen from "../screens/auth/SendOtpScreen";
 import HomeScreen from "../screens/home/HomeScreen";
 import RoomListScreen from "../screens/room/RoomListScreen";
 import RoomDetailScreen from "../screens/room/RoomDetailScreen";
-import AccountScreen from "../screens/auth/AccountScreen";
-import ProfileScreen from "../screens/auth/ProfileScreen";
+import ProfileScreen from "../screens/profile/ProfileScreen";
+import AccountScreen from "../screens/profile/AccountScreen";
 
 const Stack = createNativeStackNavigator();
 

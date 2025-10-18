@@ -1,8 +1,14 @@
-// components/room/RoomCard.js
 import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 
 export default function RoomCard({ room, onPress, cardWidth, cardHeight }) {
+  const getImageUri = () => {
+    if (room.images && Array.isArray(room.images) && room.images.length > 0) {
+      return room.images[0];
+    }
+    return "https://bandon.vn/uploads/posts/thiet-ke-nha-tro-dep-2020-bandon-0.jpg";
+  };
+
   return (
     <TouchableOpacity
       style={[styles.roomCard, { width: cardWidth }]}
@@ -10,18 +16,13 @@ export default function RoomCard({ room, onPress, cardWidth, cardHeight }) {
     >
       {/* Room Image */}
       <Image
-        source={{
-          uri:
-            room.images[0] ||
-            "https://bandon.vn/uploads/posts/thiet-ke-nha-tro-dep-2020-bandon-0.jpg",
-        }}
+        source={{ uri: getImageUri() }}
         style={[styles.roomImage, { height: cardHeight * 0.6 }]}
         resizeMode="cover"
       />
 
       {/* Card Content */}
       <View style={styles.cardContent}>
-        {/* Room Number & Status */}
         <View style={styles.header}>
           <Text style={styles.roomNumber}>P.{room.roomNumber}</Text>
           <View
@@ -32,7 +33,14 @@ export default function RoomCard({ room, onPress, cardWidth, cardHeight }) {
               room.status === "maintenance" && styles.maintenanceBadge,
             ]}
           >
-            <Text style={styles.statusText}>
+            <Text
+              style={[
+                styles.statusText,
+                room.status === "available" && styles.availableText,
+                room.status === "rented" && styles.rentedText,
+                room.status === "maintenance" && styles.maintenanceText,
+              ]}
+            >
               {room.status === "available"
                 ? "Trống"
                 : room.status === "rented"
@@ -43,12 +51,14 @@ export default function RoomCard({ room, onPress, cardWidth, cardHeight }) {
         </View>
 
         {/* Price */}
-        <Text style={styles.price}>{(room.price / 1000000).toFixed(1)} tr</Text>
+        <Text style={styles.price}>{(room.price / 1000000).toFixed(1)}tr</Text>
 
-        {/* Building Name */}
+        {/* Building Address */}
         {room.buildingId && (
-          <Text style={styles.buildingName} numberOfLines={1}>
-            {room.buildingId.name || "Tòa A"}
+          <Text style={styles.buildingAddress} numberOfLines={1}>
+            {typeof room.buildingId === "object"
+              ? room.buildingId.address || "Tòa A"
+              : "Tòa A"}
           </Text>
         )}
 
@@ -124,7 +134,7 @@ const styles = StyleSheet.create({
     color: "#dc2626",
     marginBottom: 4,
   },
-  buildingName: {
+  buildingAddress: {
     fontSize: 13,
     color: "#64748b",
     marginBottom: 4,
