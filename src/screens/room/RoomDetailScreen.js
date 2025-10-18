@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from "react-native";
 import { getRoomById } from "../../api/roomApi";
+import { getRoomFurnitures } from "../../api/furnitureApi";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
@@ -22,12 +23,16 @@ export default function RoomDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [furnitures, setFurnitures] = useState([]);
+  const [furnituresLoading, setFurnituresLoading] = useState(true);
+  const [furnituresExpanded, setFurnituresExpanded] = useState(false);
 
   useEffect(() => {
     const fetchRoomDetail = async () => {
       try {
         const data = await getRoomById(id);
         setRoom(data);
+        fetchFurnitures(data._id);
       } catch (error) {
         console.error("Error fetching room:", error);
       } finally {
@@ -38,17 +43,33 @@ export default function RoomDetailScreen({ route, navigation }) {
     fetchRoomDetail();
   }, [id]);
 
+  const fetchFurnitures = async (roomId) => {
+    try {
+      const data = await getRoomFurnitures(roomId);
+      if (Array.isArray(data)) {
+        setFurnitures(data);
+      } else if (data && Array.isArray(data.data)) {
+        setFurnitures(data.data);
+      } else {
+        setFurnitures([]);
+      }
+    } catch (error) {
+      console.error("Error fetching furnitures:", error);
+      setFurnitures([]);
+    } finally {
+      setFurnituresLoading(false);
+    }
+  };
+
   const handleImageError = () => {
     setImageError(true);
   };
 
   const getImageUri = () => {
     if (imageError) return DEFAULT_IMAGE;
-
     if (room?.images && Array.isArray(room.images) && room.images.length > 0) {
       return room.images[currentImageIndex] || DEFAULT_IMAGE;
     }
-
     return DEFAULT_IMAGE;
   };
 
@@ -69,29 +90,29 @@ export default function RoomDetailScreen({ route, navigation }) {
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
-  const getStatusColor = (status) => {
+  const getStatusInfo = (status) => {
     switch (status) {
       case "available":
-        return { color: "#059669", bg: "#d1fae5", text: "🟢 Còn trống" };
+        return { color: "#10b981", text: "Còn trống" };
       case "rented":
-        return { color: "#dc2626", bg: "#fee2e2", text: "🔴 Đã thuê" };
+        return { color: "#ef4444", text: "Đã thuê" };
       case "maintenance":
-        return { color: "#d97706", bg: "#fef3c7", text: "🟡 Bảo trì" };
+        return { color: "#f59e0b", text: "Bảo trì" };
       default:
-        return { color: "#6b7280", bg: "#f3f4f6", text: "⚪ Không xác định" };
+        return { color: "#6b7280", text: "Không xác định" };
     }
   };
 
-  const getUtilityTypeText = (type) => {
-    switch (type) {
-      case "byNumber":
-        return "theo chỉ số";
-      case "byPerson":
-        return "theo đầu người";
-      case "included":
-        return "đã bao gồm";
+  const getConditionInfo = (condition) => {
+    switch (condition) {
+      case "good":
+        return { icon: "checkmark-circle", color: "#10b981", text: "Tốt" };
+      case "damaged":
+        return { icon: "close-circle", color: "#ef4444", text: "Hỏng" };
+      case "under_repair":
+        return { icon: "construct", color: "#f59e0b", text: "Đang sửa" };
       default:
-        return type;
+        return { icon: "help-circle", color: "#94a3b8", text: "Không rõ" };
     }
   };
 
@@ -104,7 +125,7 @@ export default function RoomDetailScreen({ route, navigation }) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#14b8a6" />
-        <Text style={styles.loadingText}>Đang tải thông tin phòng...</Text>
+        <Text style={styles.loadingText}>Đang tải...</Text>
       </View>
     );
   }
@@ -112,227 +133,261 @@ export default function RoomDetailScreen({ route, navigation }) {
   if (!room) {
     return (
       <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
+        <Ionicons name="home-outline" size={64} color="#cbd5e1" />
         <Text style={styles.errorText}>Không tìm thấy thông tin phòng</Text>
         <TouchableOpacity
-          style={styles.backButton}
+          style={styles.primaryButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>Quay lại</Text>
+          <Text style={styles.primaryButtonText}>Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const statusInfo = getStatusColor(room.status);
+  const statusInfo = getStatusInfo(room.status);
+  const displayedFurnitures = furnituresExpanded
+    ? furnitures
+    : furnitures.slice(0, 4);
+  const hasFurnitures = furnitures.length > 0;
+  const hasMoreFurnitures = furnitures.length > 4;
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backIconButton}
+          style={styles.headerButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color="#1e293b" />
+          <Ionicons name="arrow-back" size={24} color="#0f172a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Phòng {room.roomNumber}</Text>
-        <View style={styles.headerPlaceholder} />
+        <View style={styles.headerButton} />
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.imageSection}>
+        {/* Image Gallery */}
+        <View style={styles.imageContainer}>
           <Image
             source={{ uri: getImageUri() }}
-            style={styles.roomImage}
+            style={styles.image}
             resizeMode="cover"
             onError={handleImageError}
           />
+
+          {/* Status Badge */}
           <View
-            style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}
+            style={[styles.statusBadge, { backgroundColor: statusInfo.color }]}
           >
-            <Text style={[styles.statusText, { color: statusInfo.color }]}>
-              {statusInfo.text}
-            </Text>
+            <Text style={styles.statusText}>{statusInfo.text}</Text>
           </View>
 
+          {/* Image Navigation */}
           {getImageList().length > 1 && (
             <>
               <TouchableOpacity
-                style={[styles.imageNavButton, styles.imageNavLeft]}
+                style={[styles.navButton, styles.navLeft]}
                 onPress={handlePrevImage}
               >
-                <Ionicons name="chevron-back" size={24} color="white" />
+                <Ionicons name="chevron-back" size={20} color="white" />
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.imageNavButton, styles.imageNavRight]}
+                style={[styles.navButton, styles.navRight]}
                 onPress={handleNextImage}
               >
-                <Ionicons name="chevron-forward" size={24} color="white" />
+                <Ionicons name="chevron-forward" size={20} color="white" />
               </TouchableOpacity>
 
-              <View style={styles.imageCounter}>
-                <Text style={styles.imageCounterText}>
-                  {currentImageIndex + 1} / {getImageList().length}
-                </Text>
-              </View>
-
+              {/* Dots Indicator */}
               <View style={styles.dotsContainer}>
                 {getImageList().map((_, index) => (
-                  <TouchableOpacity
+                  <View
                     key={index}
-                    onPress={() => setCurrentImageIndex(index)}
-                  >
-                    <View
-                      style={[
-                        styles.dot,
-                        index === currentImageIndex && styles.activeDot,
-                      ]}
-                    />
-                  </TouchableOpacity>
+                    style={[
+                      styles.dot,
+                      index === currentImageIndex && styles.activeDot,
+                    ]}
+                  />
                 ))}
               </View>
             </>
           )}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.roomHeader}>
-            <Text style={styles.price}>Giá: {formatPrice(room.price)}</Text>
-            {room.buildingId && (
-              <Text style={styles.buildingName}>
-                {typeof room.buildingId === "object"
-                  ? room.buildingId.name
-                  : room.buildingId}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {(room.buildingId?.address || room.buildingId?.description) && (
+        <View style={styles.content}>
+          {/* Room Info */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="location-outline" size={20} color="#14b8a6" />
-              <Text style={styles.sectionTitle}>Địa chỉ & Thông tin</Text>
-            </View>
-            {room.buildingId?.address && (
-              <Text style={styles.address}>{room.buildingId.address}</Text>
-            )}
-            {room.buildingId?.description && (
-              <Text style={styles.description}>
-                {room.buildingId.description}
+            <View style={styles.roomHeader}>
+              <Text style={styles.price}>
+                Giá: {formatPrice(room.price)}/tháng
               </Text>
-            )}
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <View style={styles.detailsGrid}>
-            <View style={styles.detailItem}>
-              <Ionicons name="resize-outline" size={20} color="#14b8a6" />
-              <View style={styles.detailText}>
-                <Text style={styles.detailLabel}>Diện tích</Text>
-                <Text style={styles.detailValue}>
-                  {room.area ? `${room.area}m²` : "—"}
-                </Text>
-              </View>
             </View>
 
-            <View style={styles.detailItem}>
-              <Ionicons name="people-outline" size={20} color="#14b8a6" />
-              <View style={styles.detailText}>
-                <Text style={styles.detailLabel}>Số người</Text>
-                <Text style={styles.detailValue}>
+            {room.buildingId?.address && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Địa chỉ</Text>
+                <View style={styles.addressRow}>
+                  <Ionicons name="location-outline" size={18} color="#0f172a" />
+                  <Text style={styles.address}>{room.buildingId.address}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Quick Info */}
+            <View style={styles.quickInfo}>
+              <View style={styles.infoItem}>
+                <Ionicons name="resize-outline" size={18} color="#64748b" />
+                <Text style={styles.infoText}>{room.area || "—"}m²</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.infoItem}>
+                <Ionicons name="people-outline" size={18} color="#64748b" />
+                <Text style={styles.infoText}>
                   {room.maxTenants || 1} người
                 </Text>
               </View>
             </View>
           </View>
-        </View>
 
-        {room.description && (
+          {/* Description */}
+          {room.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Mô tả</Text>
+              <Text style={styles.description}>{room.description}</Text>
+            </View>
+          )}
+
+          {/* Utilities */}
+          {room.buildingId && typeof room.buildingId === "object" && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Tiện ích</Text>
+              <View style={styles.utilitiesRow}>
+                <View style={styles.utilityItem}>
+                  <Ionicons name="flash" size={18} color="#f59e0b" />
+                  <View style={styles.utilityInfo}>
+                    <Text style={styles.utilityLabel}>Điện</Text>
+                    <Text style={styles.utilityValue}>
+                      {room.buildingId.eIndexType === "included"
+                        ? "Đã bao gồm"
+                        : `${
+                            room.buildingId.ePrice?.toLocaleString() || "0"
+                          }đ/kWh`}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.utilityItem}>
+                  <Ionicons name="water" size={18} color="#0ea5e9" />
+                  <View style={styles.utilityInfo}>
+                    <Text style={styles.utilityLabel}>Nước</Text>
+                    <Text style={styles.utilityValue}>
+                      {room.buildingId.wIndexType === "included"
+                        ? "Đã bao gồm"
+                        : `${
+                            room.buildingId.wPrice?.toLocaleString() || "0"
+                          }đ/m³`}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Furniture */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons
-                name="document-text-outline"
-                size={20}
+              <Text style={styles.sectionTitle}>Nội thất</Text>
+              {hasFurnitures && (
+                <Text style={styles.countBadge}>{furnitures.length}</Text>
+              )}
+            </View>
+
+            {furnituresLoading ? (
+              <ActivityIndicator
+                size="small"
                 color="#14b8a6"
+                style={{ marginTop: 12 }}
               />
-              <Text style={styles.sectionTitle}>Mô tả phòng</Text>
-            </View>
-            <Text style={styles.description}>{room.description}</Text>
-          </View>
-        )}
+            ) : !hasFurnitures ? (
+              <Text style={styles.emptyText}>Chưa có thông tin nội thất</Text>
+            ) : (
+              <>
+                <View style={styles.furnitureGrid}>
+                  {displayedFurnitures.map((item, index) => {
+                    const conditionInfo = getConditionInfo(item.condition);
+                    const name =
+                      item.furnitureId?.name || item.name || "Nội thất";
 
-        {room.buildingId && typeof room.buildingId === "object" && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="flash-outline" size={20} color="#14b8a6" />
-              <Text style={styles.sectionTitle}>Tiện ích & Chi phí</Text>
-            </View>
-
-            <View style={styles.utilitiesGrid}>
-              <View style={styles.utilityCard}>
-                <View style={styles.utilityHeader}>
-                  <Ionicons name="flash" size={16} color="#f59e0b" />
-                  <Text style={styles.utilityTitle}>Điện</Text>
+                    return (
+                      <View
+                        key={item._id || index}
+                        style={styles.furnitureCard}
+                      >
+                        <View style={styles.furnitureTop}>
+                          <Text style={styles.furnitureName} numberOfLines={1}>
+                            {name}
+                          </Text>
+                          <Ionicons
+                            name={conditionInfo.icon}
+                            size={16}
+                            color={conditionInfo.color}
+                          />
+                        </View>
+                        <Text style={styles.furnitureQuantity}>
+                          SL: {item.quantity || 1}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
-                {room.buildingId.eIndexType === "included" ? (
-                  <Text style={styles.utilityIncluded}>Đã bao gồm</Text>
-                ) : (
-                  <Text style={styles.utilityPrice}>
-                    {room.buildingId.ePrice?.toLocaleString() || "0"} đ/{" "}
-                    {getUtilityTypeText(
-                      room.buildingId.eIndexType || "byNumber"
-                    )}
-                  </Text>
-                )}
-              </View>
 
-              <View style={styles.utilityCard}>
-                <View style={styles.utilityHeader}>
-                  <Ionicons name="water" size={16} color="#0891b2" />
-                  <Text style={styles.utilityTitle}>Nước</Text>
-                </View>
-                {room.buildingId.wIndexType === "included" ? (
-                  <Text style={styles.utilityIncluded}>Đã bao gồm</Text>
-                ) : (
-                  <Text style={styles.utilityPrice}>
-                    {room.buildingId.wPrice?.toLocaleString() || "0"} đ/{" "}
-                    {getUtilityTypeText(
-                      room.buildingId.wIndexType || "byNumber"
-                    )}
-                  </Text>
+                {hasMoreFurnitures && (
+                  <TouchableOpacity
+                    style={styles.expandButton}
+                    onPress={() => setFurnituresExpanded(!furnituresExpanded)}
+                  >
+                    <Text style={styles.expandText}>
+                      {furnituresExpanded
+                        ? "Thu gọn"
+                        : `Xem thêm ${furnitures.length - 4} nội thất`}
+                    </Text>
+                    <Ionicons
+                      name={furnituresExpanded ? "chevron-up" : "chevron-down"}
+                      size={16}
+                      color="#14b8a6"
+                    />
+                  </TouchableOpacity>
                 )}
-              </View>
-            </View>
+              </>
+            )}
           </View>
-        )}
+        </View>
       </ScrollView>
 
-      <View style={styles.actionSection}>
+      {/* Action Buttons */}
+      <View style={styles.actions}>
         {room.status === "available" ? (
-          <TouchableOpacity style={styles.bookButton}>
-            <Ionicons name="calendar-outline" size={20} color="white" />
-            <Text style={styles.bookButtonText}>Đặt lịch xem phòng</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity style={styles.primaryButton}>
+              <Ionicons name="calendar-outline" size={20} color="white" />
+              <Text style={styles.primaryButtonText}>Đặt lịch xem</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton}>
+              <Ionicons name="chatbubble-outline" size={20} color="#14b8a6" />
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity style={styles.disabledButton} disabled>
             <Text style={styles.disabledButtonText}>
-              {room.status === "rented"
-                ? "Phòng đã được thuê"
-                : "Phòng đang bảo trì"}
+              {room.status === "rented" ? "Đã được thuê" : "Đang bảo trì"}
             </Text>
           </TouchableOpacity>
         )}
-
-        <TouchableOpacity style={styles.contactButton}>
-          <Ionicons name="chatbubble-outline" size={20} color="#14b8a6" />
-          <Text style={styles.contactButtonText}>Nhắn tin cho chủ trọ</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -341,294 +396,320 @@ export default function RoomDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#ffffff",
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
+    gap: 16,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
+    fontSize: 15,
     color: "#64748b",
   },
   errorText: {
     fontSize: 16,
-    color: "#ef4444",
-    marginTop: 12,
-    marginBottom: 20,
+    color: "#64748b",
     textAlign: "center",
   },
+
+  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "white",
     paddingHorizontal: 16,
     paddingTop: 50,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    paddingBottom: 16,
+    backgroundColor: "#ffffff",
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#1e293b",
+    fontWeight: "700",
+    color: "#0f172a",
   },
-  backIconButton: {
-    padding: 4,
-  },
-  backButton: {
-    backgroundColor: "#14b8a6",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  headerPlaceholder: {
-    width: 32,
-  },
+
   scrollContent: {
-    paddingBottom: 4,
+    paddingBottom: 16,
   },
-  imageSection: {
+
+  // Image
+  imageContainer: {
     position: "relative",
+    backgroundColor: "#f1f5f9",
   },
-  roomImage: {
+  image: {
     width: width,
-    height: 210,
-    backgroundColor: "#e5e7eb",
+    height: 280,
   },
   statusBadge: {
     position: "absolute",
-    top: 10,
-    right: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    top: 16,
+    right: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   statusText: {
-    fontSize: 12,
+    color: "white",
+    fontSize: 13,
     fontWeight: "600",
   },
-  imageNavButton: {
+  navButton: {
     position: "absolute",
     top: "50%",
-    transform: [{ translateY: -20 }],
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    transform: [{ translateY: -18 }],
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
   },
-  imageNavLeft: {
-    left: 12,
+  navLeft: {
+    left: 16,
   },
-  imageNavRight: {
-    right: 12,
-  },
-  imageCounter: {
-    position: "absolute",
-    top: 10,
-    left: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  imageCounterText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
+  navRight: {
+    right: 16,
   },
   dotsContainer: {
     position: "absolute",
-    bottom: 10,
+    bottom: 16,
     left: 0,
     right: 0,
     flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    gap: 4,
+    gap: 6,
   },
   dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
-  },
-  activeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+  },
+  activeDot: {
     backgroundColor: "white",
+    width: 20,
+  },
+
+  // Content
+  content: {
+    padding: 20,
+    gap: 24,
   },
   section: {
-    backgroundColor: "white",
-    marginTop: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    gap: 12,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    justifyContent: "space-between",
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginLeft: 6,
+    fontWeight: "600",
+    color: "#0f172a",
   },
+  countBadge: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#14b8a6",
+    backgroundColor: "#f0fdfa",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+
+  // Room Info
   roomHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
-  price: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#dc2626",
+  roomNumber: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 4,
   },
   buildingName: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#64748b",
   },
-  detailsGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
+  price: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#dc2626",
   },
-  detailItem: {
+  quickInfo: {
     flexDirection: "row",
     alignItems: "center",
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  infoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     flex: 1,
+  },
+  infoText: {
+    fontSize: 15,
+    color: "#0f172a",
+    fontWeight: "500",
+  },
+  divider: {
+    width: 1,
+    height: 20,
+    backgroundColor: "#e2e8f0",
+  },
+
+  // Description & Address
+  description: {
+    fontSize: 15,
+    color: "#475569",
+    lineHeight: 22,
+  },
+  addressRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  address: {
+    flex: 1,
+    fontSize: 15,
+    color: "#475569",
+    lineHeight: 22,
+  },
+
+  // Utilities
+  utilitiesRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  utilityItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
     backgroundColor: "#f8fafc",
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderRadius: 12,
   },
-  detailText: {
-    marginLeft: 6,
+  utilityInfo: {
     flex: 1,
   },
-  detailLabel: {
+  utilityLabel: {
     fontSize: 13,
     color: "#64748b",
     marginBottom: 2,
   },
-  detailValue: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  address: {
+  utilityValue: {
     fontSize: 15,
-    color: "#374151",
-    lineHeight: 20,
+    fontWeight: "600",
+    color: "#0f172a",
   },
-  description: {
-    fontSize: 15,
-    color: "#4b5563",
-    lineHeight: 20,
+
+  // Furniture
+  emptyText: {
+    fontSize: 14,
+    color: "#94a3b8",
+    textAlign: "center",
+    paddingVertical: 16,
   },
-  utilitiesGrid: {
+  furnitureGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  furnitureCard: {
+    width: (width - 60) / 2,
+    padding: 12,
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+  },
+  furnitureTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 8,
-  },
-  utilityCard: {
-    backgroundColor: "#f8fafc",
-    padding: 10,
-    borderRadius: 8,
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  utilityHeader: {
-    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  utilityTitle: {
+  furnitureName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1e293b",
-    marginLeft: 5,
+    color: "#0f172a",
+    flex: 1,
+    marginRight: 6,
   },
-  utilityPrice: {
+  furnitureQuantity: {
     fontSize: 13,
-    color: "#374151",
-    lineHeight: 16,
+    color: "#64748b",
   },
-  utilityIncluded: {
-    fontSize: 13,
-    color: "#059669",
-    fontWeight: "600",
-  },
-  actionSection: {
-    padding: 12,
-    paddingBottom: 14,
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  bookButton: {
-    backgroundColor: "#14b8a6",
+  expandButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginBottom: 8,
+    gap: 6,
+    paddingVertical: 8,
+    marginTop: 4,
   },
-  bookButtonText: {
+  expandText: {
+    fontSize: 14,
+    color: "#14b8a6",
+    fontWeight: "500",
+  },
+
+  // Actions
+  actions: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 16,
+    paddingBottom: 20,
+    backgroundColor: "#ffffff",
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  primaryButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#14b8a6",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  primaryButtonText: {
     color: "white",
     fontSize: 15,
-    fontWeight: "bold",
-    marginLeft: 5,
-  },
-  contactButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#14b8a6",
-    backgroundColor: "white",
-  },
-  contactButtonText: {
-    color: "#14b8a6",
-    fontSize: 15,
     fontWeight: "600",
-    marginLeft: 5,
+  },
+  secondaryButton: {
+    width: 52,
+    height: 52,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f0fdfa",
+    borderRadius: 12,
   },
   disabledButton: {
-    backgroundColor: "#94a3b8",
-    paddingVertical: 10,
-    borderRadius: 8,
+    flex: 1,
+    backgroundColor: "#f1f5f9",
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
-    marginBottom: 8,
   },
   disabledButtonText: {
-    color: "white",
-    fontSize: 14,
+    color: "#94a3b8",
+    fontSize: 15,
     fontWeight: "600",
   },
 });
