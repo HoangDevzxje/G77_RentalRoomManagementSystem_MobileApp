@@ -39,10 +39,8 @@ export default function AccountScreen() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempFullName, setTempFullName] = useState("");
 
-  // Hàm chuyển đổi từ yyyy-mm-dd sang dd/mm/yyyy
   const formatDateToVN = (dateString) => {
     if (!dateString) return "";
-
     if (dateString.includes("/")) return dateString;
 
     const date = new Date(dateString);
@@ -55,7 +53,6 @@ export default function AccountScreen() {
     return `${day}/${month}/${year}`;
   };
 
-  // Hàm chuyển đổi từ dd/mm/yyyy sang yyyy-mm-dd
   const formatDateToISO = (dateString) => {
     if (!dateString) return "";
 
@@ -69,7 +66,6 @@ export default function AccountScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  // Hàm validate định dạng dd/mm/yyyy
   const isValidDate = (dateString) => {
     if (!dateString) return true;
 
@@ -92,7 +88,6 @@ export default function AccountScreen() {
     );
   };
 
-  // Hàm tự động định dạng khi nhập
   const formatDateInput = (text) => {
     let cleaned = text.replace(/[^0-9]/g, "");
 
@@ -215,7 +210,6 @@ export default function AccountScreen() {
       .slice(0, 2);
   };
 
-  // Hàm xử lý cập nhật địa chỉ từ component con
   const handleAddressUpdate = (updatedAddresses) => {
     setUserData((prev) => ({ ...prev, address: updatedAddresses }));
   };
@@ -226,58 +220,49 @@ export default function AccountScreen() {
   if (!user) {
     return (
       <View style={styles.container}>
-        <LinearGradient
-          colors={["#14b8a6", "#06b6d4", "#3b82f6"]}
-          style={[styles.gradientBackground, { paddingTop: headerPaddingTop }]}
-        >
+        <View style={[styles.simpleHeader, { paddingTop: headerPaddingTop }]}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Tài Khoản</Text>
           </View>
-          <View style={styles.centerContent}>
-            <Ionicons name="person-circle-outline" size={80} color="#fff" />
-            <Text style={styles.noUserText}>
-              Vui lòng đăng nhập để xem thông tin
-            </Text>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => navigation.navigate("Login")}
-            >
-              <Text style={styles.primaryBtnText}>Đăng nhập</Text>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
+        </View>
+        <View style={styles.centerContent}>
+          <Ionicons name="person-circle-outline" size={80} color="#14b8a6" />
+          <Text style={styles.noUserText}>
+            Vui lòng đăng nhập để xem thông tin
+          </Text>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => navigation.navigate("Login")}
+          >
+            <Text style={styles.primaryBtnText}>Đăng nhập</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header với gradient */}
-      <LinearGradient
-        colors={["#14b8a6", "#06b6d4", "#3b82f6"]}
-        style={[styles.gradientHeader, { paddingTop: headerPaddingTop }]}
-      >
+      <View style={[styles.simpleHeader, { paddingTop: headerPaddingTop }]}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color="#1e293b" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Tài Khoản</Text>
           <TouchableOpacity style={styles.backButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color="#fff" />
+            <Ionicons name="log-out-outline" size={24} color="#ef4444" />
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* Nội dung chính */}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Profile Header Card */}
         <View style={styles.profileCard}>
           <View style={styles.profileHeader}>
             <LinearGradient
@@ -288,7 +273,6 @@ export default function AccountScreen() {
                 {getInitials(userData.fullName)}
               </Text>
             </LinearGradient>
-
             <View style={styles.profileInfo}>
               {!isEditingName ? (
                 <View style={styles.nameRow}>
@@ -296,11 +280,11 @@ export default function AccountScreen() {
                     {userData.fullName || "Chưa cập nhật"}
                   </Text>
                   <TouchableOpacity
+                    style={styles.editIconBtn}
                     onPress={() => {
                       setTempFullName(userData.fullName);
                       setIsEditingName(true);
                     }}
-                    style={styles.editIconBtn}
                   >
                     <Ionicons name="pencil" size={16} color="#64748b" />
                   </TouchableOpacity>
@@ -320,7 +304,7 @@ export default function AccountScreen() {
                     value={tempFullName}
                     onChangeText={setTempFullName}
                     placeholder="Nhập họ và tên"
-                    autoFocus
+                    autoFocus={true}
                   />
                   <TouchableOpacity
                     style={styles.checkBtn}
@@ -345,7 +329,6 @@ export default function AccountScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-
               <View style={styles.infoRow}>
                 <Ionicons name="mail" size={14} color="#64748b" />
                 <Text style={styles.infoText}>
@@ -354,7 +337,6 @@ export default function AccountScreen() {
               </View>
             </View>
           </View>
-
           {hasChanges() && (
             <TouchableOpacity
               style={[styles.saveTopBtn, loading && styles.saveBtnDisabled]}
@@ -364,24 +346,21 @@ export default function AccountScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <>
+                <View style={styles.saveButtonContent}>
                   <Ionicons name="save-outline" size={18} color="#fff" />
                   <Text style={styles.saveTopBtnText}>Lưu thay đổi</Text>
-                </>
+                </View>
               )}
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Two Column Layout */}
         <View style={styles.twoColumnContainer}>
-          {/* Personal Info Card */}
           <View style={styles.infoCard}>
             <View style={styles.cardHeader}>
               <Ionicons name="person" size={20} color="#14b8a6" />
               <Text style={styles.cardTitle}>Thông Tin Cá Nhân</Text>
             </View>
-
             <View style={styles.cardContent}>
               <View style={styles.fieldGroup}>
                 <View style={styles.fieldIcon}>
@@ -406,7 +385,7 @@ export default function AccountScreen() {
                   <Ionicons name="calendar" size={20} color="#14b8a6" />
                 </View>
                 <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Ngày sinh</Text>
+                  <Text style={styles.fieldLabel}>Ngày sinh (DD/MM/YYYY)</Text>
                   <TextInput
                     style={[
                       styles.fieldInput,
@@ -414,26 +393,24 @@ export default function AccountScreen() {
                         !isValidDate(userData.dob) &&
                         styles.errorInput,
                     ]}
-                    placeholder="DD/MM/YYYY"
+                    placeholder="01/01/2000"
                     value={userData.dob}
                     onChangeText={(text) => {
-                      const formattedText = formatDateInput(text);
-                      setUserData((prev) => ({ ...prev, dob: formattedText }));
+                      const formatted = formatDateInput(text);
+                      setUserData((prev) => ({ ...prev, dob: formatted }));
                     }}
                     keyboardType="numeric"
                     maxLength={10}
                   />
                   {userData.dob && !isValidDate(userData.dob) && (
-                    <Text style={styles.errorText}>
-                      Định dạng ngày không hợp lệ
-                    </Text>
+                    <Text style={styles.errorText}>Định dạng không hợp lệ</Text>
                   )}
                 </View>
               </View>
 
               <View style={styles.fieldGroup}>
                 <View style={styles.fieldIcon}>
-                  <Ionicons name="person" size={20} color="#14b8a6" />
+                  <Ionicons name="people" size={20} color="#14b8a6" />
                 </View>
                 <View style={styles.fieldContent}>
                   <Text style={styles.fieldLabel}>Giới tính</Text>
@@ -500,7 +477,6 @@ export default function AccountScreen() {
             </View>
           </View>
 
-          {/* Address Card - Sử dụng component mới */}
           <AddressManager
             addresses={userData.address}
             onAddressUpdate={handleAddressUpdate}
@@ -516,7 +492,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
-  gradientHeader: {
+  simpleHeader: {
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingBottom: 12,
     shadowColor: "#000",
@@ -525,6 +502,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
     zIndex: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
   header: {
     flexDirection: "row",
@@ -538,7 +517,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#1e293b",
   },
   content: {
     flex: 1,
@@ -555,13 +534,13 @@ const styles = StyleSheet.create({
   },
   noUserText: {
     fontSize: 16,
-    color: "#fff",
+    color: "#64748b",
     marginTop: 12,
     marginBottom: 20,
     textAlign: "center",
   },
   primaryBtn: {
-    backgroundColor: "#fff",
+    backgroundColor: "#14b8a6",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
@@ -572,7 +551,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   primaryBtnText: {
-    color: "#14b8a6",
+    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
   },
@@ -699,6 +678,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+  },
+  saveButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   saveBtnDisabled: {
     backgroundColor: "#94a3b8",
