@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,12 @@ import {
   TextInput,
   Alert,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Picker } from "@react-native-picker/picker";
+import { API_URL_SHIP as GHN_API_URL, TOKEN_SHIP as GHN_TOKEN } from "@env";
 
 const AddressManager = ({ addresses, onAddressUpdate }) => {
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -20,8 +23,111 @@ const AddressManager = ({ addresses, onAddressUpdate }) => {
     provinceName: "",
     districtName: "",
     wardName: "",
+    provinceId: "",
+    districtId: "",
+    wardCode: "",
   });
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
+
+  // API Data
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch provinces khi mở modal
+  useEffect(() => {
+    if (showAddressModal) {
+      fetchProvinces();
+    }
+  }, [showAddressModal]);
+
+  // Fetch districts khi chọn province
+  useEffect(() => {
+    if (newAddress.provinceId) {
+      fetchDistricts(newAddress.provinceId);
+    } else {
+      setDistricts([]);
+      setWards([]);
+    }
+  }, [newAddress.provinceId]);
+
+  // Fetch wards khi chọn district
+  useEffect(() => {
+    if (newAddress.districtId) {
+      fetchWards(newAddress.districtId);
+    } else {
+      setWards([]);
+    }
+  }, [newAddress.districtId]);
+
+  const fetchProvinces = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${GHN_API_URL}/master-data/province`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Token: GHN_TOKEN,
+        },
+      });
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        setProvinces(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching provinces:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách tỉnh/thành phố");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDistricts = async (provinceId) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${GHN_API_URL}/master-data/district`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Token: GHN_TOKEN,
+        },
+        body: JSON.stringify({ province_id: Number(provinceId) }),
+      });
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        setDistricts(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching districts:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách quận/huyện");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWards = async (districtId) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${GHN_API_URL}/master-data/ward`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Token: GHN_TOKEN,
+        },
+        body: JSON.stringify({ district_id: Number(districtId) }),
+      });
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        setWards(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching wards:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách phường/xã");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAddAddress = () => {
     setEditingAddress(null);
@@ -30,6 +136,9 @@ const AddressManager = ({ addresses, onAddressUpdate }) => {
       provinceName: "",
       districtName: "",
       wardName: "",
+      provinceId: "",
+      districtId: "",
+      wardCode: "",
     });
     setShowAddressModal(true);
   };
@@ -41,6 +150,9 @@ const AddressManager = ({ addresses, onAddressUpdate }) => {
       provinceName: address.provinceName || "",
       districtName: address.districtName || "",
       wardName: address.wardName || "",
+      provinceId: address.provinceId || "",
+      districtId: address.districtId || "",
+      wardCode: address.wardCode || "",
     });
     setShowAddressModal(true);
   };
@@ -65,25 +177,72 @@ const AddressManager = ({ addresses, onAddressUpdate }) => {
   const saveAddress = () => {
     if (
       !newAddress.address.trim() ||
-      !newAddress.provinceName.trim() ||
-      !newAddress.districtName.trim() ||
-      !newAddress.wardName.trim()
+      !newAddress.provinceId ||
+      !newAddress.districtId ||
+      !newAddress.wardCode
     ) {
       Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin địa chỉ");
       return;
     }
 
+    const addressData = {
+      address: newAddress.address,
+      provinceName: newAddress.provinceName,
+      districtName: newAddress.districtName,
+      wardName: newAddress.wardName,
+      provinceId: newAddress.provinceId,
+      districtId: newAddress.districtId,
+      wardCode: newAddress.wardCode,
+    };
+
     if (editingAddress) {
       const updatedAddresses = [...addresses];
-      updatedAddresses[editingAddress.index] = newAddress;
+      updatedAddresses[editingAddress.index] = addressData;
       onAddressUpdate(updatedAddresses);
     } else {
-      onAddressUpdate([...addresses, newAddress]);
+      onAddressUpdate([...addresses, addressData]);
       setSelectedAddressIndex(addresses.length);
     }
 
     setShowAddressModal(false);
     setEditingAddress(null);
+  };
+
+  const handleProvinceChange = (value) => {
+    const selectedProvince = provinces.find(
+      (p) => String(p.ProvinceID) === value
+    );
+    setNewAddress({
+      ...newAddress,
+      provinceId: value,
+      provinceName: selectedProvince?.ProvinceName || "",
+      districtId: "",
+      districtName: "",
+      wardCode: "",
+      wardName: "",
+    });
+  };
+
+  const handleDistrictChange = (value) => {
+    const selectedDistrict = districts.find(
+      (d) => String(d.DistrictID) === value
+    );
+    setNewAddress({
+      ...newAddress,
+      districtId: value,
+      districtName: selectedDistrict?.DistrictName || "",
+      wardCode: "",
+      wardName: "",
+    });
+  };
+
+  const handleWardChange = (value) => {
+    const selectedWard = wards.find((w) => w.WardCode === value);
+    setNewAddress({
+      ...newAddress,
+      wardCode: value,
+      wardName: selectedWard?.WardName || "",
+    });
   };
 
   const selectedAddress = addresses[selectedAddressIndex];
@@ -215,44 +374,94 @@ const AddressManager = ({ addresses, onAddressUpdate }) => {
             </LinearGradient>
 
             <ScrollView style={styles.modalScroll}>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Địa chỉ chi tiết (số nhà, đường...)"
-                placeholderTextColor="#94a3b8"
-                value={newAddress.address}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, address: text }))
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Phường/Xã"
-                placeholderTextColor="#94a3b8"
-                value={newAddress.wardName}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, wardName: text }))
-                }
-              />
+              {/* Tỉnh/Thành phố */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Tỉnh/Thành phố *</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={newAddress.provinceId}
+                    onValueChange={handleProvinceChange}
+                    style={styles.picker}
+                    enabled={!loading}
+                  >
+                    <Picker.Item label="Chọn tỉnh/thành phố" value="" />
+                    {provinces.map((province) => (
+                      <Picker.Item
+                        key={province.ProvinceID}
+                        label={province.ProvinceName}
+                        value={String(province.ProvinceID)}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
 
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Quận/Huyện"
-                placeholderTextColor="#94a3b8"
-                value={newAddress.districtName}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, districtName: text }))
-                }
-              />
+              {/* Quận/Huyện */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Quận/Huyện *</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={newAddress.districtId}
+                    onValueChange={handleDistrictChange}
+                    style={styles.picker}
+                    enabled={!loading && !!newAddress.provinceId}
+                  >
+                    <Picker.Item label="Chọn quận/huyện" value="" />
+                    {districts.map((district) => (
+                      <Picker.Item
+                        key={district.DistrictID}
+                        label={district.DistrictName}
+                        value={String(district.DistrictID)}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
 
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Tỉnh/Thành phố"
-                placeholderTextColor="#94a3b8"
-                value={newAddress.provinceName}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, provinceName: text }))
-                }
-              />
+              {/* Phường/Xã */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Phường/Xã *</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={newAddress.wardCode}
+                    onValueChange={handleWardChange}
+                    style={styles.picker}
+                    enabled={!loading && !!newAddress.districtId}
+                  >
+                    <Picker.Item label="Chọn phường/xã" value="" />
+                    {wards.map((ward) => (
+                      <Picker.Item
+                        key={ward.WardCode}
+                        label={ward.WardName}
+                        value={ward.WardCode}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+
+              {/* Địa chỉ chi tiết */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>
+                  Địa chỉ chi tiết (số nhà, đường...) *
+                </Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Nhập số nhà, tên đường..."
+                  placeholderTextColor="#94a3b8"
+                  value={newAddress.address}
+                  onChangeText={(text) =>
+                    setNewAddress((prev) => ({ ...prev, address: text }))
+                  }
+                />
+              </View>
+
+              {loading && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#14b8a6" />
+                  <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
+                </View>
+              )}
             </ScrollView>
 
             <View style={styles.modalActions}>
@@ -265,6 +474,7 @@ const AddressManager = ({ addresses, onAddressUpdate }) => {
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveModalButton]}
                 onPress={saveAddress}
+                disabled={loading}
               >
                 <LinearGradient
                   colors={["#14b8a6", "#06b6d4", "#3b82f6"]}
@@ -474,6 +684,26 @@ const styles = StyleSheet.create({
     maxHeight: 400,
     padding: 20,
   },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e293b",
+    marginBottom: 8,
+  },
+  pickerContainer: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    overflow: "hidden",
+  },
+  picker: {
+    height: 50,
+    color: "#1e293b",
+  },
   modalInput: {
     backgroundColor: "#f8fafc",
     paddingHorizontal: 16,
@@ -483,7 +713,17 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     fontSize: 16,
     color: "#1e293b",
-    marginBottom: 12,
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: "#64748b",
   },
   modalActions: {
     flexDirection: "row",

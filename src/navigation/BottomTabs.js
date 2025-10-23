@@ -5,7 +5,7 @@ import { View, ScrollView } from "react-native";
 
 import HomeScreen from "../screens/home/HomeScreen";
 import MessagesScreen from "../screens/messages/MessagesScreen";
-import RoomListScreen from "../screens/room/RoomListScreen";
+import RoomListScreen from "../screens/post/PostListScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 
 import Footer from "../components/footer/Footer";

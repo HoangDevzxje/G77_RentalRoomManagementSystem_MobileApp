@@ -10,9 +10,9 @@ import {
   Dimensions,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { getRooms } from "../../api/roomApi";
+import PostCard from "../../components/post/PostCard";
 import { useAuth } from "../../context/AuthContext";
-import RoomCard from "../../components/room/RoomCard";
+import { getPosts } from "../../api/postApi";
 
 const { width, height } = Dimensions.get("window");
 const HORIZONTAL_PADDING = 16;
@@ -22,27 +22,32 @@ const AVAILABLE_WIDTH = width - HORIZONTAL_PADDING * 2;
 const CARD_WIDTH = (AVAILABLE_WIDTH - CARD_SPACING) / NUM_COLUMNS;
 const CARD_HEIGHT = CARD_WIDTH * 1.35;
 
-export default function RoomListScreen({ route, navigation }) {
+export default function PostListScreen({ route, navigation }) {
   const buildingId = route.params?.buildingId;
-  const [rooms, setRooms] = useState([]);
-  const [filteredRooms, setFilteredRooms] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [filteredPosts, setFilteredPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    const fetchRooms = async () => {
+    const fetchPosts = async () => {
       try {
         setLoading(true);
-        let data;
+        const params = {};
+
         if (buildingId) {
-          data = await getRooms({ buildingId });
-        } else {
-          data = await getRooms({ status: "available" });
+          params.buildingId = buildingId;
         }
-        setRooms(data);
-        setFilteredRooms(data);
+
+        if (searchQuery.trim()) {
+          params.keyword = searchQuery.trim();
+        }
+
+        const data = await getPosts(params);
+        setPosts(data);
+        setFilteredPosts(data);
         setError(null);
       } catch (error) {
         setError(`Lỗi: ${error.response?.data?.message || error.message}`);
@@ -52,32 +57,34 @@ export default function RoomListScreen({ route, navigation }) {
     };
 
     if (isAuthenticated) {
-      fetchRooms();
+      fetchPosts();
     } else {
-      setError("Vui lòng đăng nhập để xem danh sách phòng");
+      setError("Vui lòng đăng nhập để xem danh sách bài đăng");
       setLoading(false);
     }
   }, [buildingId, isAuthenticated]);
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
-      setFilteredRooms(rooms);
+      setFilteredPosts(posts);
     } else {
-      const filtered = rooms.filter((room) =>
-        room.roomNumber.toLowerCase().includes(searchQuery.toLowerCase())
+      const filtered = posts.filter(
+        (post) =>
+          post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          post.address.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setFilteredRooms(filtered);
+      setFilteredPosts(filtered);
     }
-  }, [searchQuery, rooms]);
+  }, [searchQuery, posts]);
 
-  const renderRoomItem = ({ item, index }) => (
+  const renderPostItem = ({ item, index }) => (
     <View style={styles.cardWrapper}>
-      <RoomCard
-        room={item}
+      <PostCard
+        post={item}
         cardWidth={CARD_WIDTH}
         cardHeight={CARD_HEIGHT}
         onPress={() =>
-          navigation.navigate("RoomDetail", { id: item._id || item.id })
+          navigation.navigate("PostDetail", { id: item._id || item.id })
         }
       />
     </View>
@@ -87,10 +94,10 @@ export default function RoomListScreen({ route, navigation }) {
     return (
       <View style={styles.center}>
         <View style={styles.loadingIconContainer}>
-          <Ionicons name="home-outline" size={48} color="#0d9488" />
+          <Ionicons name="newspaper-outline" size={48} color="#0d9488" />
         </View>
         <ActivityIndicator size="large" color="#0d9488" />
-        <Text style={styles.loadingText}>Đang tải danh sách phòng...</Text>
+        <Text style={styles.loadingText}>Đang tải danh sách bài đăng...</Text>
       </View>
     );
   }
@@ -132,7 +139,7 @@ export default function RoomListScreen({ route, navigation }) {
           />
           <TextInput
             style={styles.searchInput}
-            placeholder="Nhập số phòng để tìm kiếm..."
+            placeholder="Tìm kiếm theo tiêu đề hoặc địa chỉ..."
             placeholderTextColor="#94a3b8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -149,20 +156,20 @@ export default function RoomListScreen({ route, navigation }) {
         <View style={styles.resultCountWrapper}>
           <Ionicons name="list-outline" size={18} color="#0d9488" />
           <Text style={styles.resultCount}>
-            Tìm thấy {filteredRooms.length} phòng
+            Tìm thấy {filteredPosts.length} bài đăng
           </Text>
         </View>
       </View>
 
-      {filteredRooms.length === 0 ? (
+      {filteredPosts.length === 0 ? (
         <View style={styles.center}>
           <View style={styles.emptyIconContainer}>
             <Ionicons name="file-tray-outline" size={64} color="#94a3b8" />
           </View>
-          <Text style={styles.noRooms}>Không tìm thấy phòng nào</Text>
-          <Text style={styles.noRoomsSub}>
+          <Text style={styles.noResults}>Không tìm thấy bài đăng nào</Text>
+          <Text style={styles.noResultsSub}>
             {searchQuery
-              ? `với số phòng "${searchQuery}"`
+              ? `với từ khóa "${searchQuery}"`
               : buildingId
               ? "trong tòa nhà này"
               : "phù hợp với tìm kiếm"}
@@ -184,9 +191,9 @@ export default function RoomListScreen({ route, navigation }) {
         </View>
       ) : (
         <FlatList
-          data={filteredRooms}
+          data={filteredPosts}
           keyExtractor={(item) => item._id || item.id}
-          renderItem={renderRoomItem}
+          renderItem={renderPostItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           numColumns={NUM_COLUMNS}
@@ -285,14 +292,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
   },
-  noRooms: {
+  noResults: {
     fontSize: 18,
     fontWeight: "600",
     color: "#64748b",
     marginBottom: 8,
     textAlign: "center",
   },
-  noRoomsSub: {
+  noResultsSub: {
     fontSize: 14,
     color: "#94a3b8",
     textAlign: "center",
