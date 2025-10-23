@@ -10,10 +10,10 @@ import ResetPasswordScreen from "../screens/auth/ResetPasswordScreen";
 import { useAuth } from "../context/AuthContext";
 import SendOtpScreen from "../screens/auth/SendOtpScreen";
 import HomeScreen from "../screens/home/HomeScreen";
-import RoomListScreen from "../screens/room/RoomListScreen";
-import RoomDetailScreen from "../screens/room/RoomDetailScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import AccountScreen from "../screens/profile/AccountScreen";
+import PostListScreen from "../screens/post/PostListScreen";
+import PostDetailScreen from "../screens/post/PostDetailScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -38,8 +38,8 @@ export default function AppNavigator() {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="SendOtp" component={SendOtpScreen} />
-      <Stack.Screen name="RoomList" component={RoomListScreen} />
-      <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
+      <Stack.Screen name="PostList" component={PostListScreen} />
+      <Stack.Screen name="PostDetail" component={PostDetailScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
     </Stack.Navigator>
