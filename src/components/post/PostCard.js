@@ -10,17 +10,31 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
     return "https://bandon.vn/uploads/posts/thiet-ke-nha-tro-dep-2020-bandon-0.jpg";
   };
 
-  const formatPrice = (price) => {
-    if (!price && price !== 0) return "Thỏa thuận";
-    if (price >= 1000000) {
-      return `${(price / 1000000).toFixed(1)} tr`;
+  const formatPrice = (priceMin, priceMax) => {
+    if (!priceMin && !priceMax) return "Thỏa thuận";
+
+    const formatSinglePrice = (price) => {
+      if (price >= 1000000) {
+        return `${(price / 1000000).toFixed(1)}tr`;
+      }
+      return `${(price / 1000).toFixed(0)}k`;
+    };
+
+    if (priceMin === priceMax) {
+      return formatSinglePrice(priceMin);
     }
-    return `${(price / 1000).toFixed(0)} k`;
+
+    return `${formatSinglePrice(priceMin)} - ${formatSinglePrice(priceMax)}`;
   };
 
-  const formatArea = (area) => {
-    if (!area) return "N/A";
-    return `${area}m²`;
+  const formatArea = (areaMin, areaMax) => {
+    if (!areaMin && !areaMax) return "N/A";
+
+    if (areaMin === areaMax) {
+      return `${areaMin}m²`;
+    }
+
+    return `${areaMin}-${areaMax}m²`;
   };
 
   const getBuildingName = () => {
@@ -63,9 +77,24 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
           </View>
         )}
 
+        {/* Status Badge */}
+        {post.status === "hidden" && (
+          <View style={[styles.draftBadge, { backgroundColor: "#64748b" }]}>
+            <Text style={styles.draftText}>Đã ẩn</Text>
+          </View>
+        )}
+
+        {post.status === "expired" && (
+          <View style={[styles.draftBadge, { backgroundColor: "#dc2626" }]}>
+            <Text style={styles.draftText}>Hết hạn</Text>
+          </View>
+        )}
+
         {/* Price Overlay */}
         <View style={styles.priceOverlay}>
-          <Text style={styles.priceOverlayText}>{formatPrice(post.price)}</Text>
+          <Text style={styles.priceOverlayText}>
+            {formatPrice(post.priceMin, post.priceMax)}
+          </Text>
           <Text style={styles.priceOverlaySubText}>/tháng</Text>
         </View>
       </View>
@@ -80,7 +109,7 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
         {/* Address */}
         <View style={styles.addressRow}>
           <Ionicons name="location-outline" size={12} color="#64748b" />
-          <Text style={styles.address}>
+          <Text style={styles.address} numberOfLines={1}>
             {post.address || "Đang cập nhật địa chỉ"}
           </Text>
         </View>
@@ -90,7 +119,9 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
           {/* Area */}
           <View style={styles.infoItem}>
             <Ionicons name="resize-outline" size={12} color="#94a3b8" />
-            <Text style={styles.infoText}>{formatArea(post.area)}</Text>
+            <Text style={styles.infoText}>
+              {formatArea(post.areaMin, post.areaMax)}
+            </Text>
           </View>
 
           {/* Building */}
@@ -103,6 +134,14 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
             </View>
           )}
         </View>
+
+        {/* Rooms Count */}
+        {post.roomIds && post.roomIds.length > 0 && (
+          <View style={styles.roomsInfo}>
+            <Ionicons name="bed-outline" size={12} color="#6366f1" />
+            <Text style={styles.roomsText}>{post.roomIds.length} phòng</Text>
+          </View>
+        )}
 
         {/* Landlord Info */}
         {landlordName && (
@@ -127,6 +166,7 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
     </TouchableOpacity>
   );
 }
+
 const styles = StyleSheet.create({
   postCard: {
     backgroundColor: "white",
@@ -174,13 +214,13 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   priceOverlayText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: "#ffffff",
     marginRight: 2,
   },
   priceOverlaySubText: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#ffffff",
     opacity: 0.95,
   },
@@ -224,6 +264,18 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 12,
     color: "#94a3b8",
+  },
+
+  roomsInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 6,
+  },
+  roomsText: {
+    fontSize: 12,
+    color: "#6366f1",
+    fontWeight: "500",
   },
 
   landlordInfo: {
