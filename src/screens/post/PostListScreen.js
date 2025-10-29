@@ -25,57 +25,73 @@ const CARD_HEIGHT = CARD_WIDTH * 1.35;
 export default function PostListScreen({ route, navigation }) {
   const buildingId = route.params?.buildingId;
   const [posts, setPosts] = useState([]);
-  const [filteredPosts, setFilteredPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const { isAuthenticated } = useAuth();
 
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
+  const fetchPosts = async (pageNum = 1, isLoadMore = false) => {
+    try {
+      if (!isLoadMore) {
         setLoading(true);
-        const params = {};
-
-        if (buildingId) {
-          params.buildingId = buildingId;
-        }
-
-        if (searchQuery.trim()) {
-          params.keyword = searchQuery.trim();
-        }
-
-        const data = await getPosts(params);
-        setPosts(data);
-        setFilteredPosts(data);
-        setError(null);
-      } catch (error) {
-        setError(`Lỗi: ${error.response?.data?.message || error.message}`);
-      } finally {
-        setLoading(false);
+      } else {
+        setLoadingMore(true);
       }
-    };
 
+      const params = {
+        page: pageNum,
+        limit: 20,
+      };
+
+      if (buildingId) {
+        params.buildingId = buildingId;
+      }
+
+      if (searchQuery.trim()) {
+        params.keyword = searchQuery.trim();
+      }
+
+      const response = await getPosts(params);
+
+      if (isLoadMore) {
+        setPosts((prev) => [...prev, ...(response.data || response)]);
+      } else {
+        setPosts(response.data || response);
+      }
+      if (response.pagination) {
+        setTotalPages(response.pagination.totalPages);
+      } else {
+        setTotalPages(1);
+      }
+      setError(null);
+    } catch (error) {
+      setError(`Lỗi: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
     if (isAuthenticated) {
-      fetchPosts();
+      setPage(1);
+      fetchPosts(1, false);
     } else {
       setError("Vui lòng đăng nhập để xem danh sách bài đăng");
       setLoading(false);
     }
-  }, [buildingId, isAuthenticated]);
+  }, [buildingId, searchQuery, isAuthenticated]);
 
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredPosts(posts);
-    } else {
-      const filtered = posts.filter(
-        (post) =>
-          post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          post.address.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredPosts(filtered);
+  const handleLoadMore = () => {
+    if (!loadingMore && page < totalPages) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchPosts(nextPage, true);
     }
-  }, [searchQuery, posts]);
+  };
 
   const renderPostItem = ({ item, index }) => (
     <View style={styles.cardWrapper}>
@@ -89,6 +105,16 @@ export default function PostListScreen({ route, navigation }) {
       />
     </View>
   );
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#0d9488" />
+        <Text style={styles.loadingMoreText}>Đang tải thêm...</Text>
+      </View>
+    );
+  };
 
   if (loading) {
     return (
@@ -156,12 +182,13 @@ export default function PostListScreen({ route, navigation }) {
         <View style={styles.resultCountWrapper}>
           <Ionicons name="list-outline" size={18} color="#0d9488" />
           <Text style={styles.resultCount}>
-            Tìm thấy {filteredPosts.length} bài đăng
+            Tìm thấy {posts.length} bài đăng{" "}
+            {page < totalPages && `(trang ${page}/${totalPages})`}
           </Text>
         </View>
       </View>
 
-      {filteredPosts.length === 0 ? (
+      {posts.length === 0 ? (
         <View style={styles.center}>
           <View style={styles.emptyIconContainer}>
             <Ionicons name="file-tray-outline" size={64} color="#94a3b8" />
@@ -191,13 +218,16 @@ export default function PostListScreen({ route, navigation }) {
         </View>
       ) : (
         <FlatList
-          data={filteredPosts}
+          data={posts}
           keyExtractor={(item) => item._id || item.id}
           renderItem={renderPostItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           numColumns={NUM_COLUMNS}
           columnWrapperStyle={styles.row}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
         />
       )}
     </View>
@@ -326,5 +356,16 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 15,
     fontWeight: "bold",
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+  },
+  loadingMoreText: {
+    fontSize: 14,
+    color: "#64748b",
   },
 });

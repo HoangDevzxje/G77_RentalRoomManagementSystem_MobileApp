@@ -1,11 +1,11 @@
 import baseApi from "./baseApi";
 
-export const getRooms = async (params = {}) => {
-  const res = await baseApi.get("/rooms", { params });
+export const getRoomById = async (id) => {
+  const res = await baseApi.get(`/posts/rooms/${id}`);
   return res.data.data;
 };
 
-export const getRoomById = async (id) => {
-  const res = await baseApi.get(`/rooms/${id}`);
+export const getRooms = async (params = {}) => {
+  const res = await baseApi.get("/rooms", { params });
   return res.data;
 };

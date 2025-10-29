@@ -14,6 +14,7 @@ import ProfileScreen from "../screens/profile/ProfileScreen";
 import AccountScreen from "../screens/profile/AccountScreen";
 import PostListScreen from "../screens/post/PostListScreen";
 import PostDetailScreen from "../screens/post/PostDetailScreen";
+import RoomDetailScreen from "../screens/post/RoomDetailScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -42,6 +43,7 @@ export default function AppNavigator() {
       <Stack.Screen name="PostDetail" component={PostDetailScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
     </Stack.Navigator>
   );
 }
