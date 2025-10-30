@@ -235,6 +235,7 @@ const styles = StyleSheet.create({
     color: "#1e293b",
     lineHeight: 20,
     marginBottom: 4,
+    minHeight: 40,
   },
   addressRow: {
     flexDirection: "row",
