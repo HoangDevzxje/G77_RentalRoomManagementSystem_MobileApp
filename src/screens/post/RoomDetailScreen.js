@@ -73,7 +73,7 @@ export default function RoomDetailScreen({ route, navigation }) {
         >
           <Ionicons name="arrow-back" size={24} color="#0f172a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi tiết phòng</Text>
+        <Text style={styles.headerTitle}>Phòng {room.roomNumber}</Text>
         <View style={styles.headerButton} />
       </View>
 
