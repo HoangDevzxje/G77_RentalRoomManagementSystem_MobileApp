@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
@@ -33,8 +34,13 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header với gradient */}
+      <LinearGradient
+        colors={["#14b8a6", "#06b6d4", "#3b82f6"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
+      >
         <View style={styles.avatarContainer}>
           <Text style={styles.avatarText}>
             {user ? getInitials(user.user?.email || user.email) : "??"}
@@ -51,7 +57,7 @@ export default function ProfileScreen() {
             <Text style={styles.statusText}>Đã kích hoạt</Text>
           </View>
         )}
-      </View>
+      </LinearGradient>
 
       {user ? (
         <>
@@ -62,7 +68,7 @@ export default function ProfileScreen() {
               onPress={() => navigation.navigate("Account")}
             >
               <View style={styles.iconWrapper}>
-                <Ionicons name="person-outline" size={22} color="#3b82f6" />
+                <Ionicons name="person-outline" size={22} color="#14b8a6" />
               </View>
               <Text style={styles.menuText}>Tài khoản</Text>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
@@ -73,7 +79,7 @@ export default function ProfileScreen() {
               onPress={() => navigation.navigate("ChangePassword")}
             >
               <View style={styles.iconWrapper}>
-                <Ionicons name="key-outline" size={22} color="#3b82f6" />
+                <Ionicons name="key-outline" size={22} color="#06b6d4" />
               </View>
               <Text style={styles.menuText}>Đổi mật khẩu</Text>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
@@ -92,7 +98,7 @@ export default function ProfileScreen() {
                 <Ionicons
                   name="help-circle-outline"
                   size={22}
-                  color="#3b82f6"
+                  color="#14b8a6"
                 />
               </View>
               <Text style={styles.menuText}>Hỗ trợ</Text>
@@ -104,7 +110,7 @@ export default function ProfileScreen() {
                 <Ionicons
                   name="information-circle-outline"
                   size={22}
-                  color="#3b82f6"
+                  color="#06b6d4"
                 />
               </View>
               <Text style={styles.menuText}>Về ứng dụng</Text>
@@ -121,13 +127,20 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </>
       ) : (
-        <TouchableOpacity
+        <LinearGradient
+          colors={["#14b8a6", "#06b6d4", "#3b82f6"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
           style={[styles.actionBtn, styles.primaryBtn]}
-          onPress={handleLogin}
         >
-          <Ionicons name="log-in-outline" size={20} color="#fff" />
-          <Text style={styles.actionText}>Đăng nhập</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.gradientBtnContent}
+            onPress={handleLogin}
+          >
+            <Ionicons name="log-in-outline" size={20} color="#fff" />
+            <Text style={styles.actionText}>Đăng nhập</Text>
+          </TouchableOpacity>
+        </LinearGradient>
       )}
     </ScrollView>
   );
@@ -139,26 +152,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f5f9",
   },
   header: {
-    backgroundColor: "#fff",
     paddingTop: 35,
     paddingBottom: 20,
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "rgba(255, 255, 255, 0.2)",
   },
   avatarContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#3b82f6",
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 12,
     borderWidth: 4,
-    borderColor: "#dbeafe",
-    shadowColor: "#3b82f6",
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
   },
@@ -168,7 +180,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   email: {
-    color: "#1e293b",
+    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
     marginTop: 4,
@@ -176,7 +188,7 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#d1fae5",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -217,7 +229,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: "#eff6ff",
+    backgroundColor: "#f0fdfa",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -232,12 +244,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 24,
     marginBottom: 16,
-    paddingVertical: 14,
     borderRadius: 10,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -245,23 +252,26 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   primaryBtn: {
-    backgroundColor: "#3b82f6",
+    overflow: "hidden",
+  },
+  gradientBtnContent: {
+    paddingVertical: 14,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
   },
   logoutBtn: {
     backgroundColor: "#ef4444",
+    paddingVertical: 14,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
   },
   actionText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  footer: {
-    alignItems: "center",
-    paddingVertical: 20,
-    marginTop: 8,
-  },
-  footerText: {
-    fontSize: 13,
-    color: "#94a3b8",
   },
 });

@@ -8,12 +8,15 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Modal,
+  StatusBar,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import { getProfile, updateProfile } from "../../api/userApi";
+import AddressManager from "../../components/address/AddressManager";
 
 export default function AccountScreen() {
   const { user, logout } = useAuth();
@@ -33,23 +36,11 @@ export default function AccountScreen() {
     gender: "",
     address: [],
   });
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [editingAddress, setEditingAddress] = useState(null);
-  const [newAddress, setNewAddress] = useState({
-    address: "",
-    provinceName: "",
-    districtName: "",
-    wardName: "",
-  });
-  const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempFullName, setTempFullName] = useState("");
 
-  // Hàm chuyển đổi từ yyyy-mm-dd sang dd/mm/yyyy
   const formatDateToVN = (dateString) => {
     if (!dateString) return "";
-
-    // Nếu đã là định dạng dd/mm/yyyy thì giữ nguyên
     if (dateString.includes("/")) return dateString;
 
     const date = new Date(dateString);
@@ -62,7 +53,6 @@ export default function AccountScreen() {
     return `${day}/${month}/${year}`;
   };
 
-  // Hàm chuyển đổi từ dd/mm/yyyy sang yyyy-mm-dd
   const formatDateToISO = (dateString) => {
     if (!dateString) return "";
 
@@ -76,9 +66,8 @@ export default function AccountScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  // Hàm validate định dạng dd/mm/yyyy
   const isValidDate = (dateString) => {
-    if (!dateString) return true; // Cho phép trống
+    if (!dateString) return true;
 
     const regex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
     if (!regex.test(dateString)) return false;
@@ -91,7 +80,6 @@ export default function AccountScreen() {
     if (month < 1 || month > 12) return false;
     if (day < 1 || day > 31) return false;
 
-    // Kiểm tra ngày tháng cụ thể
     const date = new Date(year, month - 1, day);
     return (
       date.getFullYear() === year &&
@@ -100,17 +88,13 @@ export default function AccountScreen() {
     );
   };
 
-  // Hàm tự động định dạng khi nhập
   const formatDateInput = (text) => {
-    // Xóa tất cả ký tự không phải số
     let cleaned = text.replace(/[^0-9]/g, "");
 
-    // Giới hạn độ dài
     if (cleaned.length > 8) {
       cleaned = cleaned.substring(0, 8);
     }
 
-    // Tự động thêm dấu /
     if (cleaned.length > 4) {
       return `${cleaned.substring(0, 2)}/${cleaned.substring(
         2,
@@ -136,7 +120,6 @@ export default function AccountScreen() {
         const userInfo = data.user.userInfo || {};
         let formattedDob = "";
         if (userInfo.dob) {
-          // Sử dụng hàm formatDateToVN để chuyển đổi sang dd/mm/yyyy
           formattedDob = formatDateToVN(userInfo.dob);
         }
 
@@ -179,7 +162,6 @@ export default function AccountScreen() {
     try {
       setLoading(true);
 
-      // Chuyển đổi ngày sinh từ dd/mm/yyyy sang yyyy-mm-dd để gửi lên server
       const dobToSend = userData.dob
         ? formatDateToISO(userData.dob)
         : undefined;
@@ -195,7 +177,6 @@ export default function AccountScreen() {
       await updateProfile(dataToSend);
       Alert.alert("Thành công", "Cập nhật thông tin thành công!");
 
-      // Cập nhật originalData với dữ liệu mới (giữ nguyên định dạng dd/mm/yyyy)
       setOriginalData(JSON.parse(JSON.stringify(userData)));
     } catch (error) {
       console.log("Save error:", error);
@@ -203,72 +184,6 @@ export default function AccountScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAddAddress = () => {
-    setEditingAddress(null);
-    setNewAddress({
-      address: "",
-      provinceName: "",
-      districtName: "",
-      wardName: "",
-    });
-    setShowAddressModal(true);
-  };
-
-  const handleEditAddress = (address, index) => {
-    setEditingAddress({ ...address, index });
-    setNewAddress({
-      address: address.address || "",
-      provinceName: address.provinceName || "",
-      districtName: address.districtName || "",
-      wardName: address.wardName || "",
-    });
-    setShowAddressModal(true);
-  };
-
-  const handleDeleteAddress = (index) => {
-    Alert.alert("Xóa địa chỉ", "Bạn có chắc chắn muốn xóa địa chỉ này?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Xóa",
-        style: "destructive",
-        onPress: () => {
-          const newAddresses = userData.address.filter((_, i) => i !== index);
-          setUserData((prev) => ({ ...prev, address: newAddresses }));
-          if (selectedAddressIndex >= newAddresses.length) {
-            setSelectedAddressIndex(Math.max(0, newAddresses.length - 1));
-          }
-        },
-      },
-    ]);
-  };
-
-  const saveAddress = () => {
-    if (
-      !newAddress.address.trim() ||
-      !newAddress.provinceName.trim() ||
-      !newAddress.districtName.trim() ||
-      !newAddress.wardName.trim()
-    ) {
-      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin địa chỉ");
-      return;
-    }
-
-    if (editingAddress) {
-      const updatedAddresses = [...userData.address];
-      updatedAddresses[editingAddress.index] = newAddress;
-      setUserData((prev) => ({ ...prev, address: updatedAddresses }));
-    } else {
-      setUserData((prev) => ({
-        ...prev,
-        address: [...prev.address, newAddress],
-      }));
-      setSelectedAddressIndex(userData.address.length);
-    }
-
-    setShowAddressModal(false);
-    setEditingAddress(null);
   };
 
   const handleLogout = () => {
@@ -295,14 +210,23 @@ export default function AccountScreen() {
       .slice(0, 2);
   };
 
+  const handleAddressUpdate = (updatedAddresses) => {
+    setUserData((prev) => ({ ...prev, address: updatedAddresses }));
+  };
+
+  const headerPaddingTop =
+    Platform.OS === "android" ? StatusBar.currentHeight || 0 : 50;
+
   if (!user) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Tài Khoản</Text>
+        <View style={[styles.simpleHeader, { paddingTop: headerPaddingTop }]}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Tài Khoản</Text>
+          </View>
         </View>
         <View style={styles.centerContent}>
-          <Ionicons name="person-circle-outline" size={80} color="#ccc" />
+          <Ionicons name="person-circle-outline" size={80} color="#14b8a6" />
           <Text style={styles.noUserText}>
             Vui lòng đăng nhập để xem thông tin
           </Text>
@@ -317,33 +241,38 @@ export default function AccountScreen() {
     );
   }
 
-  const selectedAddress = userData.address[selectedAddressIndex];
-
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tài Khoản</Text>
-        <TouchableOpacity style={styles.backButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="#ef4444" />
-        </TouchableOpacity>
+      <View style={[styles.simpleHeader, { paddingTop: headerPaddingTop }]}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1e293b" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Tài Khoản</Text>
+          <TouchableOpacity style={styles.backButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={24} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Header Card */}
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.profileCard}>
           <View style={styles.profileHeader}>
-            <View style={styles.avatar}>
+            <LinearGradient
+              colors={["#14b8a6", "#06b6d4", "#3b82f6"]}
+              style={styles.avatar}
+            >
               <Text style={styles.avatarText}>
                 {getInitials(userData.fullName)}
               </Text>
-            </View>
-
+            </LinearGradient>
             <View style={styles.profileInfo}>
               {!isEditingName ? (
                 <View style={styles.nameRow}>
@@ -351,11 +280,11 @@ export default function AccountScreen() {
                     {userData.fullName || "Chưa cập nhật"}
                   </Text>
                   <TouchableOpacity
+                    style={styles.editIconBtn}
                     onPress={() => {
                       setTempFullName(userData.fullName);
                       setIsEditingName(true);
                     }}
-                    style={styles.editIconBtn}
                   >
                     <Ionicons name="pencil" size={16} color="#64748b" />
                   </TouchableOpacity>
@@ -375,7 +304,7 @@ export default function AccountScreen() {
                     value={tempFullName}
                     onChangeText={setTempFullName}
                     placeholder="Nhập họ và tên"
-                    autoFocus
+                    autoFocus={true}
                   />
                   <TouchableOpacity
                     style={styles.checkBtn}
@@ -400,21 +329,14 @@ export default function AccountScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-
               <View style={styles.infoRow}>
                 <Ionicons name="mail" size={14} color="#64748b" />
                 <Text style={styles.infoText}>
                   {user.email || user.user?.email}
                 </Text>
               </View>
-
-              <View style={styles.infoRow}>
-                <Ionicons name="person" size={14} color="#64748b" />
-                <Text style={styles.infoText}>User</Text>
-              </View>
             </View>
           </View>
-
           {hasChanges() && (
             <TouchableOpacity
               style={[styles.saveTopBtn, loading && styles.saveBtnDisabled]}
@@ -424,28 +346,25 @@ export default function AccountScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <>
+                <View style={styles.saveButtonContent}>
                   <Ionicons name="save-outline" size={18} color="#fff" />
                   <Text style={styles.saveTopBtnText}>Lưu thay đổi</Text>
-                </>
+                </View>
               )}
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Two Column Layout */}
         <View style={styles.twoColumnContainer}>
-          {/* Personal Info Card */}
           <View style={styles.infoCard}>
             <View style={styles.cardHeader}>
-              <Ionicons name="person" size={20} color="#3b82f6" />
+              <Ionicons name="person" size={20} color="#14b8a6" />
               <Text style={styles.cardTitle}>Thông Tin Cá Nhân</Text>
             </View>
-
             <View style={styles.cardContent}>
               <View style={styles.fieldGroup}>
                 <View style={styles.fieldIcon}>
-                  <Ionicons name="call" size={20} color="#94a3b8" />
+                  <Ionicons name="call" size={20} color="#14b8a6" />
                 </View>
                 <View style={styles.fieldContent}>
                   <Text style={styles.fieldLabel}>Số điện thoại</Text>
@@ -463,10 +382,10 @@ export default function AccountScreen() {
 
               <View style={styles.fieldGroup}>
                 <View style={styles.fieldIcon}>
-                  <Ionicons name="calendar" size={20} color="#94a3b8" />
+                  <Ionicons name="calendar" size={20} color="#14b8a6" />
                 </View>
                 <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Ngày sinh</Text>
+                  <Text style={styles.fieldLabel}>Ngày sinh (DD/MM/YYYY)</Text>
                   <TextInput
                     style={[
                       styles.fieldInput,
@@ -474,26 +393,24 @@ export default function AccountScreen() {
                         !isValidDate(userData.dob) &&
                         styles.errorInput,
                     ]}
-                    placeholder="DD/MM/YYYY"
+                    placeholder="01/01/2000"
                     value={userData.dob}
                     onChangeText={(text) => {
-                      const formattedText = formatDateInput(text);
-                      setUserData((prev) => ({ ...prev, dob: formattedText }));
+                      const formatted = formatDateInput(text);
+                      setUserData((prev) => ({ ...prev, dob: formatted }));
                     }}
                     keyboardType="numeric"
                     maxLength={10}
                   />
                   {userData.dob && !isValidDate(userData.dob) && (
-                    <Text style={styles.errorText}>
-                      Định dạng ngày không hợp lệ
-                    </Text>
+                    <Text style={styles.errorText}>Định dạng không hợp lệ</Text>
                   )}
                 </View>
               </View>
 
               <View style={styles.fieldGroup}>
                 <View style={styles.fieldIcon}>
-                  <Ionicons name="person" size={20} color="#94a3b8" />
+                  <Ionicons name="people" size={20} color="#14b8a6" />
                 </View>
                 <View style={styles.fieldContent}>
                   <Text style={styles.fieldLabel}>Giới tính</Text>
@@ -560,199 +477,12 @@ export default function AccountScreen() {
             </View>
           </View>
 
-          {/* Address Card */}
-          <View style={styles.infoCard}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="location" size={20} color="#3b82f6" />
-              <Text style={styles.cardTitle}>Địa Chỉ</Text>
-              <TouchableOpacity
-                style={styles.addAddressBtnSmall}
-                onPress={handleAddAddress}
-              >
-                <Ionicons name="add" size={16} color="#fff" />
-                <Text style={styles.addAddressBtnSmallText}>Thêm mới</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.cardContent}>
-              {userData.address.length > 0 ? (
-                <>
-                  <View style={styles.addressSelectContainer}>
-                    <Text style={styles.fieldLabel}>Chọn địa chỉ hiển thị</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                    >
-                      {userData.address.map((addr, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={[
-                            styles.addressChip,
-                            selectedAddressIndex === index &&
-                              styles.addressChipActive,
-                          ]}
-                          onPress={() => setSelectedAddressIndex(index)}
-                        >
-                          <Text
-                            style={[
-                              styles.addressChipText,
-                              selectedAddressIndex === index &&
-                                styles.addressChipTextActive,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {addr.address}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-
-                  {selectedAddress && (
-                    <View style={styles.selectedAddressCard}>
-                      <View style={styles.addressDetailRow}>
-                        <Ionicons name="location" size={16} color="#3b82f6" />
-                        <View style={styles.addressDetailText}>
-                          <Text style={styles.addressDetailMain}>
-                            {selectedAddress.address}
-                          </Text>
-                          <Text style={styles.addressDetailSub}>
-                            {selectedAddress.wardName},{" "}
-                            {selectedAddress.districtName}
-                          </Text>
-                          <Text style={styles.addressDetailSub}>
-                            {selectedAddress.provinceName}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.addressActionRow}>
-                        <TouchableOpacity
-                          style={styles.addressActionBtnLarge}
-                          onPress={() =>
-                            handleEditAddress(
-                              selectedAddress,
-                              selectedAddressIndex
-                            )
-                          }
-                        >
-                          <Ionicons
-                            name="pencil-outline"
-                            size={16}
-                            color="#3b82f6"
-                          />
-                          <Text style={styles.addressActionTextEdit}>Sửa</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.addressActionBtnLarge}
-                          onPress={() =>
-                            handleDeleteAddress(selectedAddressIndex)
-                          }
-                        >
-                          <Ionicons
-                            name="trash-outline"
-                            size={16}
-                            color="#ef4444"
-                          />
-                          <Text style={styles.addressActionTextDelete}>
-                            Xóa
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                </>
-              ) : (
-                <View style={styles.noAddressLarge}>
-                  <Ionicons name="location-outline" size={48} color="#cbd5e1" />
-                  <Text style={styles.noAddressTextLarge}>
-                    Chưa có địa chỉ nào
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
+          <AddressManager
+            addresses={userData.address}
+            onAddressUpdate={handleAddressUpdate}
+          />
         </View>
       </ScrollView>
-
-      {/* Modal thêm/sửa địa chỉ */}
-      <Modal
-        visible={showAddressModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowAddressModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingAddress ? "Chỉnh sửa địa chỉ" : "Thêm địa chỉ mới"}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowAddressModal(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll}>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Địa chỉ chi tiết (số nhà, đường...)"
-                value={newAddress.address}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, address: text }))
-                }
-              />
-
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Tỉnh/Thành phố"
-                value={newAddress.provinceName}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, provinceName: text }))
-                }
-              />
-
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Quận/Huyện"
-                value={newAddress.districtName}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, districtName: text }))
-                }
-              />
-
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Phường/Xã"
-                value={newAddress.wardName}
-                onChangeText={(text) =>
-                  setNewAddress((prev) => ({ ...prev, wardName: text }))
-                }
-              />
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelModalButton]}
-                onPress={() => setShowAddressModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveModalButton]}
-                onPress={saveAddress}
-              >
-                <Text style={styles.saveButtonText}>
-                  {editingAddress ? "Cập nhật" : "Thêm địa chỉ"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -760,18 +490,26 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#f8fafc",
+  },
+  simpleHeader: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    zIndex: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    minHeight: 44,
   },
   backButton: {
     padding: 4,
@@ -784,11 +522,15 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  scrollContent: {
+    paddingTop: 16,
+  },
   centerContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    minHeight: 400,
   },
   noUserText: {
     fontSize: 16,
@@ -802,6 +544,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   primaryBtnText: {
     color: "#fff",
@@ -812,13 +559,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     margin: 16,
     marginBottom: 8,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
   },
   profileHeader: {
     flexDirection: "row",
@@ -829,12 +578,16 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#3b82f6",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
     borderWidth: 4,
-    borderColor: "#dbeafe",
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   avatarText: {
     fontSize: 28,
@@ -882,24 +635,25 @@ const styles = StyleSheet.create({
   },
   nameInput: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "400",
     color: "#1e293b",
     borderWidth: 1,
     borderColor: "#cbd5e1",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
   },
   checkBtn: {
-    backgroundColor: "#10b981",
-    padding: 6,
-    borderRadius: 6,
+    backgroundColor: "#14b8a6",
+    padding: 8,
+    borderRadius: 8,
   },
   closeBtn: {
     backgroundColor: "#f1f5f9",
-    padding: 6,
-    borderRadius: 6,
+    padding: 8,
+    borderRadius: 8,
   },
   infoRow: {
     flexDirection: "row",
@@ -912,12 +666,22 @@ const styles = StyleSheet.create({
     color: "#64748b",
   },
   saveTopBtn: {
-    backgroundColor: "#3b82f6",
+    backgroundColor: "#14b8a6",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#14b8a6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  saveButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   saveBtnDisabled: {
@@ -925,49 +689,42 @@ const styles = StyleSheet.create({
   },
   saveTopBtnText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
   },
   twoColumnContainer: {
     paddingHorizontal: 16,
     paddingBottom: 16,
-    gap: 8,
+    gap: 12,
   },
   infoCard: {
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#f1f5f9",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: "hidden",
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    gap: 8,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
-    gap: 8,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1e293b",
     flex: 1,
-  },
-  addAddressBtnSmall: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3b82f6",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    gap: 4,
-  },
-  addAddressBtnSmallText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "500",
   },
   cardContent: {
     padding: 16,
@@ -988,6 +745,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#64748b",
     marginBottom: 6,
+    fontWeight: "500",
   },
   fieldInput: {
     backgroundColor: "#f8fafc",
@@ -1021,8 +779,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   genderBtnActive: {
-    backgroundColor: "#3b82f6",
-    borderColor: "#3b82f6",
+    backgroundColor: "#14b8a6",
+    borderColor: "#14b8a6",
   },
   genderText: {
     fontSize: 13,
@@ -1031,170 +789,5 @@ const styles = StyleSheet.create({
   },
   genderTextActive: {
     color: "#fff",
-  },
-  addressSelectContainer: {
-    marginBottom: 16,
-  },
-  addressChip: {
-    backgroundColor: "#f1f5f9",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  addressChipActive: {
-    backgroundColor: "#dbeafe",
-    borderColor: "#3b82f6",
-  },
-  addressChipText: {
-    fontSize: 13,
-    color: "#64748b",
-    maxWidth: 120,
-  },
-  addressChipTextActive: {
-    color: "#3b82f6",
-    fontWeight: "500",
-  },
-  selectedAddressCard: {
-    backgroundColor: "#f0f9ff",
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-  },
-  addressDetailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    marginBottom: 12,
-  },
-  addressDetailText: {
-    flex: 1,
-  },
-  addressDetailMain: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  addressDetailSub: {
-    fontSize: 13,
-    color: "#64748b",
-    lineHeight: 18,
-  },
-  addressActionRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#bfdbfe",
-  },
-  addressActionBtnLarge: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 6,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    gap: 6,
-  },
-  addressActionTextEdit: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#3b82f6",
-  },
-  addressActionTextDelete: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#ef4444",
-  },
-  noAddressLarge: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  noAddressTextLarge: {
-    fontSize: 14,
-    color: "#94a3b8",
-    marginTop: 12,
-  },
-  // Modal Styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 0,
-    width: "100%",
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#1e293b",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalScroll: {
-    maxHeight: 400,
-    padding: 20,
-  },
-  modalInput: {
-    backgroundColor: "#f8fafc",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    fontSize: 16,
-    color: "#1e293b",
-    marginBottom: 12,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  cancelModalButton: {
-    backgroundColor: "#f1f5f9",
-  },
-  cancelButtonText: {
-    color: "#64748b",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  saveModalButton: {
-    backgroundColor: "#3b82f6",
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "500",
   },
 });
