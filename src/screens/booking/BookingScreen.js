@@ -7,10 +7,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { cancelBooking, getMyBookings } from "../../api/bookingApi";
 import { useFocusEffect } from "@react-navigation/native";
+import Toast from "react-native-toast-message";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function BookingScreen({ navigation }) {
   const [bookings, setBookings] = useState([]);
@@ -24,10 +27,18 @@ export default function BookingScreen({ navigation }) {
       if (res.success) {
         setBookings(res.data);
       } else {
-        Alert.alert("Lỗi", res.message || "Không thể lấy danh sách đặt lịch");
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: res.message || "Không thể lấy danh sách đặt lịch",
+        });
       }
     } catch (err) {
-      Alert.alert("Lỗi", err.response?.data?.message || "Lỗi hệ thống");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: err.response?.data?.message || "Lỗi hệ thống",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -48,11 +59,25 @@ export default function BookingScreen({ navigation }) {
           try {
             const res = await cancelBooking(bookingId);
             if (res.success) {
-              Alert.alert("Thành công", res.message || "Đã hủy lịch");
+              Toast.show({
+                type: "success",
+                text1: "Thành công",
+                text2: res.message || "Đã hủy lịch",
+              });
               fetchBookings();
+            } else {
+              Toast.show({
+                type: "error",
+                text1: "Lỗi",
+                text2: res.message || "Không thể hủy lịch",
+              });
             }
           } catch (err) {
-            Alert.alert("Lỗi", err.response?.data?.message || "Không thể hủy");
+            Toast.show({
+              type: "error",
+              text1: "Lỗi",
+              text2: err.response?.data?.message || "Không thể hủy lịch",
+            });
           }
         },
       },
@@ -122,7 +147,7 @@ export default function BookingScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <FlatList
         data={bookings}
         keyExtractor={(item) => item._id}
@@ -130,33 +155,32 @@ export default function BookingScreen({ navigation }) {
         onRefresh={handleRefresh}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ListFooterComponent={<View style={{ height: 100 }} />}
         renderItem={({ item }) => {
           const s = getStatusStyle(item.status);
           return (
             <View style={styles.card}>
-              {/* Badge trạng thái */}
               <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
                 <Text style={[styles.statusText, { color: s.color }]}>
                   {getStatusText(item.status)}
                 </Text>
               </View>
 
-              {/* Tiêu đề bài đăng */}
-              <Text style={styles.cardTitle}>
+              <Text style={styles.cardTitle} numberOfLines={2}>
                 {item.postId?.title || "Không có tiêu đề"}
               </Text>
 
-              {/* Thông tin chi tiết */}
               <View style={styles.infoRow}>
                 <Ionicons name="business-outline" size={18} color="#64748b" />
-                <Text style={styles.infoText}>
+                <Text style={styles.infoText} numberOfLines={2}>
                   {item.buildingId?.name || "Không rõ"}
                 </Text>
               </View>
 
               <View style={styles.infoRow}>
                 <Ionicons name="location-outline" size={18} color="#64748b" />
-                <Text style={styles.infoText}>
+                <Text style={styles.infoText} numberOfLines={3}>
                   {item.postId?.address ||
                     item.buildingId?.address ||
                     "Không rõ"}
@@ -207,19 +231,20 @@ export default function BookingScreen({ navigation }) {
           );
         }}
       />
-    </View>
+      <Toast />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: "#fff",
-    paddingTop: 20, // tránh dính header app bạn
   },
   listContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingTop: 20,
+    paddingBottom: 120,
   },
   card: {
     backgroundColor: "#f8fafc",
@@ -260,6 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#334155",
     flex: 1,
+    flexWrap: "wrap",
   },
   noteBox: {
     backgroundColor: "#ecfdf5",

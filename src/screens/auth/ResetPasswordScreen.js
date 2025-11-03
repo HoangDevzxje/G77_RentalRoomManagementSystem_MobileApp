@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   StyleSheet,
   ScrollView,
 } from "react-native";
@@ -13,10 +12,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { resetPasswordApi } from "../../api/authApi";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../../context/AuthContext";
+import Toast from "react-native-toast-message";
 
 export default function ResetPasswordScreen({ route, navigation }) {
   const { email, isOtpVerified } = route.params;
-  const { logout } = useAuth(); // Add this line to use the logout function
+  const { logout } = useAuth();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,23 +27,21 @@ export default function ResetPasswordScreen({ route, navigation }) {
     confirmPassword: "",
   });
 
-  // Check OTP verification status on mount
   useEffect(() => {
     const checkOtpVerification = async () => {
       const isVerified = await AsyncStorage.getItem(
         `otpVerified_${email}_reset-password`
       );
       if (!isVerified || isVerified !== "true") {
-        Alert.alert(
-          "Lỗi xác thực",
-          "OTP chưa được xác thực. Vui lòng quay lại và xác thực OTP.",
-          [
-            {
-              text: "OK",
-              onPress: () => navigation.goBack(),
-            },
-          ]
-        );
+        Toast.show({
+          type: "error",
+          text1: "Lỗi xác thực",
+          text2: "OTP chưa được xác thực. Vui lòng quay lại và xác thực OTP.",
+        });
+
+        setTimeout(() => {
+          navigation.goBack();
+        }, 2000);
       }
     };
 
@@ -103,16 +101,15 @@ export default function ResetPasswordScreen({ route, navigation }) {
       `otpVerified_${email}_reset-password`
     );
     if (!isVerified || isVerified !== "true") {
-      Alert.alert(
-        "Lỗi xác thực",
-        "OTP chưa được xác thực. Vui lòng quay lại và xác thực OTP.",
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      Toast.show({
+        type: "error",
+        text1: "Lỗi xác thực",
+        text2: "OTP chưa được xác thực. Vui lòng quay lại và xác thực OTP.",
+      });
+
+      setTimeout(() => {
+        navigation.goBack();
+      }, 2000);
       return;
     }
 
@@ -124,37 +121,32 @@ export default function ResetPasswordScreen({ route, navigation }) {
 
       await resetPasswordApi(email, newPassword, confirmPassword);
 
-      Alert.alert(
-        "Thành công",
-        "Mật khẩu đã được đặt lại thành công. Vui lòng đăng nhập với mật khẩu mới.",
-        [
-          {
-            text: "Đăng nhập",
-            onPress: async () => {
-              try {
-                console.log(
-                  "Password reset successful, clearing auth and navigating..."
-                );
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2:
+          "Mật khẩu đã được đặt lại thành công. Vui lòng đăng nhập với mật khẩu mới.",
+      });
 
-                // Clear authentication state first
-                await logout();
+      setTimeout(async () => {
+        try {
+          console.log(
+            "Password reset successful, clearing auth and navigating..."
+          );
 
-                // Small delay to ensure logout is completed
-                setTimeout(() => {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: "Login" }],
-                  });
-                }, 100);
-              } catch (error) {
-                console.log("Navigation error:", error);
-                // Fallback: just navigate without clearing auth
-                navigation.navigate("Login");
-              }
-            },
-          },
-        ]
-      );
+          await logout();
+
+          setTimeout(() => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+          }, 100);
+        } catch (error) {
+          console.log("Navigation error:", error);
+          navigation.navigate("Login");
+        }
+      }, 2000);
     } catch (error) {
       console.log("Reset password error:", error);
 
@@ -165,17 +157,22 @@ export default function ResetPasswordScreen({ route, navigation }) {
       } else if (error.message) {
         errorMessage = error.message;
       }
-
-      // If OTP verification error, redirect back to send OTP screen
       if (errorMessage.includes("OTP") || errorMessage.includes("xác thực")) {
-        Alert.alert("Lỗi xác thực", errorMessage, [
-          {
-            text: "Quay lại",
-            onPress: () => navigation.navigate("SendOtp"),
-          },
-        ]);
+        Toast.show({
+          type: "error",
+          text1: "Lỗi xác thực",
+          text2: errorMessage,
+        });
+
+        setTimeout(() => {
+          navigation.navigate("SendOtp");
+        }, 2000);
       } else {
-        Alert.alert("Lỗi", errorMessage);
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: errorMessage,
+        });
       }
     } finally {
       setLoading(false);
@@ -465,6 +462,9 @@ export default function ResetPasswordScreen({ route, navigation }) {
           </View>
         </View>
       </View>
+
+      {/* Toast Component */}
+      <Toast />
     </ScrollView>
   );
 }

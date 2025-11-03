@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
   StatusBar,
   Platform,
@@ -17,6 +16,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import { getProfile, updateProfile } from "../../api/userApi";
 import AddressManager from "../../components/address/AddressManager";
+import Toast from "react-native-toast-message";
 
 export default function AccountScreen() {
   const { user, logout } = useAuth();
@@ -135,7 +135,11 @@ export default function AccountScreen() {
         setOriginalData(JSON.parse(JSON.stringify(profileData)));
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Không thể tải thông tin profile");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể tải thông tin profile",
+      });
     } finally {
       setLoading(false);
     }
@@ -147,15 +151,21 @@ export default function AccountScreen() {
 
   const handleSave = async () => {
     if (!userData.fullName.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập họ và tên");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng nhập họ và tên",
+      });
       return;
     }
 
     if (userData.dob && !isValidDate(userData.dob)) {
-      Alert.alert(
-        "Lỗi",
-        "Định dạng ngày sinh không hợp lệ. Vui lòng nhập theo định dạng DD/MM/YYYY"
-      );
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2:
+          "Định dạng ngày sinh không hợp lệ. Vui lòng nhập theo định dạng DD/MM/YYYY",
+      });
       return;
     }
 
@@ -175,12 +185,21 @@ export default function AccountScreen() {
       };
 
       await updateProfile(dataToSend);
-      Alert.alert("Thành công", "Cập nhật thông tin thành công!");
+
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Cập nhật thông tin thành công!",
+      });
 
       setOriginalData(JSON.parse(JSON.stringify(userData)));
     } catch (error) {
       console.log("Save error:", error);
-      Alert.alert("Lỗi", error.response?.data?.message || "Cập nhật thất bại");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: error.response?.data?.message || "Cập nhật thất bại",
+      });
     } finally {
       setLoading(false);
     }
@@ -194,7 +213,15 @@ export default function AccountScreen() {
         style: "destructive",
         onPress: async () => {
           await logout();
-          navigation.navigate("Login");
+          Toast.show({
+            type: "success",
+            text1: "Thành công",
+            text2: "Đăng xuất thành công!",
+          });
+
+          setTimeout(() => {
+            navigation.navigate("Login");
+          }, 1000);
         },
       },
     ]);
@@ -483,6 +510,7 @@ export default function AccountScreen() {
           />
         </View>
       </ScrollView>
+      <Toast />
     </View>
   );
 }
