@@ -1,567 +1,782 @@
 import React, { useEffect, useState } from "react";
 import {
-  ScrollView,
-  Text,
   View,
+  Text,
   StyleSheet,
-  ActivityIndicator,
+  ScrollView,
   TouchableOpacity,
-  Dimensions,
   Image,
+  Dimensions,
+  Linking,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { getRoomById } from "../../api/roomApi";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { getPostById } from "../../api/postApi";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+const DEFAULT_IMAGE =
+  "https://bandon.vn/uploads/posts/thiet-ke-nha-tro-dep-2020-bandon-0.jpg";
 
 export default function RoomDetailScreen({ route, navigation }) {
-  const { id } = route.params;
-  const [room, setRoom] = useState(null);
+  const { id: postId } = route.params;
+  const [post, setPost] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [imageIndex, setImageIndex] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
-    const fetchRoomDetail = async () => {
-      try {
-        const data = await getRoomById(id);
-        setRoom(data);
-      } catch (error) {
-        console.error("Error fetching room:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    fetchPostDetail();
+  }, [postId]);
 
-    fetchRoomDetail();
-  }, [id]);
+  useEffect(() => {
+    if (!post) return;
+    const roomName = selectedRoom
+      ? selectedRoom.name || `P.${selectedRoom.roomNumber}`
+      : post.title;
+    navigation.setOptions({ headerTitle: roomName });
+  }, [selectedRoom, post, navigation]);
+
+  const fetchPostDetail = async () => {
+    try {
+      const data = await getPostById(postId);
+      setPost(data);
+      const availableRooms = data.rooms || [];
+      setRooms(availableRooms);
+      if (availableRooms.length > 0) {
+        setSelectedRoom(availableRooms[0]);
+      }
+    } catch (error) {
+      console.error("Lỗi tải bài đăng:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoomSelect = (room) => {
+    setSelectedRoom(room);
+    setImageIndex(0);
+    setModalVisible(false);
+  };
+
+  const openModal = () => setModalVisible(true);
+  const closeModal = () => setModalVisible(false);
+
+  const openZalo = (phone) => {
+    const cleaned = phone?.replace(/[^0-9]/g, "") || "";
+    const zaloUrl = `https://zalo.me/${cleaned}`;
+    Linking.canOpenURL(zaloUrl)
+      .then((supported) =>
+        supported ? Linking.openURL(zaloUrl) : Linking.openURL(`tel:${cleaned}`)
+      )
+      .catch(() => Linking.openURL(`tel:${cleaned}`));
+  };
+
+  const makeCall = (phone) => {
+    const cleaned = phone?.replace(/[^0-9]/g, "") || "";
+    Linking.openURL(`tel:${cleaned}`);
+  };
 
   const formatPrice = (price) => {
-    if (!price) return "Liên hệ";
-    return price.toLocaleString("vi-VN") + "đ";
+    if (price === null || price === undefined) return "Liên hệ";
+    return `${Number(price).toLocaleString("vi-VN")}đ`;
+  };
+
+  const getImages = () => {
+    const images = post?.images || [];
+    return images.length > 0 ? images : [DEFAULT_IMAGE];
+  };
+
+  const images = getImages();
+
+  const handlePrevImage = () => {
+    setImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  const handleNextImage = () => {
+    setImageIndex((prev) => (prev + 1) % images.length);
   };
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#14b8a6" />
-        <Text style={styles.loadingText}>Đang tải...</Text>
+        <View style={styles.loadingIconContainer}>
+          <Ionicons name="newspaper-outline" size={48} color="#0d9488" />
+        </View>
+        <ActivityIndicator size="large" color="#0d9488" />
+        <Text style={styles.loadingText}>Đang tải thông tin bài đăng...</Text>
       </View>
     );
   }
 
-  if (!room) {
+  if (!post) {
     return (
       <View style={styles.center}>
-        <Ionicons name="bed-outline" size={64} color="#cbd5e1" />
-        <Text style={styles.errorText}>Không tìm thấy thông tin phòng</Text>
+        <View style={styles.errorIconContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
+        </View>
+        <Text style={styles.noData}>Không tìm thấy bài đăng</Text>
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.primaryButtonText}>Quay lại</Text>
+          <Ionicons name="arrow-back-outline" size={18} color="white" />
+          <Text style={styles.backButtonText}>Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  const building = post.buildingId || {};
+  const landlord = post.landlordId || {};
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.headerButton}
           onPress={() => navigation.goBack()}
+          style={styles.backBtn}
         >
-          <Ionicons name="arrow-back" size={24} color="#0f172a" />
+          <Ionicons name="arrow-back" size={26} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Phòng {room.roomNumber}</Text>
-        <View style={styles.headerButton} />
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {selectedRoom
+            ? selectedRoom.name || `P.${selectedRoom.roomNumber}`
+            : post.title}
+        </Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Room Header
-        <View style={styles.roomHeader}>
-          <View style={styles.roomIconContainer}>
-            <Ionicons name="bed" size={40} color="#14b8a6" />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Image Slider */}
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: images[imageIndex] }}
+            style={styles.mainImage}
+            resizeMode="cover"
+          />
+          {images.length > 1 && (
+            <>
+              <TouchableOpacity
+                style={[styles.navBtn, styles.prevBtn]}
+                onPress={handlePrevImage}
+              >
+                <Ionicons name="chevron-back" size={28} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.navBtn, styles.nextBtn]}
+                onPress={handleNextImage}
+              >
+                <Ionicons name="chevron-forward" size={28} color="#fff" />
+              </TouchableOpacity>
+              <View style={styles.imageCounter}>
+                <Text style={styles.counterText}>
+                  {imageIndex + 1} / {images.length}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Post Info Card */}
+        <View style={styles.infoCard}>
+          <Text style={styles.postTitle}>{post.title}</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>Giá:</Text>
+            <Text style={styles.priceRange}>
+              {formatPrice(post.priceMin)} - {formatPrice(post.priceMax)}
+            </Text>
           </View>
-          <View style={styles.roomHeaderInfo}>
-            <Text style={styles.roomName}>{room.name}</Text>
-            {room.buildingId && typeof room.buildingId === "object" && (
-              <View style={styles.buildingBadge}>
-                <Ionicons name="business" size={14} color="#64748b" />
-                <Text style={styles.buildingName}>{room.buildingId.name}</Text>
+          <View style={styles.areaRow}>
+            <Ionicons name="resize-outline" size={16} color="#64748b" />
+            <Text style={styles.areaText}>
+              {post.areaMin}m² - {post.areaMax}m²
+            </Text>
+          </View>
+          <View style={styles.addressRow}>
+            <Ionicons name="location" size={18} color="#0d9488" />
+            <Text style={styles.address} numberOfLines={2}>
+              {post.address || building.address || "Không có địa chỉ"}
+            </Text>
+          </View>
+          {building.name && (
+            <View style={styles.buildingRow}>
+              <Ionicons name="business-outline" size={16} color="#64748b" />
+              <Text style={styles.buildingName}>{building.name}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Description */}
+        {post.description && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Mô tả</Text>
+            <View style={styles.descriptionCard}>
+              <Text style={styles.descriptionText}>{post.description}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Building Amenities */}
+        {building.amenities && building.amenities.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tiện ích tòa nhà</Text>
+            <View style={styles.amenitiesGrid}>
+              {building.amenities.map((amenity, idx) => (
+                <View key={idx} style={styles.amenityChip}>
+                  <Ionicons name="checkmark-circle" size={16} color="#0d9488" />
+                  <Text style={styles.amenityText}>{amenity}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Utility Costs */}
+        {building && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Chi phí dịch vụ</Text>
+            <View style={styles.costGrid}>
+              <View style={styles.costRow}>
+                <View style={styles.costLeft}>
+                  <Ionicons name="flash-outline" size={18} color="#f59e0b" />
+                  <Text style={styles.costLabel}>Điện</Text>
+                </View>
+                <Text style={styles.costValue}>
+                  {formatPrice(building?.ePrice)} /kWh
+                </Text>
+              </View>
+
+              <View style={styles.costRow}>
+                <View style={styles.costLeft}>
+                  <Ionicons name="water-outline" size={18} color="#3b82f6" />
+                  <Text style={styles.costLabel}>Nước</Text>
+                </View>
+                <Text style={styles.costValue}>
+                  {formatPrice(building?.wPrice)} /Người
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Nút chọn phòng */}
+        {rooms.length > 1 && (
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.selectRoomBtn} onPress={openModal}>
+              <Text style={styles.selectRoomText}>
+                Chọn phòng ({rooms.length} phòng trống)
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#0d9488" />
+            </TouchableOpacity>
+
+            {selectedRoom && (
+              <View style={styles.selectedRoomPreview}>
+                <Text style={styles.selectedRoomName}>
+                  {selectedRoom.name || `P.${selectedRoom.roomNumber}`}
+                </Text>
+                <Text style={styles.selectedRoomPrice}>
+                  {formatPrice(selectedRoom.price)}
+                </Text>
               </View>
             )}
           </View>
-        </View> */}
+        )}
 
-        {/* Room Image */}
-        <View style={styles.imageContainer}>
-          <Image
-            source={{
-              uri:
-                room.image ||
-                "https://bandon.vn/uploads/posts/thiet-ke-nha-tro-dep-2020-bandon-0.jpg",
-            }}
-            style={styles.roomImage}
-            resizeMode="cover"
-          />
-        </View>
-
-        <View style={styles.content}>
-          {/* Room Info Section */}
+        {/* Landlord Info */}
+        {landlord && (landlord.fullName || landlord.phoneNumber) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thông tin phòng</Text>
-
-            <View style={styles.infoCard}>
-              <View style={styles.infoRow}>
-                <View style={styles.infoItem}>
-                  <Ionicons name="resize-outline" size={20} color="#6366f1" />
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Diện tích</Text>
-                    <Text style={styles.infoValue}>
-                      {room.area ? `${room.area}m²` : "N/A"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoDivider} />
-
-                <View style={styles.infoItem}>
-                  <Ionicons name="cash-outline" size={20} color="#10b981" />
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Giá phòng</Text>
-                    <Text style={styles.infoValue}>
-                      {formatPrice(room.price)}/tháng
-                    </Text>
-                  </View>
-                </View>
+            <Text style={styles.sectionTitle}>Thông tin liên hệ</Text>
+            <View style={styles.landlordCard}>
+              <View style={styles.landlordAvatar}>
+                <Ionicons name="person" size={28} color="#0d9488" />
               </View>
-
-              <View style={styles.separator} />
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoItem}>
-                  <Ionicons name="people-outline" size={20} color="#f59e0b" />
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Số người tối đa</Text>
-                    <Text style={styles.infoValue}>
-                      {room.maxOccupants || "N/A"} người
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoDivider} />
-
-                <View style={styles.infoItem}>
-                  <Ionicons
-                    name={room.isOccupied ? "close-circle" : "checkmark-circle"}
-                    size={20}
-                    color={room.isOccupied ? "#dc2626" : "#10b981"}
-                  />
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Trạng thái</Text>
-                    <Text
-                      style={[
-                        styles.infoValue,
-                        { color: room.isOccupied ? "#dc2626" : "#10b981" },
-                      ]}
-                    >
-                      {room.isOccupied ? "Đã cho thuê" : "Còn trống"}
-                    </Text>
-                  </View>
-                </View>
+              <View style={styles.landlordInfo}>
+                {landlord.fullName && (
+                  <Text style={styles.landlordName}>{landlord.fullName}</Text>
+                )}
+                {landlord.email && (
+                  <Text style={styles.landlordPhone}>{landlord.email}</Text>
+                )}
+                {landlord.phoneNumber && (
+                  <Text style={styles.landlordPhone}>
+                    {landlord.phoneNumber}
+                  </Text>
+                )}
               </View>
             </View>
           </View>
+        )}
 
-          {/* Building Info Section */}
-          {room.buildingId && typeof room.buildingId === "object" && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Thông tin tòa nhà</Text>
-
-              <View style={styles.buildingCard}>
-                <View style={styles.buildingHeader}>
-                  <Ionicons name="business-outline" size={20} color="#0f172a" />
-                  <Text style={styles.buildingTitle}>
-                    {room.buildingId.name}
-                  </Text>
-                </View>
-
-                {room.buildingId.address && (
-                  <View style={styles.addressRow}>
-                    <Ionicons
-                      name="location-outline"
-                      size={16}
-                      color="#64748b"
-                    />
-                    <Text style={styles.addressText}>
-                      {room.buildingId.address}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Utilities */}
-                <View style={styles.utilitiesContainer}>
-                  <Text style={styles.utilitiesTitle}>Tiện ích</Text>
-                  <View style={styles.utilitiesGrid}>
-                    <View style={styles.utilityBox}>
-                      <Ionicons name="flash" size={18} color="#f59e0b" />
-                      <View>
-                        <Text style={styles.utilityLabel}>Điện</Text>
-                        <Text style={styles.utilityValue}>
-                          {room.buildingId.eIndexType === "included"
-                            ? "Đã bao gồm"
-                            : `${formatPrice(room.buildingId.ePrice)}/kWh`}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.utilityBox}>
-                      <Ionicons name="water" size={18} color="#0ea5e9" />
-                      <View>
-                        <Text style={styles.utilityLabel}>Nước</Text>
-                        <Text style={styles.utilityValue}>
-                          {room.buildingId.wIndexType === "included"
-                            ? "Đã bao gồm"
-                            : `${formatPrice(room.buildingId.wPrice)}/m³`}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Room Description */}
-          {room.description && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Mô tả</Text>
-              <Text style={styles.description}>{room.description}</Text>
-            </View>
-          )}
-
-          {/* <View style={styles.statusCard}>
-            <Ionicons
-              name={room.isOccupied ? "information-circle" : "checkmark-circle"}
-              size={24}
-              color={room.isOccupied ? "#f59e0b" : "#10b981"}
-            />
-            <Text style={styles.statusText}>
-              {room.isOccupied
-                ? "Phòng này hiện đang được thuê. Vui lòng liên hệ để biết thêm thông tin."
-                : "Phòng này hiện đang trống và sẵn sàng cho thuê."}
-            </Text>
-          </View> */}
-        </View>
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Action Buttons */}
-      <View style={styles.actions}>
-        {!room.isOccupied ? (
-          <>
-            <TouchableOpacity style={styles.primaryButton}>
-              <Ionicons name="call-outline" size={20} color="white" />
-              <Text style={styles.primaryButtonText}>Liên hệ thuê</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton}>
-              <Ionicons name="heart-outline" size={20} color="#14b8a6" />
-            </TouchableOpacity>
-          </>
-        ) : (
-          <TouchableOpacity style={styles.disabledButton} disabled>
-            <Text style={styles.disabledButtonText}>
-              Phòng đã có người thuê
-            </Text>
-          </TouchableOpacity>
-        )}
+      {/* Action Bar */}
+      <View style={styles.actionBar}>
+        <TouchableOpacity
+          style={styles.bookBtn}
+          onPress={() =>
+            navigation.navigate("BookingForm", {
+              roomId: selectedRoom?._id,
+              postId,
+            })
+          }
+          disabled={!selectedRoom}
+        >
+          <Ionicons name="calendar-outline" size={20} color="#fff" />
+          <Text style={styles.bookBtnText}>Đặt lịch xem</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => openZalo(landlord.phoneNumber)}
+          disabled={!landlord.phoneNumber}
+        >
+          <Ionicons name="chatbubble-ellipses" size={22} color="#0d9488" />
+          <Text style={styles.iconBtnText}>Chat</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => makeCall(landlord.phoneNumber)}
+          disabled={!landlord.phoneNumber}
+        >
+          <Ionicons name="call" size={22} color="#0d9488" />
+          <Text style={styles.iconBtnText}>Gọi</Text>
+        </TouchableOpacity>
       </View>
+
+      {modalVisible && (
+        <View style={styles.fixedModalOverlay}>
+          <View style={styles.fixedModalContainer}>
+            {/* Handle Bar */}
+            <View style={styles.handleBarContainer}>
+              <View style={styles.handleBar} />
+            </View>
+
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chọn phòng</Text>
+              <TouchableOpacity onPress={closeModal}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Danh sách phòng */}
+            <ScrollView
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {rooms.map((room) => (
+                <TouchableOpacity
+                  key={room._id}
+                  style={[
+                    styles.modalRoomCard,
+                    selectedRoom?._id === room._id &&
+                      styles.modalRoomCardActive,
+                  ]}
+                  onPress={() => handleRoomSelect(room)}
+                >
+                  <View style={styles.modalRoomHeader}>
+                    <Text
+                      style={[
+                        styles.modalRoomName,
+                        selectedRoom?._id === room._id &&
+                          styles.modalRoomNameActive,
+                      ]}
+                    >
+                      {room.name || `P.${room.roomNumber}`}
+                    </Text>
+                    {selectedRoom?._id === room._id && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color="#0d9488"
+                      />
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.modalRoomPrice,
+                      selectedRoom?._id === room._id &&
+                        styles.modalRoomPriceActive,
+                    ]}
+                  >
+                    {formatPrice(room.price)}
+                  </Text>
+                  <View style={styles.modalRoomInfo}>
+                    <Text style={styles.modalRoomArea}>
+                      {room.area || post.areaMin} m²
+                    </Text>
+                    {room.status && (
+                      <Text
+                        style={[
+                          styles.modalRoomStatus,
+                          room.status === "available"
+                            ? styles.statusAvailable
+                            : styles.statusOccupied,
+                        ]}
+                      >
+                        {room.status === "available" ? "Trống" : "Đã thuê"}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-  },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
-    gap: 16,
+    backgroundColor: "#f8fafc",
+    padding: 20,
   },
-  loadingText: {
-    fontSize: 15,
-    color: "#64748b",
+  loadingIconContainer: { marginBottom: 16, opacity: 0.8 },
+  errorIconContainer: { marginBottom: 16 },
+  loadingText: { marginTop: 12, fontSize: 15, color: "#64748b" },
+  noData: { marginTop: 12, fontSize: 16, color: "#64748b", fontWeight: "600" },
+  backButton: {
+    backgroundColor: "#0d9488",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  errorText: {
-    fontSize: 16,
-    color: "#64748b",
-    textAlign: "center",
-  },
+  backButtonText: { color: "white", fontSize: 15, fontWeight: "bold" },
 
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#0d9488",
     paddingHorizontal: 16,
-    paddingTop: 50,
+    paddingTop: Platform.OS === "ios" ? 60 : 50,
     paddingBottom: 16,
-    backgroundColor: "#ffffff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  backBtn: { padding: 8 },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#0f172a",
-  },
-
-  scrollContent: {
-    paddingBottom: 16,
-  },
-
-  roomHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    padding: 20,
-    backgroundColor: "#f8fafc",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  roomIconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#f0fdfa",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  roomHeaderInfo: {
+    color: "#fff",
     flex: 1,
-    gap: 8,
-  },
-  roomName: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  buildingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-  },
-  buildingName: {
-    fontSize: 14,
-    color: "#64748b",
-    fontWeight: "500",
+    marginHorizontal: 12,
   },
 
   imageContainer: {
-    width: width,
-    height: 220,
-    backgroundColor: "#f1f5f9",
+    position: "relative",
+    height: 260,
+    backgroundColor: "#e2e8f0",
   },
-  roomImage: {
-    width: "100%",
-    height: "100%",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+  mainImage: { width: "100%", height: "100%" },
+  navBtn: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -24,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
   },
+  prevBtn: { left: 16 },
+  nextBtn: { right: 16 },
+  imageCounter: {
+    position: "absolute",
+    bottom: 16,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  counterText: { color: "#fff", fontSize: 13, fontWeight: "600" },
 
-  content: {
-    padding: 20,
-    gap: 24,
+  infoCard: {
+    backgroundColor: "#fff",
+    margin: 16,
+    marginBottom: 8,
+    padding: 18,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
-  section: {
-    gap: 12,
+  postTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 12,
   },
+  priceRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  priceLabel: { fontSize: 15, color: "#64748b", marginRight: 8 },
+  priceRange: { fontSize: 22, fontWeight: "800", color: "#dc2626", flex: 1 },
+  areaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 6,
+  },
+  areaText: { fontSize: 14, color: "#64748b" },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: 4,
+    gap: 6,
+  },
+  address: { fontSize: 15, color: "#475569", flex: 1, lineHeight: 22 },
+  buildingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    gap: 6,
+  },
+  buildingName: { fontSize: 14, color: "#64748b", fontStyle: "italic" },
+
+  section: { paddingHorizontal: 16, marginBottom: 16 },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#0f172a",
-    marginBottom: 4,
+    color: "#1e293b",
+    marginBottom: 12,
   },
 
-  infoCard: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 16,
-    gap: 16,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  infoItem: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  infoTextContainer: {
-    flex: 1,
-    gap: 2,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: "500",
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  infoDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#e2e8f0",
-  },
-  separator: {
-    height: 1,
-    backgroundColor: "#e2e8f0",
-  },
-
-  buildingCard: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 16,
-    gap: 16,
-  },
-  buildingHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  buildingTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  addressRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingLeft: 30,
-  },
-  addressText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#64748b",
-    lineHeight: 20,
-  },
-
-  utilitiesContainer: {
-    gap: 12,
-  },
-  utilitiesTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  utilitiesGrid: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  utilityBox: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    backgroundColor: "#ffffff",
+  descriptionCard: {
+    backgroundColor: "#fff",
     borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
-  utilityLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 2,
-  },
-  utilityValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
+  descriptionText: { fontSize: 15, color: "#475569", lineHeight: 24 },
 
-  description: {
-    fontSize: 15,
-    color: "#475569",
-    lineHeight: 24,
-  },
-
-  statusCard: {
+  amenitiesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  amenityChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 6,
+    backgroundColor: "#f0fdfa",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#99f6e4",
+  },
+  amenityText: { fontSize: 14, color: "#0d9488", fontWeight: "500" },
+
+  costGrid: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  costRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  costLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  costLabel: { fontSize: 15, color: "#475569", fontWeight: "500" },
+  costValue: { fontSize: 15, fontWeight: "600", color: "#0f172a" },
+
+  selectRoomBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f0fdfa",
     padding: 16,
-    backgroundColor: "#fef3c7",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#fcd34d",
+    borderColor: "#99f6e4",
   },
-  statusText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#78350f",
-    lineHeight: 20,
-  },
-
-  actions: {
-    flexDirection: "row",
-    gap: 12,
+  selectRoomText: { fontSize: 16, fontWeight: "600", color: "#0d9488" },
+  selectedRoomPreview: {
+    marginTop: 12,
     padding: 16,
-    paddingBottom: 20,
-    backgroundColor: "#ffffff",
-    borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#0d9488",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  primaryButton: {
-    flex: 1,
+  selectedRoomName: { fontSize: 16, fontWeight: "600", color: "#0d9488" },
+  selectedRoomPrice: { fontSize: 18, fontWeight: "700", color: "#dc2626" },
+
+  landlordCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#14b8a6",
-    paddingVertical: 14,
-    borderRadius: 12,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
-  primaryButtonText: {
-    color: "white",
-    fontSize: 15,
+  landlordAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#f0fdfa",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#99f6e4",
+  },
+  landlordInfo: { flex: 1 },
+  landlordName: {
+    fontSize: 16,
     fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 4,
   },
-  secondaryButton: {
-    width: 52,
-    height: 52,
+  landlordPhone: { fontSize: 14, color: "#64748b" },
+
+  actionBar: {
+    flexDirection: "row",
+    padding: 16,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    gap: 12,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    elevation: 8,
+  },
+  bookBtn: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#0d9488",
+    paddingVertical: 14,
+    borderRadius: 14,
     justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    elevation: 3,
+  },
+  bookBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  iconBtn: {
+    flexDirection: "column",
     alignItems: "center",
     backgroundColor: "#f0fdfa",
-    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#99f6e4",
+    minWidth: 70,
   },
-  disabledButton: {
-    flex: 1,
-    backgroundColor: "#f1f5f9",
-    paddingVertical: 14,
-    borderRadius: 12,
+  iconBtnText: {
+    color: "#0d9488",
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+
+  fixedModalOverlay: {
+    position: "absolute",
+    bottom: 80,
+    left: 0,
+    right: 0,
+    height: height * 0.7,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+    zIndex: 999,
+  },
+  fixedModalContainer: {
+    backgroundColor: "#f8fafc",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.7,
+    paddingBottom: 20,
+  },
+  handleBarContainer: { alignItems: "center", paddingVertical: 12 },
+  handleBar: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#cbd5e1",
+    borderRadius: 3,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#1e293b" },
+  modalContent: { paddingHorizontal: 16, maxHeight: height * 0.5 },
+  modalRoomCard: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+    elevation: 1,
+  },
+  modalRoomCardActive: { borderColor: "#0d9488", backgroundColor: "#f0fdfa" },
+  modalRoomHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  modalRoomName: { fontSize: 17, fontWeight: "600", color: "#1e293b" },
+  modalRoomNameActive: { color: "#0d9488" },
+  modalRoomPrice: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#dc2626",
+    marginBottom: 8,
+  },
+  modalRoomPriceActive: { color: "#0d9488" },
+  modalRoomInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  disabledButtonText: {
-    color: "#94a3b8",
-    fontSize: 15,
-    fontWeight: "600",
+  modalRoomArea: { fontSize: 14, color: "#64748b" },
+  modalRoomStatus: {
+    fontSize: 13,
+    fontWeight: "500",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
+  statusAvailable: { backgroundColor: "#dcfce7", color: "#166534" },
+  statusOccupied: { backgroundColor: "#fee2e2", color: "#991b1b" },
 });

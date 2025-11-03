@@ -13,8 +13,9 @@ import HomeScreen from "../screens/home/HomeScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import AccountScreen from "../screens/profile/AccountScreen";
 import PostListScreen from "../screens/post/PostListScreen";
-import PostDetailScreen from "../screens/post/PostDetailScreen";
 import RoomDetailScreen from "../screens/post/RoomDetailScreen";
+import BookingScreen from "../screens/booking/BookingScreen";
+import BookingFormScreen from "../screens/booking/BookingFormScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -31,19 +32,31 @@ export default function AppNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {/* Main */}
       <Stack.Screen name="BottomTabs" component={BottomTabs} />
-      <Stack.Screen name="Home" component={HomeScreen} />
+
+      {/* Auth */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="SendOtp" component={SendOtpScreen} />
+
+      {/* Home */}
+      <Stack.Screen name="Home" component={HomeScreen} />
+
+      {/* Post */}
       <Stack.Screen name="PostList" component={PostListScreen} />
-      <Stack.Screen name="PostDetail" component={PostDetailScreen} />
+      <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
+
+      {/* Booking */}
+      <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="BookingForm" component={BookingFormScreen} />
+
+      {/* Profile */}
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
-      <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
     </Stack.Navigator>
   );
 }
