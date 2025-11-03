@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { registerApi } from "../../api/authApi";
+import Toast from "react-native-toast-message";
 
 export default function RegisterScreen({ navigation }) {
   const [role, setRole] = useState("resident");
@@ -57,10 +58,20 @@ export default function RegisterScreen({ navigation }) {
       !form.password ||
       !form.confirmPassword
     ) {
-      return alert("Vui lòng điền đầy đủ thông tin!");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng điền đầy đủ thông tin!",
+      });
+      return;
     }
     if (form.password !== form.confirmPassword) {
-      return alert("Mật khẩu và xác nhận mật khẩu không khớp!");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Mật khẩu và xác nhận mật khẩu không khớp!",
+      });
+      return;
     }
 
     try {
@@ -72,12 +83,28 @@ export default function RegisterScreen({ navigation }) {
       };
 
       await registerApi(payload);
-      alert("Đăng ký thành công!");
-      navigation.navigate("VerifyOtp", {
-        emailVerify: form.email,
+
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2:
+          "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.",
       });
+
+      // Điều hướng sau khi hiển thị toast
+      setTimeout(() => {
+        navigation.navigate("VerifyOtp", {
+          emailVerify: form.email,
+        });
+      }, 2000);
     } catch (error) {
-      alert(error.response?.data?.message || "Đăng ký thất bại!");
+      const errorMessage = error.response?.data?.message || "Đăng ký thất bại!";
+
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: errorMessage,
+      });
     } finally {
       setLoading(false);
     }
@@ -299,6 +326,7 @@ export default function RegisterScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
+      <Toast />
     </KeyboardAvoidingView>
   );
 }

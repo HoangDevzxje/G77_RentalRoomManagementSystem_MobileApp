@@ -140,7 +140,7 @@ export default function RoomDetailScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <Ionicons name="arrow-back" size={26} color="#fff" />
+          <Ionicons name="arrow-back" size={26} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {selectedRoom
@@ -263,29 +263,6 @@ export default function RoomDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Nút chọn phòng */}
-        {rooms.length > 1 && (
-          <View style={styles.section}>
-            <TouchableOpacity style={styles.selectRoomBtn} onPress={openModal}>
-              <Text style={styles.selectRoomText}>
-                Chọn phòng ({rooms.length} phòng trống)
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#0d9488" />
-            </TouchableOpacity>
-
-            {selectedRoom && (
-              <View style={styles.selectedRoomPreview}>
-                <Text style={styles.selectedRoomName}>
-                  {selectedRoom.name || `P.${selectedRoom.roomNumber}`}
-                </Text>
-                <Text style={styles.selectedRoomPrice}>
-                  {formatPrice(selectedRoom.price)}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
         {/* Landlord Info */}
         {landlord && (landlord.fullName || landlord.phoneNumber) && (
           <View style={styles.section}>
@@ -311,47 +288,73 @@ export default function RoomDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        <View style={{ height: 120 }} />
+        <View style={{ height: 140 }} />
       </ScrollView>
 
       {/* Action Bar */}
       <View style={styles.actionBar}>
-        <TouchableOpacity
-          style={styles.bookBtn}
-          onPress={() =>
-            navigation.navigate("BookingForm", {
-              roomId: selectedRoom?._id,
-              postId,
-            })
-          }
-          disabled={!selectedRoom}
-        >
-          <Ionicons name="calendar-outline" size={20} color="#fff" />
-          <Text style={styles.bookBtnText}>Đặt lịch xem</Text>
-        </TouchableOpacity>
+        {/* Nút chọn phòng */}
+        {rooms.length > 1 && (
+          <TouchableOpacity style={styles.selectRoomBtn} onPress={openModal}>
+            <View style={styles.selectRoomContent}>
+              <View style={styles.selectRoomLeft}>
+                <Ionicons name="business-outline" size={18} color="#0d9488" />
+                <Text style={styles.selectRoomText}>
+                  Chọn phòng ({rooms.length} phòng trống)
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={20} color="#0d9488" />
+            </View>
+          </TouchableOpacity>
+        )}
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => openZalo(landlord.phoneNumber)}
-          disabled={!landlord.phoneNumber}
-        >
-          <Ionicons name="chatbubble-ellipses" size={22} color="#0d9488" />
-          <Text style={styles.iconBtnText}>Chat</Text>
-        </TouchableOpacity>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={styles.bookBtn}
+            onPress={() =>
+              navigation.navigate("BookingForm", {
+                roomId: selectedRoom?._id,
+                postId,
+              })
+            }
+            disabled={!selectedRoom}
+          >
+            <Ionicons name="calendar-outline" size={20} color="#fff" />
+            <Text style={styles.bookBtnText}>Đặt lịch xem</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => makeCall(landlord.phoneNumber)}
-          disabled={!landlord.phoneNumber}
-        >
-          <Ionicons name="call" size={22} color="#0d9488" />
-          <Text style={styles.iconBtnText}>Gọi</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => openZalo(landlord.phoneNumber)}
+            disabled={!landlord.phoneNumber}
+          >
+            <Ionicons name="chatbubble-ellipses" size={22} color="#0d9488" />
+            <Text style={styles.iconBtnText}>Chat</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => makeCall(landlord.phoneNumber)}
+            disabled={!landlord.phoneNumber}
+          >
+            <Ionicons name="call" size={22} color="#0d9488" />
+            <Text style={styles.iconBtnText}>Gọi</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* Modal chọn phòng */}
       {modalVisible && (
-        <View style={styles.fixedModalOverlay}>
-          <View style={styles.fixedModalContainer}>
+        <TouchableOpacity
+          style={styles.fixedModalOverlay}
+          activeOpacity={1}
+          onPress={closeModal}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.fixedModalContainer}
+            onPress={(e) => e.stopPropagation()}
+          >
             {/* Handle Bar */}
             <View style={styles.handleBarContainer}>
               <View style={styles.handleBar} />
@@ -428,8 +431,8 @@ export default function RoomDetailScreen({ route, navigation }) {
               ))}
               <View style={{ height: 20 }} />
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -464,7 +467,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#0d9488",
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: Platform.OS === "ios" ? 60 : 50,
     paddingBottom: 16,
@@ -473,12 +476,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
   },
   backBtn: { padding: 8 },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#fff",
+    color: "#1e293b",
     flex: 1,
     marginHorizontal: 12,
   },
@@ -607,31 +612,6 @@ const styles = StyleSheet.create({
   costLabel: { fontSize: 15, color: "#475569", fontWeight: "500" },
   costValue: { fontSize: 15, fontWeight: "600", color: "#0f172a" },
 
-  selectRoomBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#f0fdfa",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#99f6e4",
-  },
-  selectRoomText: { fontSize: 16, fontWeight: "600", color: "#0d9488" },
-  selectedRoomPreview: {
-    marginTop: 12,
-    padding: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#0d9488",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  selectedRoomName: { fontSize: 16, fontWeight: "600", color: "#0d9488" },
-  selectedRoomPrice: { fontSize: 18, fontWeight: "700", color: "#dc2626" },
-
   landlordCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -662,17 +642,44 @@ const styles = StyleSheet.create({
   landlordPhone: { fontSize: 14, color: "#64748b" },
 
   actionBar: {
-    flexDirection: "row",
     padding: 16,
+    paddingBottom: Platform.OS === "ios" ? 32 : 16,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
-    gap: 12,
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     elevation: 8,
+  },
+  selectRoomBtn: {
+    backgroundColor: "#f0fdfa",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#99f6e4",
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  selectRoomContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 14,
+  },
+  selectRoomLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  selectRoomText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0d9488",
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 12,
   },
   bookBtn: {
     flex: 1,
@@ -704,41 +711,51 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
+  // MODAL STYLES
   fixedModalOverlay: {
     position: "absolute",
-    bottom: 80,
+    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    height: height * 0.7,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
-    zIndex: 999,
+    zIndex: 1000,
   },
   fixedModalContainer: {
-    backgroundColor: "#f8fafc",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: height * 0.7,
-    paddingBottom: 20,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: height * 0.65,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
   },
-  handleBarContainer: { alignItems: "center", paddingVertical: 12 },
+  handleBarContainer: { alignItems: "center", paddingVertical: 10 },
   handleBar: {
     width: 40,
-    height: 5,
+    height: 4,
     backgroundColor: "#cbd5e1",
-    borderRadius: 3,
+    borderRadius: 2,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
+    backgroundColor: "#fff",
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#1e293b" },
-  modalContent: { paddingHorizontal: 16, maxHeight: height * 0.5 },
+  modalTitle: { fontSize: 20, fontWeight: "700", color: "#1e293b" },
+  modalContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: "#f8fafc",
+  },
   modalRoomCard: {
     backgroundColor: "#fff",
     padding: 16,
