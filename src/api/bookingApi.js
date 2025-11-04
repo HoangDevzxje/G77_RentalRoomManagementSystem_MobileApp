@@ -57,6 +57,15 @@ export const getMyBookings = async () => {
 };
 
 export const cancelBooking = async (bookingId) => {
-  const res = await baseApi.patch(`/bookings/cancel/${bookingId}`);
-  return res.data;
+  try {
+    const res = await baseApi.patch(`/bookings/cancel/${bookingId}`);
+    return res.data;
+  } catch (error) {
+    // Xử lý lỗi cụ thể hơn
+    if (error.response) {
+      throw error;
+    } else {
+      throw new Error("Lỗi kết nối mạng");
+    }
+  }
 };

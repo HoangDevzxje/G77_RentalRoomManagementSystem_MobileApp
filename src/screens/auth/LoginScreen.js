@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../../context/AuthContext";
 import Logo from "../../components/logo/Logo";
+import Toast from "react-native-toast-message";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -20,39 +21,37 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showCustomAlert, setShowCustomAlert] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
-    type: "",
-    message: "",
-  });
   const { login } = useAuth();
-
-  const showAlert = (type, message) => {
-    setAlertConfig({ type, message });
-    setShowCustomAlert(true);
-
-    setTimeout(() => {
-      setShowCustomAlert(false);
-    }, 2000);
-  };
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
 
     if (!trimmedEmail) {
-      showAlert("error", "Vui lòng nhập email hoặc tên đăng nhập");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng nhập email hoặc tên đăng nhập",
+      });
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (trimmedEmail.includes("@") && !emailRegex.test(trimmedEmail)) {
-      showAlert("error", "Email không hợp lệ");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Email không hợp lệ",
+      });
       return;
     }
 
     if (!trimmedPassword) {
-      showAlert("error", "Vui lòng nhập mật khẩu");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng nhập mật khẩu",
+      });
       return;
     }
 
@@ -68,7 +67,16 @@ export default function LoginScreen({ navigation }) {
         await AsyncStorage.removeItem("rememberedPassword");
       }
 
-      navigation.navigate("BottomTabs");
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đăng nhập thành công!",
+      });
+
+      // Điều hướng sau khi hiển thị toast
+      setTimeout(() => {
+        navigation.navigate("BottomTabs");
+      }, 1000);
     } catch (error) {
       console.log("Login error:", error.message);
 
@@ -105,7 +113,11 @@ export default function LoginScreen({ navigation }) {
         displayMessage = errorMsg;
       }
 
-      showAlert("error", displayMessage);
+      Toast.show({
+        type: "error",
+        text1: "Lỗi đăng nhập",
+        text2: displayMessage,
+      });
     } finally {
       setLoading(false);
     }
@@ -117,18 +129,6 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {showCustomAlert && alertConfig.type === "error" && (
-        <View style={[styles.topAlert, styles.errorAlert]}>
-          <Ionicons
-            name="close-circle"
-            size={20}
-            color="white"
-            style={styles.alertIcon}
-          />
-          <Text style={styles.alertMessage}>{alertConfig.message}</Text>
-        </View>
-      )}
-
       <View style={styles.card}>
         {/* Sử dụng component Logo */}
         <Logo isScrolled={false} onPress={handleLogoPress} size={55} />
@@ -226,7 +226,13 @@ export default function LoginScreen({ navigation }) {
         {/* Google Login */}
         <TouchableOpacity
           style={styles.googleButton}
-          onPress={() => Alert.alert("Google login")}
+          onPress={() => {
+            Toast.show({
+              type: "info",
+              text1: "Thông báo",
+              text2: "Tính năng đăng nhập Google đang phát triển",
+            });
+          }}
         >
           <Image
             source={require("../../../assets/images/Google__G__logo.svg.webp")}
@@ -248,6 +254,7 @@ export default function LoginScreen({ navigation }) {
           </Text>
         </View>
       </View>
+      <Toast />
     </View>
   );
 }
@@ -259,42 +266,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 10,
-  },
-
-  topAlert: {
-    position: "absolute",
-    top: 50,
-    left: 20,
-    right: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    zIndex: 1000,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  successAlert: {
-    backgroundColor: "#10B981",
-  },
-  errorAlert: {
-    backgroundColor: "#EF4444",
-  },
-  alertIcon: {
-    marginRight: 8,
-  },
-  alertMessage: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "500",
-    flex: 1,
   },
   card: {
     width: "100%",

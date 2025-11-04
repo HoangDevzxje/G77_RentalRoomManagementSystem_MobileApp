@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  Alert,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -13,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { changePasswordApi } from "../../api/authApi";
 import { getAccessToken } from "../../utils/storage";
+import Toast from "react-native-toast-message";
 
 export default function ChangePasswordScreen() {
   const [oldPassword, setOldPassword] = useState("");
@@ -44,48 +44,69 @@ export default function ChangePasswordScreen() {
   const handleChangePassword = async () => {
     const token = await getAccessToken();
     if (!token) {
-      Alert.alert("Lỗi", "Bạn chưa đăng nhập hoặc token đã hết hạn.");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Bạn chưa đăng nhập hoặc token đã hết hạn.",
+      });
       return;
     }
 
     if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng nhập đầy đủ thông tin",
+      });
       return;
     }
 
     if (!validatePassword(newPassword)) {
-      Alert.alert(
-        "Lỗi",
-        "Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt"
-      );
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2:
+          "Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt",
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Lỗi", "Mật khẩu xác nhận không khớp");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Mật khẩu xác nhận không khớp",
+      });
       return;
     }
 
     setLoading(true);
     try {
       await changePasswordApi(oldPassword, newPassword);
-      Alert.alert("Thành công", "Đổi mật khẩu thành công", [
-        {
-          text: "OK",
-          onPress: () => {
-            setOldPassword("");
-            setNewPassword("");
-            setConfirmPassword("");
-            navigation.navigate("BottomTabs");
-          },
-        },
-      ]);
+
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đổi mật khẩu thành công",
+      });
+
+      setTimeout(() => {
+        setOldPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        navigation.navigate("BottomTabs");
+      }, 1500);
     } catch (error) {
       console.log("Error response:", error.response?.data);
-      Alert.alert(
-        "Lỗi",
-        error.response?.data?.message || "Đổi mật khẩu thất bại"
-      );
+
+      const errorMessage =
+        error.response?.data?.message || "Đổi mật khẩu thất bại";
+
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: errorMessage,
+      });
     } finally {
       setLoading(false);
     }
@@ -282,6 +303,7 @@ export default function ChangePasswordScreen() {
           </View>
         </View>
       </ScrollView>
+      <Toast />
     </View>
   );
 }
