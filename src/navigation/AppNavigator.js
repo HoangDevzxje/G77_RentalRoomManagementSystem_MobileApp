@@ -16,6 +16,9 @@ import PostListScreen from "../screens/post/PostListScreen";
 import RoomDetailScreen from "../screens/post/RoomDetailScreen";
 import BookingScreen from "../screens/booking/BookingScreen";
 import BookingFormScreen from "../screens/booking/BookingFormScreen";
+import ContactScreen from "../screens/contact/ContactScreen";
+import ContactDetailScreen from "../screens/contact/ContactDetailScreen";
+import MessagesScreen from "../screens/messages/MessagesScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -46,6 +49,9 @@ export default function AppNavigator() {
       {/* Home */}
       <Stack.Screen name="Home" component={HomeScreen} />
 
+      {/* Messages */}
+      <Stack.Screen name="Messages" component={MessagesScreen} />
+
       {/* Post */}
       <Stack.Screen name="PostList" component={PostListScreen} />
       <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
@@ -53,6 +59,10 @@ export default function AppNavigator() {
       {/* Booking */}
       <Stack.Screen name="Booking" component={BookingScreen} />
       <Stack.Screen name="BookingForm" component={BookingFormScreen} />
+
+      {/* Contact*/}
+      <Stack.Screen name="Contact" component={ContactScreen} />
+      <Stack.Screen name="ContactDetail" component={ContactDetailScreen} />
 
       {/* Profile */}
       <Stack.Screen name="Account" component={AccountScreen} />
