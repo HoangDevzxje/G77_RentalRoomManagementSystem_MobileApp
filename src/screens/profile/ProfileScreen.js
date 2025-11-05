@@ -85,6 +85,32 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("Booking")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons name="calendar-outline" size={22} color="#3b82f6" />
+              </View>
+              <Text style={styles.menuText}>Lịch đặt xem phòng</Text>
+              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("Contact")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={22}
+                  color="#14b8a6"
+                />
+              </View>
+              <Text style={styles.menuText}>Yêu cầu thuê phòng</Text>
+              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.menuItem}>
               <View style={styles.iconWrapper}>
                 <Ionicons name="settings-outline" size={22} color="#3b82f6" />
@@ -102,18 +128,6 @@ export default function ProfileScreen() {
                 />
               </View>
               <Text style={styles.menuText}>Hỗ trợ</Text>
-              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.menuItem, styles.lastMenuItem]}>
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={22}
-                  color="#06b6d4"
-                />
-              </View>
-              <Text style={styles.menuText}>Về ứng dụng</Text>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
             </TouchableOpacity>
           </View>

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { getPostById } from "../../api/postApi";
+import { getMyContacts } from "../../api/contactApi";
 
 const { width, height } = Dimensions.get("window");
 const DEFAULT_IMAGE =
@@ -26,6 +27,7 @@ export default function RoomDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
+  const [hasExistingContact, setHasExistingContact] = useState(false);
 
   useEffect(() => {
     fetchPostDetail();
@@ -38,6 +40,13 @@ export default function RoomDetailScreen({ route, navigation }) {
       : post.title;
     navigation.setOptions({ headerTitle: roomName });
   }, [selectedRoom, post, navigation]);
+
+  // Kiểm tra xem đã có contact nào cho phòng này chưa
+  useEffect(() => {
+    if (selectedRoom?._id) {
+      checkExistingContact();
+    }
+  }, [selectedRoom]);
 
   const fetchPostDetail = async () => {
     try {
@@ -52,6 +61,21 @@ export default function RoomDetailScreen({ route, navigation }) {
       console.error("Lỗi tải bài đăng:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkExistingContact = async () => {
+    try {
+      const response = await getMyContacts({ page: 1, limit: 100 });
+      const contacts = response.data || response.contacts || [];
+      // Kiểm tra xem có contact nào cho phòng hiện tại không
+      const existingContact = contacts.find(
+        (c) =>
+          c.roomId?._id === selectedRoom._id || c.roomId === selectedRoom._id
+      );
+      setHasExistingContact(!!existingContact);
+    } catch (error) {
+      console.error("Lỗi kiểm tra contact:", error);
     }
   };
 
@@ -87,6 +111,35 @@ export default function RoomDetailScreen({ route, navigation }) {
   const getImages = () => {
     const images = post?.images || [];
     return images.length > 0 ? images : [DEFAULT_IMAGE];
+  };
+
+  const navigateToCreateContact = () => {
+    if (!selectedRoom) {
+      alert("Vui lòng chọn phòng trước");
+      return;
+    }
+    navigation.navigate("ContactDetail", {
+      roomId: selectedRoom._id,
+      postId: postId,
+      buildingId: building._id || building,
+      roomInfo: {
+        name: selectedRoom.name || `P.${selectedRoom.roomNumber}`,
+        price: selectedRoom.price,
+        area: selectedRoom.area || post.areaMin,
+      },
+      landlord: landlord,
+    });
+  };
+
+  const navigateToBooking = () => {
+    if (!selectedRoom) {
+      alert("Vui lòng chọn phòng trước");
+      return;
+    }
+    navigation.navigate("BookingForm", {
+      roomId: selectedRoom?._id,
+      postId,
+    });
   };
 
   const images = getImages();
@@ -142,12 +195,15 @@ export default function RoomDetailScreen({ route, navigation }) {
         >
           <Ionicons name="arrow-back" size={26} color="#1e293b" />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle} numberOfLines={1}>
           {selectedRoom
             ? selectedRoom.name || `P.${selectedRoom.roomNumber}`
             : post.title}
         </Text>
-        <View style={{ width: 40 }} />
+
+        {/* Đã xoá nút Đặt lịch xem khỏi header */}
+        <View style={styles.headerRight} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -180,6 +236,26 @@ export default function RoomDetailScreen({ route, navigation }) {
             </>
           )}
         </View>
+
+        {/* Banner Đặt lịch xem phòng ngay */}
+        <TouchableOpacity
+          style={styles.bookingBanner}
+          onPress={navigateToBooking}
+          disabled={!selectedRoom}
+        >
+          <View style={styles.bookingBannerContent}>
+            <View style={styles.bookingIconContainer}>
+              <Ionicons name="calendar" size={24} color="#fff" />
+            </View>
+            <View style={styles.bookingTextContainer}>
+              <Text style={styles.bookingTitle}>Đặt lịch xem phòng ngay</Text>
+              <Text style={styles.bookingSubtitle}>
+                Chọn ngày và giờ phù hợp để xem trực tiếp phòng trọ
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#fff" />
+          </View>
+        </TouchableOpacity>
 
         {/* Post Info Card */}
         <View style={styles.infoCard}>
@@ -267,22 +343,24 @@ export default function RoomDetailScreen({ route, navigation }) {
         {landlord && (landlord.fullName || landlord.phoneNumber) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Thông tin liên hệ</Text>
-            <View style={styles.landlordCard}>
-              <View style={styles.landlordAvatar}>
-                <Ionicons name="person" size={28} color="#0d9488" />
-              </View>
-              <View style={styles.landlordInfo}>
-                {landlord.fullName && (
-                  <Text style={styles.landlordName}>{landlord.fullName}</Text>
-                )}
-                {landlord.email && (
-                  <Text style={styles.landlordPhone}>{landlord.email}</Text>
-                )}
-                {landlord.phoneNumber && (
-                  <Text style={styles.landlordPhone}>
-                    {landlord.phoneNumber}
-                  </Text>
-                )}
+            <View style={styles.landlordSection}>
+              <View style={styles.landlordCard}>
+                <View style={styles.landlordAvatar}>
+                  <Ionicons name="person" size={28} color="#0d9488" />
+                </View>
+                <View style={styles.landlordInfo}>
+                  {landlord.fullName && (
+                    <Text style={styles.landlordName}>{landlord.fullName}</Text>
+                  )}
+                  {landlord.email && (
+                    <Text style={styles.landlordPhone}>{landlord.email}</Text>
+                  )}
+                  {landlord.phoneNumber && (
+                    <Text style={styles.landlordPhone}>
+                      {landlord.phoneNumber}
+                    </Text>
+                  )}
+                </View>
               </View>
             </View>
           </View>
@@ -309,18 +387,32 @@ export default function RoomDetailScreen({ route, navigation }) {
         )}
 
         <View style={styles.actionButtons}>
+          {/* Nút Tạo hợp đồng - Đã chuyển xuống action bar */}
           <TouchableOpacity
-            style={styles.bookBtn}
-            onPress={() =>
-              navigation.navigate("BookingForm", {
-                roomId: selectedRoom?._id,
-                postId,
-              })
-            }
+            style={[
+              styles.contractBtn,
+              hasExistingContact && styles.contractBtnActive,
+            ]}
+            onPress={navigateToCreateContact}
             disabled={!selectedRoom}
           >
-            <Ionicons name="calendar-outline" size={20} color="#fff" />
-            <Text style={styles.bookBtnText}>Đặt lịch xem</Text>
+            <View style={styles.contractIconContainer}>
+              <Ionicons
+                name={
+                  hasExistingContact ? "document-text" : "document-text-outline"
+                }
+                size={20}
+                color={hasExistingContact ? "#fff" : "#fff"}
+              />
+              {hasExistingContact && (
+                <View style={styles.contractBadge}>
+                  <Text style={styles.contractBadgeText}>✓</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.contractBtnText}>
+              {hasExistingContact ? "Hợp đồng" : "Tạo hợp đồng"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -328,8 +420,8 @@ export default function RoomDetailScreen({ route, navigation }) {
             onPress={() => openZalo(landlord.phoneNumber)}
             disabled={!landlord.phoneNumber}
           >
-            <Ionicons name="chatbubble-ellipses" size={22} color="#0d9488" />
-            <Text style={styles.iconBtnText}>Chat</Text>
+            <Ionicons name="chatbubble-ellipses" size={17} color="#fff" />
+            <Text style={styles.iconBtnText}>Zalo</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -337,7 +429,7 @@ export default function RoomDetailScreen({ route, navigation }) {
             onPress={() => makeCall(landlord.phoneNumber)}
             disabled={!landlord.phoneNumber}
           >
-            <Ionicons name="call" size={22} color="#0d9488" />
+            <Ionicons name="call" size={17} color="#fff" />
             <Text style={styles.iconBtnText}>Gọi</Text>
           </TouchableOpacity>
         </View>
@@ -479,13 +571,62 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  backBtn: { padding: 8 },
+  backBtn: {
+    padding: 8,
+    marginLeft: -8,
+  },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#1e293b",
     flex: 1,
     marginHorizontal: 12,
+    textAlign: "center",
+  },
+  headerRight: {
+    width: 40,
+  },
+
+  bookingBanner: {
+    backgroundColor: "#0da193",
+    marginLeft: 15,
+    marginRight: 15,
+    marginTop: 10,
+    borderRadius: 12,
+    padding: 8,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+  },
+  bookingBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  bookingIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  bookingTextContainer: {
+    flex: 1,
+  },
+  bookingTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 2,
+  },
+  bookingSubtitle: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
+    lineHeight: 18,
   },
 
   imageContainer: {
@@ -594,7 +735,7 @@ const styles = StyleSheet.create({
 
   costGrid: {
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 4,
     borderWidth: 1,
     borderColor: "#e2e8f0",
@@ -681,37 +822,65 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
-  bookBtn: {
+  contractBtn: {
     flex: 1,
     flexDirection: "row",
     backgroundColor: "#0d9488",
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
     elevation: 3,
   },
-  bookBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  contractBtnActive: {
+    backgroundColor: "#0d9488",
+  },
+  contractIconContainer: {
+    position: "relative",
+  },
+  contractBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#10b981",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#fff",
+  },
+  contractBadgeText: {
+    color: "#fff",
+    fontSize: 8,
+    fontWeight: "bold",
+    lineHeight: 12,
+  },
+  contractBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
   iconBtn: {
     flexDirection: "column",
     alignItems: "center",
-    backgroundColor: "#f0fdfa",
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#99f6e4",
-    minWidth: 70,
+    backgroundColor: "#0d9488",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    minWidth: 60,
+    elevation: 2,
   },
   iconBtnText: {
-    color: "#0d9488",
-    fontSize: 13,
+    color: "#fff",
+    fontSize: 12,
     fontWeight: "500",
-    marginTop: 4,
+    marginTop: 3,
   },
 
-  // MODAL STYLES
   fixedModalOverlay: {
     position: "absolute",
     top: 0,
@@ -796,4 +965,11 @@ const styles = StyleSheet.create({
   },
   statusAvailable: { backgroundColor: "#dcfce7", color: "#166534" },
   statusOccupied: { backgroundColor: "#fee2e2", color: "#991b1b" },
+
+  landlordSection: {
+    marginBottom: 22,
+    backgroundColor: "#fff",
+    borderRadius: 5,
+    elevation: 2,
+  },
 });

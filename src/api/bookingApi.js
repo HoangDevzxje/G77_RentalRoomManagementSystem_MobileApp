@@ -58,10 +58,9 @@ export const getMyBookings = async () => {
 
 export const cancelBooking = async (bookingId) => {
   try {
-    const res = await baseApi.patch(`/bookings/cancel/${bookingId}`);
+    const res = await baseApi.patch(`/bookings/${bookingId}/cancel`);
     return res.data;
   } catch (error) {
-    // Xử lý lỗi cụ thể hơn
     if (error.response) {
       throw error;
     } else {
