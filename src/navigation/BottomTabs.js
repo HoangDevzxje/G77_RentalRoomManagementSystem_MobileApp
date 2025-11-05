@@ -6,10 +6,10 @@ import { View, ScrollView } from "react-native";
 import HomeScreen from "../screens/home/HomeScreen";
 import RoomListScreen from "../screens/post/PostListScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
-import BookingScreen from "../screens/booking/BookingScreen";
 
 import Footer from "../components/footer/Footer";
 import Header from "../components/header/Header";
+import MessagesScreen from "../screens/messages/MessagesScreen";
 
 const Tab = createBottomTabNavigator();
 
@@ -52,8 +52,8 @@ export default function BottomTabs() {
             case "Trang chủ":
               iconName = "home-outline";
               break;
-            case "Lịch đặt phòng":
-              iconName = "calendar-outline";
+            case "Nhắn tin":
+              iconName = "chatbubble-ellipses-outline";
               break;
             case "Tìm phòng":
               iconName = "bed-outline";
@@ -83,12 +83,15 @@ export default function BottomTabs() {
         name="Trang chủ"
         component={withHeaderAndFooter(HomeScreen)}
       />
-      <Tab.Screen name="Lịch đặt phòng" component={withHeader(BookingScreen)} />
+
+      <Tab.Screen name="Nhắn tin" component={withHeader(MessagesScreen)} />
+
       <Tab.Screen
         name="Tìm phòng"
         component={withHeader(RoomListScreen)}
         initialParams={{ buildingId: null }}
       />
+
       <Tab.Screen name="Tài khoản" component={withHeader(ProfileScreen)} />
     </Tab.Navigator>
   );
