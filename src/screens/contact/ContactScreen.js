@@ -65,7 +65,10 @@ const ContactScreen = ({ navigation }) => {
           contact.contactPhone?.includes(query) ||
           contact.tenantNote?.toLowerCase().includes(query) ||
           contact.buildingId?.name?.toLowerCase().includes(query) ||
-          contact.roomId?.name?.toLowerCase().includes(query) ||
+          contact.roomId?.roomNumber
+            ?.toString()
+            .toLowerCase()
+            .includes(query) ||
           contact.postId?.title?.toLowerCase().includes(query)
       );
     }
@@ -142,7 +145,7 @@ const ContactScreen = ({ navigation }) => {
           bgColor: "#fef3c7",
           icon: "time-outline",
         };
-      case "approved":
+      case "accepted":
         return {
           label: "Đã duyệt",
           color: "#10b981",
@@ -159,8 +162,8 @@ const ContactScreen = ({ navigation }) => {
       case "cancelled":
         return {
           label: "Đã huỷ",
-          color: "#64748b",
-          bgColor: "#f1f5f9",
+          color: "#ef4444",
+          bgColor: "#fee2e2",
           icon: "ban-outline",
         };
       default:
@@ -176,7 +179,7 @@ const ContactScreen = ({ navigation }) => {
   const statusFilters = [
     { value: "all", label: "Tất cả", icon: "list-outline" },
     { value: "pending", label: "Chờ xử lý", icon: "time-outline" },
-    { value: "approved", label: "Đã duyệt", icon: "checkmark-circle-outline" },
+    { value: "accepted", label: "Đã duyệt", icon: "checkmark-circle-outline" },
     { value: "rejected", label: "Đã từ chối", icon: "close-circle-outline" },
     { value: "cancelled", label: "Đã huỷ", icon: "ban-outline" },
   ];
@@ -191,15 +194,30 @@ const ContactScreen = ({ navigation }) => {
     const building = contact.buildingId || {};
     const post = contact.postId || {};
 
-    const roomName =
-      room.name ||
-      (room.roomNumber ? `P.${room.roomNumber}` : "Không xác định");
+    const roomNumber = room.roomNumber || "";
+    const roomName = roomNumber ? `P.${roomNumber}` : "Không xác định";
     const roomPrice = room.price;
     const roomArea = room.area;
 
+    const buildingName = building.name || "";
+    const buildingAddress = building.address || "";
+
+    let locationText = "Không xác định";
+    if (buildingName && buildingAddress) {
+      locationText = `${buildingName} - ${buildingAddress}`;
+    } else if (buildingName) {
+      locationText = buildingName;
+    } else if (buildingAddress) {
+      locationText = buildingAddress;
+    }
+
+    let roomDisplayText = roomName;
+    if (roomArea) {
+      roomDisplayText = `${roomName} - ${roomArea}m²`;
+    }
+
     return (
       <View key={contact._id} style={styles.contactCard}>
-        {/* Header Section */}
         <View style={styles.headerSection}>
           <View
             style={[
@@ -219,29 +237,24 @@ const ContactScreen = ({ navigation }) => {
           <Text style={styles.dateText}>{formatDate(contact.createdAt)}</Text>
         </View>
 
-        {/* Property Info */}
         <View style={styles.propertySection}>
-          {post && post.title && (
+          {post && post.title ? (
             <Text style={styles.postTitle} numberOfLines={2}>
               {post.title}
             </Text>
-          )}
+          ) : null}
 
           <View style={styles.locationRow}>
             <Ionicons name="business-outline" size={14} color="#64748b" />
             <Text style={styles.buildingText} numberOfLines={1}>
-              {building.name || ""}
-              {building.name && building.address ? " - " : ""}
-              {building.address || ""}
+              {locationText}
             </Text>
           </View>
 
           <View style={styles.roomInfoRow}>
             <View style={styles.roomMainInfo}>
               <Ionicons name="bed-outline" size={18} color="#0d9488" />
-              <Text style={styles.roomName}>
-                {roomName} - {roomArea}m²
-              </Text>
+              <Text style={styles.roomName}>{roomDisplayText}</Text>
             </View>
             <View style={styles.roomDetails}>
               <Text style={styles.roomPrice}>{formatPrice(roomPrice)}</Text>
@@ -251,7 +264,6 @@ const ContactScreen = ({ navigation }) => {
 
         <View style={styles.divider} />
 
-        {/* Contact Info */}
         <View style={styles.contactInfoSection}>
           <View style={styles.contactRow}>
             <View style={styles.contactIcon}>
@@ -277,7 +289,7 @@ const ContactScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {contact.tenantNote && (
+          {contact.tenantNote ? (
             <View style={styles.contactRow}>
               <View style={styles.contactIcon}>
                 <Ionicons
@@ -291,11 +303,26 @@ const ContactScreen = ({ navigation }) => {
                 <Text style={styles.noteValue}>{contact.tenantNote}</Text>
               </View>
             </View>
-          )}
+          ) : null}
+
+          {contact.landlordNote ? (
+            <View style={styles.contactRow}>
+              <View style={styles.contactIcon}>
+                <Ionicons name="chatbubble-outline" size={16} color="#0d9488" />
+              </View>
+              <View style={styles.contactDetails}>
+                <Text style={[styles.contactLabel, { color: "#0d9488" }]}>
+                  Phản hồi từ chủ trọ
+                </Text>
+                <Text style={[styles.noteValue, { color: "#0d9488" }]}>
+                  {contact.landlordNote}
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
-        {/* Cancel Button */}
-        {canCancel && (
+        {canCancel ? (
           <TouchableOpacity
             style={styles.cancelBtn}
             onPress={() => handleCancelContact(contact._id)}
@@ -303,7 +330,7 @@ const ContactScreen = ({ navigation }) => {
             <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
             <Text style={styles.cancelBtnText}>Huỷ yêu cầu</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     );
   };
@@ -344,7 +371,6 @@ const ContactScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -353,10 +379,9 @@ const ContactScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Yêu cầu của tôi</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
-      {/* Search & Filter */}
       <View style={styles.filterSection}>
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={18} color="#64748b" />
@@ -411,7 +436,6 @@ const ContactScreen = ({ navigation }) => {
         </ScrollView>
       </View>
 
-      {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0d9488" />
@@ -430,7 +454,7 @@ const ContactScreen = ({ navigation }) => {
           <View style={styles.listContainer}>
             {filteredContacts.map(renderContactCard)}
           </View>
-          <View style={{ height: 20 }} />
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       )}
 
@@ -454,6 +478,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#1e293b" },
+  headerSpacer: { width: 24 },
   filterSection: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
@@ -607,18 +632,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#dc2626",
   },
-  roomArea: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginTop: 2,
-  },
-
   divider: {
     height: 1,
     backgroundColor: "#f1f5f9",
     marginVertical: 12,
   },
-  // Contact Info Section
   contactInfoSection: {
     gap: 10,
   },
@@ -667,7 +685,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#ef4444",
   },
-
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -727,6 +744,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  bottomSpacer: { height: 20 },
 });
 
 export default ContactScreen;
