@@ -33,9 +33,9 @@ export const getMyContacts = async ({ status, page = 1, limit = 10 } = {}) => {
   return res.data;
 };
 
-export const cancelBooking = async (bookingId) => {
+export const cancelContact = async (contactId) => {
   try {
-    const res = await baseApi.patch(`/bookings/cancel/${bookingId}`);
+    const res = await baseApi.patch(`/contacts/${contactId}/status`);
     return res.data;
   } catch (error) {
     if (error.response) throw error;

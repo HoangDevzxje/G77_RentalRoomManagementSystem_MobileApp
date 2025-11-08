@@ -127,6 +127,14 @@ export default function BookingFormScreen({ route, navigation }) {
     return calendar;
   };
 
+  // FIX: Hàm format ngày đúng cách (không bị lệch timezone)
+  const formatDateToString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const slotsByDate = availableSlots.reduce((acc, s) => {
     (acc[s.date] = acc[s.date] || []).push(s);
     return acc;
@@ -134,14 +142,14 @@ export default function BookingFormScreen({ route, navigation }) {
 
   // Kiểm tra ngày có khả dụng không
   const isDateAvailable = (date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = formatDateToString(date);
     return slotsByDate[dateStr] && slotsByDate[dateStr].length > 0;
   };
 
   // Kiểm tra ngày có được chọn không
   const isDateSelected = (date) => {
     if (!selectedDate) return false;
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = formatDateToString(date);
     return dateStr === selectedDate;
   };
 
@@ -163,11 +171,32 @@ export default function BookingFormScreen({ route, navigation }) {
     setCurrentMonth(newMonth);
   };
 
+  // Hàm tạo các giờ cụ thể từ khung giờ
+  const generateTimeOptions = (slots) => {
+    const timeOptions = [];
+
+    slots.forEach((slot) => {
+      const [startTime, endTime] = slot.timeSlot.split("-");
+      const [startHour] = startTime.split(":").map(Number);
+      const [endHour] = endTime.split(":").map(Number);
+
+      // Tạo các giờ từ startHour đến endHour (không bao gồm endHour)
+      for (let hour = startHour; hour < endHour; hour++) {
+        const timeStr = `${String(hour).padStart(2, "0")}:00`;
+        timeOptions.push(timeStr);
+      }
+    });
+
+    // Loại bỏ trùng lặp và sắp xếp
+    return [...new Set(timeOptions)].sort();
+  };
+
+  // Hàm chọn ngày
   const handleDateSelect = (date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = formatDateToString(date);
     if (isDateAvailable(date)) {
       setSelectedDate(dateStr);
-      setSelectedTimeSlot(null);
+      setSelectedTimeSlot(null); // Reset time slot khi chọn ngày mới
     }
   };
 
@@ -231,6 +260,14 @@ export default function BookingFormScreen({ route, navigation }) {
       month: "long",
       year: "numeric",
     });
+  };
+
+  // Format ngày hiển thị đúng
+  const formatDisplayDate = (dateString) => {
+    if (!dateString) return "";
+    const [year, month, day] = dateString.split("-");
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return date.toLocaleDateString("vi-VN");
   };
 
   if (loading) {
@@ -367,39 +404,41 @@ export default function BookingFormScreen({ route, navigation }) {
           {selectedDate && (
             <>
               <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-                Chọn giờ - {new Date(selectedDate).toLocaleDateString("vi-VN")}
+                Chọn giờ - {formatDisplayDate(selectedDate)}
               </Text>
+
+              {/* Hiển thị khung giờ có sẵn */}
+              <View style={styles.availableRangeContainer}>
+                <Ionicons name="time-outline" size={16} color="#64748b" />
+                <Text style={styles.availableRangeText}>
+                  Khung giờ rảnh:{" "}
+                  {slotsByDate[selectedDate]?.map((s) => s.timeSlot).join(", ")}
+                </Text>
+              </View>
+
+              {/* Grid chọn giờ cụ thể */}
               <View style={styles.timeSlotContainer}>
-                {slotsByDate[selectedDate]?.map((s) => (
-                  <TouchableOpacity
-                    key={s.timeSlot}
-                    onPress={() => setSelectedTimeSlot(s.timeSlot)}
-                    style={[
-                      styles.timeSlotBtn,
-                      selectedTimeSlot === s.timeSlot &&
-                        styles.timeSlotBtnSelected,
-                    ]}
-                  >
-                    <Text
+                {generateTimeOptions(slotsByDate[selectedDate] || []).map(
+                  (time) => (
+                    <TouchableOpacity
+                      key={time}
+                      onPress={() => setSelectedTimeSlot(time)}
                       style={[
-                        styles.timeText,
-                        selectedTimeSlot === s.timeSlot &&
-                          styles.timeTextSelected,
+                        styles.timeSlotBtn,
+                        selectedTimeSlot === time && styles.timeSlotBtnSelected,
                       ]}
                     >
-                      {s.timeSlot}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.slotInfo,
-                        selectedTimeSlot === s.timeSlot &&
-                          styles.slotInfoSelected,
-                      ]}
-                    >
-                      {s.availableSlots} chỗ
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.timeText,
+                          selectedTimeSlot === time && styles.timeTextSelected,
+                        ]}
+                      >
+                        {time}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                )}
               </View>
             </>
           )}
@@ -611,16 +650,30 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 14,
   },
+  availableRangeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f9ff",
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 12,
+  },
+  availableRangeText: {
+    fontSize: 13,
+    color: "#0369a1",
+    flex: 1,
+  },
   timeSlotContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   timeSlotBtn: {
-    width: "48%",
+    width: "23%",
     backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#e2e8f0",
@@ -632,18 +685,10 @@ const styles = StyleSheet.create({
   timeText: {
     fontWeight: "600",
     color: "#475569",
-    fontSize: 14,
-    marginBottom: 2,
+    fontSize: 15,
   },
   timeTextSelected: {
     color: "#ffffff",
-  },
-  slotInfo: {
-    fontSize: 12,
-    color: "#64748b",
-  },
-  slotInfoSelected: {
-    color: "#e2e8f0",
   },
 
   input: {

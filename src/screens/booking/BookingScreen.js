@@ -121,7 +121,7 @@ export default function BookingScreen({ navigation }) {
       case "rejected":
         return { color: "#ef4444", bg: "#fee2e2", text: "Bị từ chối" };
       case "cancelled":
-        return { color: "#6b7280", bg: "#f3f4f6", text: "Đã hủy" };
+        return { color: "#ef4444", bg: "#fee2e2", text: "Đã hủy" };
       default:
         return { color: "#64748b", bg: "#f1f5f9", text: "Không rõ" };
     }
