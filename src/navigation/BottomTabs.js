@@ -4,19 +4,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { View, ScrollView } from "react-native";
 
 import HomeScreen from "../screens/home/HomeScreen";
-import MessagesScreen from "../screens/messages/MessagesScreen";
 import RoomListScreen from "../screens/post/PostListScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 
 import Footer from "../components/footer/Footer";
 import Header from "../components/header/Header";
+import MessagesScreen from "../screens/messages/MessagesScreen";
 
 const Tab = createBottomTabNavigator();
 
 const withHeader =
   (Component) =>
-  ({ style, ...props }) => {
-    return (
+  ({ style, ...props }) =>
+    (
       <View style={{ flex: 1 }}>
         <Header />
         <View style={[{ flex: 1, paddingTop: 100 }, style]}>
@@ -24,12 +24,11 @@ const withHeader =
         </View>
       </View>
     );
-  };
 
 const withHeaderAndFooter =
   (Component) =>
-  ({ style, ...props }) => {
-    return (
+  ({ style, ...props }) =>
+    (
       <View style={{ flex: 1 }}>
         <Header />
         <ScrollView
@@ -41,7 +40,6 @@ const withHeaderAndFooter =
         </ScrollView>
       </View>
     );
-  };
 
 export default function BottomTabs() {
   return (
@@ -55,7 +53,7 @@ export default function BottomTabs() {
               iconName = "home-outline";
               break;
             case "Nhắn tin":
-              iconName = "chatbubble-outline";
+              iconName = "chatbubble-ellipses-outline";
               break;
             case "Tìm phòng":
               iconName = "bed-outline";
@@ -85,12 +83,15 @@ export default function BottomTabs() {
         name="Trang chủ"
         component={withHeaderAndFooter(HomeScreen)}
       />
+
       <Tab.Screen name="Nhắn tin" component={withHeader(MessagesScreen)} />
+
       <Tab.Screen
         name="Tìm phòng"
         component={withHeader(RoomListScreen)}
         initialParams={{ buildingId: null }}
       />
+
       <Tab.Screen name="Tài khoản" component={withHeader(ProfileScreen)} />
     </Tab.Navigator>
   );

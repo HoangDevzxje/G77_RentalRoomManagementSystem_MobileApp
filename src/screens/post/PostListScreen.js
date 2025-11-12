@@ -99,8 +99,9 @@ export default function PostListScreen({ route, navigation }) {
         post={item}
         cardWidth={CARD_WIDTH}
         cardHeight={CARD_HEIGHT}
-        onPress={() =>
-          navigation.navigate("PostDetail", { id: item._id || item.id })
+        // Trong renderPostItem
+        onPress={
+          () => navigation.navigate("RoomDetail", { id: item._id }) // giữ nguyên
         }
       />
     </View>
