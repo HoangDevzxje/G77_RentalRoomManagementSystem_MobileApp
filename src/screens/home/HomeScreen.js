@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,172 +6,213 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
-  Image,
+  ActivityIndicator,
+  RefreshControl,
+  FlatList,
+  TextInput,
 } from "react-native";
-import {
-  Building2,
-  Users,
-  FileText,
-  DollarSign,
-  CheckCircle,
-  ArrowRight,
-  BarChart3,
-  Globe,
-  ShieldCheck,
-  Car,
-  Wallet,
-  UserCog,
-} from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Toast from "react-native-toast-message";
 import HeroSection from "../../components/Homepage/HeroSection";
-import StatsSection from "../../components/Homepage/StatsSection";
 import WhyChoose from "../../components/Homepage/WhyChoose";
 import Testimonials from "../../components/Homepage/Testimonials";
+import PostCard from "../../components/post/PostCard";
+import { useAuth } from "../../context/AuthContext";
+import { getPosts } from "../../api/postApi";
+import { getMyRoomDetail } from "../../api/roomApi";
+import { useFocusEffect } from "@react-navigation/native";
+import StatsSection from "../../components/Homepage/StatsSection";
 
 const { width } = Dimensions.get("window");
+const HORIZONTAL_PADDING = 16;
+const CARD_SPACING = 12;
+const NUM_COLUMNS = 2;
+const AVAILABLE_WIDTH = width - HORIZONTAL_PADDING * 2;
+const CARD_WIDTH = (AVAILABLE_WIDTH - CARD_SPACING) / NUM_COLUMNS;
+const CARD_HEIGHT = CARD_WIDTH * 1.35;
 
-const HomeScreen = ({ navigation, route }) => {
+export default function HomeCombinedScreen({ navigation, route }) {
   const scrollViewRef = useRef(null);
+  const { isAuthenticated } = useAuth();
+
+  // login-toast
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+
+  // ROOM (tenant's room)
+  const [roomLoading, setRoomLoading] = useState(true);
+  const [room, setRoom] = useState(null);
+  const [furnitures, setFurnitures] = useState([]);
+
+  // POSTS (listings)
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState(null);
+  const [postsPage, setPostsPage] = useState(1);
+  const [postsTotalPages, setPostsTotalPages] = useState(1);
+  const [postsLoadingMore, setPostsLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // refresh
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     checkLoginSuccess();
   }, []);
 
-  // Kiểm tra xem có phải vừa đăng nhập thành công không
+  useEffect(() => {
+    if (route?.params?.fromLogin) {
+      setShowSuccessAlert(true);
+      const t = setTimeout(() => setShowSuccessAlert(false), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [route?.params]);
+
   const checkLoginSuccess = async () => {
     try {
       const justLoggedIn = await AsyncStorage.getItem("justLoggedIn");
-
       if (justLoggedIn === "true") {
-        // Hiển thị thông báo thành công
         setShowSuccessAlert(true);
-
-        // Xóa flag sau khi hiển thị
         await AsyncStorage.removeItem("justLoggedIn");
-
-        // Tự động ẩn thông báo sau 2 giây
-        const timer = setTimeout(() => {
-          setShowSuccessAlert(false);
-        }, 2000);
-
-        return () => clearTimeout(timer);
+        const t = setTimeout(() => setShowSuccessAlert(false), 2000);
+        return () => clearTimeout(t);
       }
-    } catch (error) {
-      console.log("Error checking login status:", error);
+    } catch (err) {
+      console.log("checkLoginSuccess err", err);
     }
   };
 
-  // Kiểm tra nếu có param từ navigation
+  // --- ROOM fetch ---
+  const fetchRoom = async (showLoading = true) => {
+    try {
+      if (showLoading) setRoomLoading(true);
+      const res = await getMyRoomDetail();
+      setRoom(res?.room || null);
+      setFurnitures(Array.isArray(res?.furnitures) ? res.furnitures : []);
+    } catch (err) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2:
+          err?.response?.data?.message ||
+          err?.message ||
+          "Không thể tải thông tin phòng",
+        position: "top",
+      });
+      setRoom(null);
+      setFurnitures([]);
+    } finally {
+      if (showLoading) setRoomLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // --- POSTS fetch (paginated) ---
+  const fetchPosts = async (page = 1, append = false) => {
+    try {
+      if (!append) {
+        setPostsLoading(true);
+        setPostsError(null);
+      } else {
+        setPostsLoadingMore(true);
+      }
+
+      const params = { page, limit: 20 };
+      if (searchQuery?.trim()) params.keyword = searchQuery.trim();
+      if (route?.params?.buildingId)
+        params.buildingId = route.params.buildingId;
+
+      const res = await getPosts(params);
+      const items = res.data || res;
+      if (append) {
+        setPosts((prev) => [...prev, ...(items || [])]);
+      } else {
+        setPosts(items || []);
+      }
+      if (res.pagination) {
+        setPostsTotalPages(res.pagination.totalPages || 1);
+      } else {
+        setPostsTotalPages(1);
+      }
+      setPostsPage(page);
+    } catch (err) {
+      console.error("fetchPosts err", err);
+      setPostsError(
+        err?.response?.data?.message || err?.message || "Lỗi tải bài đăng"
+      );
+    } finally {
+      setPostsLoading(false);
+      setPostsLoadingMore(false);
+    }
+  };
+
+  // initial loads
   useEffect(() => {
-    if (route.params?.fromLogin) {
-      setShowSuccessAlert(true);
-      const timer = setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 2000);
-
-      return () => clearTimeout(timer);
+    fetchRoom(true);
+    if (isAuthenticated) fetchPosts(1, false);
+    else {
+      setPostsError("Vui lòng đăng nhập để xem danh sách bài đăng");
+      setPostsLoading(false);
     }
-  }, [route.params]);
+  }, [isAuthenticated]);
 
-  const features = [
-    {
-      icon: Building2,
-      title: "Quản lý nhiều nhà trọ - chung cư - ktx, sleepbox, homestay",
-      description:
-        "Có thể cùng một lúc quản lý nhiều nhà trọ - tòa nhà chung cư - ktx, đồng thời cũng có thể theo dõi tổng quan, chi tiết thông tin nhà cho thuê của mình với tính năng này.",
-      gradient: ["#60a5fa", "#2563eb"],
-    },
-    {
-      icon: Users,
-      title: "Quản lý phòng trọ, căn hộ, giường - sleepbox",
-      description:
-        "Các thông tin về phòng trọ như khách thuê phòng, số điện thoại, trạng thái phòng,... sẽ được cung cấp bởi tính năng này. Việc quản lý phòng trọ sẽ đơn giản hơn nhiều.",
-      gradient: ["#38bdf8", "#3b82f6"],
-    },
-    {
-      icon: DollarSign,
-      title: "Hóa đơn tiền phòng, thu tiền",
-      description:
-        "Chúng tôi giúp bạn theo dõi và tính toán tiền điện, nước, dịch vụ,... chốt tiền phòng hàng tháng một cách tự động, in hóa đơn cho khách thuê. Theo dõi thu tiền phòng hàng tháng cho bạn.",
-      gradient: ["#22d3ee", "#2563eb"],
-    },
-    {
-      icon: FileText,
-      title: "Quản lý cọc giữ chỗ và hợp đồng thuê nhà",
-      description:
-        "Lưu giữ tất cả thông tin khách thuê, tiền cọc, ngày cọc,... với chức năng này bạn sẽ không cần phải ghi nhớ bất cứ thông tin đặt cọc nào.",
-      gradient: ["#3b82f6", "#4f46e5"],
-    },
-    {
-      icon: ShieldCheck,
-      title: "Quản lý khách thuê",
-      description:
-        "Quản lý các thông tin về khách thuê phòng, tình trạng giấy tờ tùy thân, tình trạng đăng ký tạm trú. Ngoài ra phần mềm còn hỗ trợ đăng ký tạm trú online trên dịch vụ công.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
-    },
-    {
-      icon: BarChart3,
-      title: "Thống kê báo cáo",
-      description:
-        "Bạn sẽ theo dõi tổng quan hoạt động của nhà trọ, phòng trọ để sắp xếp công việc hợp lý, đồng thời nắm bắt nhanh doanh thu, chi phí và tỉ lệ phòng trống.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
-    },
-    {
-      icon: Car,
-      title: "Quản lý xe, tài sản",
-      description:
-        "Quản lý thông tin xe của khách & tài sản khách sử dụng trong quá trình thuê nhà, kiểm kệ tình trạng của tài sản.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
-    },
-    {
-      icon: Wallet,
-      title: "Quản lý tài chính",
-      description:
-        "Mọi thu, chi tổng kết kinh doanh sẽ được lưu trữ và tính toán tự động bạn sẽ không còn đau đầu với những con số.",
-      gradient: ["#2563eb", "#4338ca"],
-    },
-    {
-      icon: UserCog,
-      title: "Quản lý nhân viên",
-      description:
-        "Phần mềm cung cấp tính năng phân quyền để bạn có thể tổ chức công ty hoặc đội nhóm cùng tham gia quản lý.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
-    },
-  ];
+  // refresh on focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchRoom(false);
+      if (isAuthenticated) fetchPosts(1, false);
+    }, [isAuthenticated])
+  );
 
-  const platforms = [
-    {
-      image: "https://quanlytro.me/images/banner_ipad_flatform.webp",
-      title: "Quản lý trên điện thoại",
-      description:
-        "Quản lý ngay trên chiếc điện thoại. Nhẹ nhàng, thuận tiện, linh hoạt với đầy đủ tính năng và được đồng bộ với các nền tảng khác.",
-      gradient: ["#a78bfa", "#6366f1"],
-    },
-    {
-      image: "https://quanlytro.me/images/banner_mobile_flatform.webp",
-      title: "Quản lý trên máy tính bảng",
-      description:
-        "Nếu bạn đang có chiếc máy tính bảng là một lợi thế. Bạn có thể kết hợp được sự linh hoạt giữa điện thoại và máy tính.",
-      gradient: ["#34d399", "#059669"],
-    },
-    {
-      image: "https://quanlytro.me/images/banner_desktop_flatform.webp",
-      title: "Quản lý trên máy tính",
-      description:
-        "Quản lý ngay trên website mà không cần cài đặt app. Tất cả các tính năng sẽ rất chi tiết, sẽ giúp bạn quản lý thuận tiện đầy đủ.",
-      gradient: ["#38bdf8", "#3b82f6"],
-    },
-  ];
-
-  const handleRegister = () => {
-    navigation.navigate("Register");
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchRoom(false);
+    if (isAuthenticated) fetchPosts(1, false);
+    else setRefreshing(false);
   };
+
+  const handleLoadMorePosts = () => {
+    if (postsLoadingMore) return;
+    if (postsPage < postsTotalPages) {
+      const next = postsPage + 1;
+      fetchPosts(next, true);
+    }
+  };
+
+  const onSearchPosts = () => {
+    if (!isAuthenticated) {
+      setPostsError("Vui lòng đăng nhập để tìm phòng");
+      return;
+    }
+    fetchPosts(1, false);
+  };
+
+  const renderFurniture = ({ item }) => (
+    <View style={styles.furnitureCard}>
+      <View style={styles.furnitureLeft}>
+        <Text style={styles.furnitureName} numberOfLines={1}>
+          {item?.name || "Không tên"}
+        </Text>
+        {item?.description ? (
+          <Text style={styles.furnitureDesc} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.furnitureMeta}>
+        <Text style={styles.furnitureQty}>x{item?.quantity ?? 0}</Text>
+        {item?.condition ? (
+          <Text style={styles.furnitureCondition}>{item.condition}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  // Preview posts = first 4 posts
+  const previewPosts = (posts || []).slice(0, 4);
 
   return (
     <View style={styles.container}>
-      {/* Thông báo thành công khi đăng nhập - CHỈ HIỆN KHI VỪA ĐĂNG NHẬP */}
       {showSuccessAlert && (
         <View style={[styles.topAlert, styles.successAlert]}>
           <Ionicons
@@ -184,127 +225,182 @@ const HomeScreen = ({ navigation, route }) => {
         </View>
       )}
 
-      <ScrollView style={styles.scrollView} ref={scrollViewRef}>
-        {/* Hero Section */}
+      <ScrollView
+        style={styles.scrollView}
+        ref={scrollViewRef}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* HERO + STATS */}
         <HeroSection navigation={navigation} />
-
-        {/* Stats Section */}
         <StatsSection />
 
-        {/* Multi-Platform Section */}
-        <View style={styles.platformSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>QUẢN LÝ TRÊN ĐA NỀN TẢNG</Text>
-            <Text style={styles.sectionSubtitle}>
-              ĐIỆN THOẠI - IPAD - MÁY TÍNH - WEBSITE
-            </Text>
-            <Text style={styles.sectionDescription}>
-              Với sự đa dạng về nền tảng sẽ giúp bạn quản lý nhà trọ linh động
-              hơn, thay vì mẫu excel phức tạp hay sổ sách rờm rà. Thật tuyệt vời
-              khi nay bạn đã có thể quản lý nhà trọ của mình trên mọi thiết bị
-              bạn có.
-            </Text>
+        {/* POSTS PREVIEW SECTION */}
+        <View style={styles.postsSection}>
+          <View style={styles.postsHeader}>
+            <View style={styles.postsHeaderLeft}>
+              <Text style={styles.postsTitle}>Tìm phòng</Text>
+              <Text style={styles.postsSubtitle}>
+                Gợi ý phòng gần bạn — xem trước 4 phòng mới nhất
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate("PostList", {
+                  buildingId: route?.params?.buildingId || null,
+                })
+              }
+              style={styles.viewAllBtn}
+            >
+              <Text style={styles.viewAllText}>Xem tất cả</Text>
+              <Ionicons name="chevron-forward" size={18} color="#0d9488" />
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.platformGrid}>
-            {platforms.map((platform, index) => (
-              <View key={index} style={styles.platformCard}>
-                <Image
-                  source={{ uri: platform.image }}
-                  style={styles.platformImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.platformContent}>
-                  <View
-                    style={[
-                      styles.platformButton,
-                      { backgroundColor: platform.gradient[0] },
-                    ]}
-                  >
-                    <Text style={styles.platformButtonText}>
-                      {platform.title}
-                    </Text>
-                  </View>
-                  <Text style={styles.platformDescription}>
-                    {platform.description}
-                  </Text>
+          {postsLoading ? (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color="#0d9488" />
+              <Text style={styles.loadingText}>
+                Đang tải danh sách bài đăng...
+              </Text>
+            </View>
+          ) : postsError ? (
+            <View style={styles.centerCard}>
+              <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
+              <Text style={styles.error}>{postsError}</Text>
+              {!isAuthenticated && (
+                <TouchableOpacity
+                  style={styles.authBtn}
+                  onPress={() => navigation.navigate("Login")}
+                >
+                  <Ionicons name="log-in-outline" size={16} color="#fff" />
+                  <Text style={styles.authBtnText}>Đăng nhập</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : previewPosts.length === 0 ? (
+            <View style={styles.centerCard}>
+              <Ionicons name="home-outline" size={48} color="#94a3b8" />
+              <Text style={styles.noResults}>Chưa có phòng để hiển thị</Text>
+            </View>
+          ) : (
+            <View style={styles.postsGrid}>
+              {previewPosts.map((item, index) => (
+                <View
+                  key={item._id || item.id || index}
+                  style={styles.postCardWrapper}
+                >
+                  <PostCard
+                    post={item}
+                    cardWidth={CARD_WIDTH}
+                    cardHeight={CARD_HEIGHT}
+                    onPress={() =>
+                      navigation.navigate("RoomDetail", { id: item._id })
+                    }
+                  />
                 </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* Features Section */}
-        <View style={styles.featuresSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.featureTitle}>Tính Năng Nổi Bật</Text>
-            <Text style={styles.sectionDescription}>
-              Giải pháp toàn diện từ A-Z cho việc quản lý phòng trọ hiện đại
-            </Text>
-          </View>
-
-          <View style={styles.featuresGrid}>
-            {features.map((feature, index) => {
-              const IconComponent = feature.icon;
-              return (
-                <View key={index} style={styles.featureCard}>
-                  <View
-                    style={[
-                      styles.featureIcon,
-                      { backgroundColor: feature.gradient[0] },
-                    ]}
-                  >
-                    <IconComponent size={32} color="#fff" strokeWidth={2} />
-                  </View>
-                  <Text style={styles.featureCardTitle}>{feature.title}</Text>
-                  <Text style={styles.featureCardDescription}>
-                    {feature.description}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Why Choose Section */}
+        {/* WHY CHOOSE / TESTIMONIALS */}
         <WhyChoose />
-
-        {/* Testimonials Section */}
         <Testimonials />
 
-        {/* CTA Section */}
-        <View style={styles.ctaSection}>
-          <View style={styles.ctaCard}>
-            <Globe size={64} color="#2563eb" strokeWidth={2} />
-            <Text style={styles.ctaTitle}>Sẵn Sàng Bắt Đầu?</Text>
-            <Text style={styles.ctaDescription}>
-              Đăng ký ngay để trải nghiệm 30 ngày miễn phí và nhận hỗ trợ setup
-              từ đội ngũ chuyên gia
-            </Text>
-            <TouchableOpacity style={styles.ctaButton} onPress={handleRegister}>
-              <Text style={styles.ctaButtonText}>Đăng Ký Ngay</Text>
-              <ArrowRight size={20} color="#fff" strokeWidth={2} />
-            </TouchableOpacity>
-            <View style={styles.ctaNote}>
-              <CheckCircle size={20} color="#10b981" strokeWidth={2} />
-              <Text style={styles.ctaNoteText}>Không cần thẻ tín dụng</Text>
+        {/* ROOM DETAIL (show only when tenant has a room) */}
+        {roomLoading ? (
+          <View style={styles.roomLoader}>
+            <ActivityIndicator size="small" color="#0d9488" />
+            <Text style={styles.loadingText}>Đang tải thông tin phòng...</Text>
+          </View>
+        ) : room ? (
+          <View style={styles.roomCardWrapper}>
+            <View style={styles.roomCard}>
+              <View style={styles.roomHeader}>
+                <Text style={styles.roomTitle}>Chi tiết phòng của bạn</Text>
+                <TouchableOpacity
+                  style={styles.roomAction}
+                  onPress={() =>
+                    navigation.navigate("RoomDetail", { id: room.id })
+                  }
+                >
+                  <Ionicons name="chevron-forward" size={20} color="#0d9488" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Số phòng</Text>
+                <Text style={styles.value}>{room.roomNumber ?? "—"}</Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Tòa nhà</Text>
+                <Text style={styles.value}>{room.building?.name ?? "—"}</Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Địa chỉ</Text>
+                <Text style={styles.value}>
+                  {room.building?.address ?? "—"}
+                </Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Diện tích</Text>
+                <Text style={styles.value}>
+                  {room.area ? `${room.area} m²` : "—"}
+                </Text>
+              </View>
+
+              <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                <Text style={styles.label}>Giá thuê</Text>
+                <Text style={styles.value}>
+                  {room.price
+                    ? `${Number(room.price).toLocaleString("vi-VN")} đ/tháng`
+                    : "Liên hệ"}
+                </Text>
+              </View>
+
+              {furnitures.length > 0 && (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>
+                      Nội thất trong phòng
+                    </Text>
+                    <Text style={styles.sectionSub}>
+                      {furnitures.length} mục
+                    </Text>
+                  </View>
+
+                  <FlatList
+                    data={furnitures}
+                    keyExtractor={(i) =>
+                      i.id?.toString() || `${i.furnitureId || i.name}`
+                    }
+                    renderItem={renderFurniture}
+                    scrollEnabled={false}
+                  />
+                </>
+              )}
             </View>
           </View>
-        </View>
+        ) : null}
+
+        <View style={{ height: 48 }} />
       </ScrollView>
+
+      <Toast />
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f0f9ff",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  // Top Alert Styles
+  container: { flex: 1, backgroundColor: "#f0f9ff" },
+  scrollView: { flex: 1 },
+
   topAlert: {
     position: "absolute",
     top: 10,
@@ -317,226 +413,253 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     zIndex: 1000,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  successAlert: {
-    backgroundColor: "#10B981",
+  successAlert: { backgroundColor: "#10B981" },
+  alertIcon: { marginRight: 8 },
+  alertMessage: { color: "white", fontSize: 14, fontWeight: "500", flex: 1 },
+
+  postsSection: {
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
-  alertIcon: {
-    marginRight: 8,
+  postsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
   },
-  alertMessage: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "500",
+  postsHeaderLeft: {
     flex: 1,
+    paddingRight: 12,
   },
-  platformSection: {
-    paddingVertical: 48,
-    paddingHorizontal: 20,
-    backgroundColor: "#ffffff",
-  },
-  sectionHeader: {
-    alignItems: "center",
-    marginBottom: 36,
-  },
-  sectionTitle: {
+  postsTitle: {
     fontSize: 22,
-    fontWeight: "800",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 8,
-    letterSpacing: 0.5,
+    fontWeight: "650",
+    color: "#0f172a",
+    marginBottom: 4,
   },
-  sectionSubtitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#0891b2",
-    textAlign: "center",
-    marginBottom: 16,
-    letterSpacing: 0.3,
-  },
-  sectionDescription: {
-    fontSize: 15,
+  postsSubtitle: {
     color: "#64748b",
-    textAlign: "center",
-    lineHeight: 22,
-    paddingHorizontal: 8,
+    fontSize: 13,
+    lineHeight: 18,
   },
-  platformGrid: {
-    gap: 20,
-  },
-  platformCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    overflow: "hidden",
-    marginBottom: 20,
-    shadowColor: "#0891b2",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  platformImage: {
-    width: "100%",
-    height: 220,
-  },
-  platformContent: {
-    padding: 20,
+  viewAllBtn: {
+    flexDirection: "row",
     alignItems: "center",
-  },
-  platformButton: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 30,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  platformButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-  platformDescription: {
-    fontSize: 14,
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 21,
-  },
-  featuresSection: {
-    paddingVertical: 48,
-    paddingHorizontal: 20,
-    backgroundColor: "#f8fafc",
-  },
-  featureTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 12,
-    letterSpacing: 0.5,
-  },
-  featuresGrid: {
-    gap: 16,
-  },
-  featureCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: "#f0fdfa",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e0f2fe",
+    borderColor: "#99f6e4",
+  },
+  viewAllText: {
+    color: "#0d9488",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+
+  postsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  postCardWrapper: {
+    width: CARD_WIDTH,
+    marginBottom: CARD_SPACING,
+  },
+
+  center: {
     alignItems: "center",
-    shadowColor: "#3b82f6",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  centerCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    marginTop: 8,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#64748b",
+    fontSize: 14,
+  },
+  error: {
+    color: "#ef4444",
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 12,
+  },
+  noResults: {
+    color: "#64748b",
+    fontSize: 15,
+    marginTop: 12,
+    textAlign: "center",
+  },
+  authBtn: {
+    marginTop: 20,
+    backgroundColor: "#0d9488",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#0d9488",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
-  featureIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  featureCardTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 10,
-    lineHeight: 24,
-  },
-  featureCardDescription: {
-    fontSize: 14,
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 21,
-  },
-  ctaSection: {
-    paddingVertical: 48,
-    paddingHorizontal: 20,
-    backgroundColor: "#ffffff",
-  },
-  ctaCard: {
-    backgroundColor: "rgba(59, 130, 246, 0.08)",
-    borderRadius: 28,
-    padding: 36,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(59, 130, 246, 0.2)",
-    shadowColor: "#2563eb",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  ctaTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#1e293b",
-    marginTop: 20,
-    marginBottom: 16,
-    textAlign: "center",
-    letterSpacing: 0.5,
-  },
-  ctaDescription: {
-    fontSize: 15,
-    color: "#64748b",
-    textAlign: "center",
-    marginBottom: 28,
-    lineHeight: 23,
-    paddingHorizontal: 8,
-  },
-  ctaButton: {
-    backgroundColor: "#2563eb",
-    paddingHorizontal: 36,
-    paddingVertical: 18,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 20,
-    shadowColor: "#2563eb",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  ctaButtonText: {
+  authBtnText: {
     color: "#fff",
-    fontSize: 18,
     fontWeight: "700",
-    letterSpacing: 0.3,
+    fontSize: 15,
+    marginLeft: 6,
   },
-  ctaNote: {
+
+  roomLoader: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  roomCardWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  roomCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  roomHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
-  ctaNoteText: {
-    fontSize: 14,
+  roomTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  roomAction: {
+    padding: 8,
+    backgroundColor: "#f0fdfa",
+    borderRadius: 8,
+  },
+
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f8fafc",
+  },
+  label: {
     color: "#64748b",
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  value: {
+    color: "#0f172a",
+    fontSize: 14,
+    fontWeight: "700",
+    maxWidth: "60%",
+    textAlign: "right",
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 20,
+    marginBottom: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  sectionSub: {
+    color: "#64748b",
+    fontSize: 13,
+    fontWeight: "600",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+
+  furnitureCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 8,
+    justifyContent: "space-between",
+  },
+  furnitureLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  furnitureName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  furnitureDesc: {
+    fontSize: 12,
+    color: "#64748b",
+    lineHeight: 16,
+  },
+  furnitureMeta: {
+    alignItems: "flex-end",
+  },
+  furnitureQty: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0d9488",
+    backgroundColor: "#f0fdfa",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  furnitureCondition: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 6,
+    fontWeight: "600",
   },
 });
-
-export default HomeScreen;

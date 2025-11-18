@@ -225,7 +225,7 @@ export default function BookingScreen({ navigation }) {
         >
           <Ionicons name="arrow-back" size={26} color="#1e293b" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lịch đặt xem phòng</Text>
+        <Text style={styles.headerTitle}>Lịch xem phòng của tôi</Text>
         <View style={styles.headerRight} />
       </View>
 

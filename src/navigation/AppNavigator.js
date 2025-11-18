@@ -18,7 +18,10 @@ import BookingScreen from "../screens/booking/BookingScreen";
 import BookingFormScreen from "../screens/booking/BookingFormScreen";
 import ContactScreen from "../screens/contact/ContactScreen";
 import ContactDetailScreen from "../screens/contact/ContactDetailScreen";
-import MessagesScreen from "../screens/messages/MessagesScreen";
+import ContractsListScreen from "../screens/contract/ContractsListScreen";
+import ContractDetailScreen from "../screens/contract/ContractDetailScreen";
+import UpcomingExpireScreen from "../screens/contract/UpcomingExpireScreen";
+import RoomScreen from "../screens/room/RoomScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -49,9 +52,6 @@ export default function AppNavigator() {
       {/* Home */}
       <Stack.Screen name="Home" component={HomeScreen} />
 
-      {/* Messages */}
-      <Stack.Screen name="Messages" component={MessagesScreen} />
-
       {/* Post */}
       <Stack.Screen name="PostList" component={PostListScreen} />
       <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
@@ -67,6 +67,12 @@ export default function AppNavigator() {
       {/* Profile */}
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      {/* Contracts */}
+      <Stack.Screen name="Contracts" component={ContractsListScreen} />
+      <Stack.Screen name="ContractDetail" component={ContractDetailScreen} />
+      <Stack.Screen name="UpcomingExpire" component={UpcomingExpireScreen} />
+      {/*Room*/}
+      <Stack.Screen name="Room" component={RoomScreen} />
     </Stack.Navigator>
   );
 }

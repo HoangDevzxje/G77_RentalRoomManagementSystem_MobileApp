@@ -117,7 +117,7 @@ export default function ContactDetailScreen({ route, navigation }) {
         >
           <Ionicons name="arrow-back" size={26} color="#1e293b" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo hợp đồng</Text>
+        <Text style={styles.headerTitle}>Tạo yêu cầu hợp đồng</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -246,7 +246,7 @@ export default function ContactDetailScreen({ route, navigation }) {
           ) : (
             <>
               <Ionicons name="document-text-outline" size={20} color="#fff" />
-              <Text style={styles.submitBtnText}>Gửi yêu cầu hợp đồng</Text>
+              <Text style={styles.submitBtnText}>Gửi yêu cầu tạo hợp đồng</Text>
             </>
           )}
         </TouchableOpacity>

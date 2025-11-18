@@ -55,7 +55,7 @@ const ActionBar = ({
             )}
           </View>
           <Text style={s.contractText}>
-            {hasExistingContact ? "Hợp đồng" : "Tạo hợp đồng"}
+            {hasExistingContact ? "Hợp đồng" : "Tạo yêu cầu hợp đồng"}
           </Text>
         </TouchableOpacity>
 
