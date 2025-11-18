@@ -25,10 +25,6 @@ const FurnitureItem = ({ furniture }) => {
 
   return (
     <View style={s.card}>
-      <View style={s.iconContainer}>
-        <Ionicons name="cube-outline" size={20} color="#0d9488" />
-      </View>
-
       <View style={s.info}>
         <Text style={s.name}>{name || "Không có tên"}</Text>
 
@@ -36,9 +32,7 @@ const FurnitureItem = ({ furniture }) => {
           {quantity !== undefined && quantity !== null && (
             <Text style={s.detail}>SL: {quantity}</Text>
           )}
-          {condition && (
-            <Text style={s.detail}>• {getConditionLabel(condition)}</Text>
-          )}
+          {condition && <Text style={s.detail}></Text>}
         </View>
 
         {notes && (
@@ -49,16 +43,6 @@ const FurnitureItem = ({ furniture }) => {
       </View>
     </View>
   );
-};
-
-const getConditionLabel = (condition) => {
-  const labels = {
-    good: "Tốt",
-    normal: "Bình thường",
-    damaged: "Hư hỏng",
-    broken: "Hỏng",
-  };
-  return labels[condition] || condition;
 };
 
 const s = StyleSheet.create({

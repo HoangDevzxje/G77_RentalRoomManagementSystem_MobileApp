@@ -78,6 +78,7 @@ const ContactScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchContacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useFocusEffect(
@@ -85,6 +86,11 @@ const ContactScreen = ({ navigation }) => {
       fetchContacts(false);
     }, [])
   );
+
+  // FIX: Sửa hàm back để trở về BottomTabs
+  const handleBack = () => {
+    navigation.navigate("BottomTabs");
+  };
 
   const handleCancelContact = async (contactId) => {
     try {
@@ -116,6 +122,29 @@ const ContactScreen = ({ navigation }) => {
         position: "top",
       });
     }
+  };
+
+  // NEW: navigate trực tiếp đến ContractDetail
+  const handleOpenContractDetail = (contact) => {
+    // cố gắng lấy id hợp đồng: contact.contract._id || contact.contractId || fallback contact._id
+    const contractId =
+      contact?.contract?._id || contact?.contractId || contact?._id || null;
+
+    if (!contractId) {
+      Toast.show({
+        type: "error",
+        text1: "Không tìm thấy hợp đồng",
+        text2: "Không thể mở chi tiết hợp đồng vì thiếu ID.",
+        position: "top",
+      });
+      return;
+    }
+
+    navigation.navigate("ContractDetail", {
+      id: contractId,
+      fromContact: true,
+      contact,
+    });
   };
 
   const formatPrice = (price) => {
@@ -322,15 +351,30 @@ const ContactScreen = ({ navigation }) => {
           ) : null}
         </View>
 
-        {canCancel ? (
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={() => handleCancelContact(contact._id)}
-          >
-            <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
-            <Text style={styles.cancelBtnText}>Huỷ yêu cầu</Text>
-          </TouchableOpacity>
-        ) : null}
+        {/* Actions area: huỷ (nếu pending) hoặc mở detail hợp đồng (nếu accepted) */}
+        <View style={styles.actionsRow}>
+          {canCancel ? (
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => handleCancelContact(contact._id)}
+            >
+              <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+              <Text style={styles.cancelBtnText}>Huỷ yêu cầu</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {contact.status === "accepted" ? (
+            <TouchableOpacity
+              style={styles.createContractBtn}
+              onPress={() => handleOpenContractDetail(contact)}
+            >
+              <Ionicons name="document-text-outline" size={16} color="#fff" />
+              <Text style={styles.createContractBtnText}>
+                Xem chi tiết hợp đồng
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
     );
   };
@@ -371,14 +415,12 @@ const ContactScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      {/* FIX: Sửa header để sử dụng hàm handleBack */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
+        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Yêu cầu của tôi</Text>
+        <Text style={styles.headerTitle}>Yêu cầu tạo hợp đồng của tôi</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -463,6 +505,7 @@ const ContactScreen = ({ navigation }) => {
   );
 };
 
+/* Styles unchanged - keep as you provided */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   header: {
@@ -668,12 +711,21 @@ const styles = StyleSheet.create({
     color: "#475569",
     lineHeight: 18,
   },
+
+  actionsRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
+    gap: 8,
+  },
+
   cancelBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 16,
     paddingVertical: 10,
+    paddingHorizontal: 14,
     backgroundColor: "#fef2f2",
     borderRadius: 10,
     borderWidth: 1,
@@ -685,6 +737,23 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#ef4444",
   },
+
+  createContractBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "#0d9488",
+    borderRadius: 10,
+    gap: 8,
+  },
+  createContractBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
   emptyContainer: {
     flex: 1,
     justifyContent: "center",

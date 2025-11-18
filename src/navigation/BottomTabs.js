@@ -3,13 +3,15 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { View, ScrollView } from "react-native";
 
-import HomeScreen from "../screens/home/HomeScreen";
-import RoomListScreen from "../screens/post/PostListScreen";
+import RoomListScreen from "../screens/post/PostListScreen"; // Tìm phòng (danh sách)
+import RoomScreen from "../screens/room/RoomScreen"; // Chi tiết phòng (màn bạn vừa tạo)
+import ContractsListScreen from "../screens/contract/ContractsListScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 
 import Footer from "../components/footer/Footer";
 import Header from "../components/header/Header";
-import MessagesScreen from "../screens/messages/MessagesScreen";
+import { Home } from "lucide-react-native";
+import HomeRoomScreen from "../screens/home/HomeScreen";
 
 const Tab = createBottomTabNavigator();
 
@@ -49,14 +51,14 @@ export default function BottomTabs() {
           let iconName;
 
           switch (route.name) {
-            case "Trang chủ":
+            case "Tìm phòng":
+              iconName = "search-outline";
+              break;
+            case "Chi tiết phòng":
               iconName = "home-outline";
               break;
-            case "Nhắn tin":
-              iconName = "chatbubble-ellipses-outline";
-              break;
-            case "Tìm phòng":
-              iconName = "bed-outline";
+            case "Hợp đồng":
+              iconName = "document-text-outline";
               break;
             case "Tài khoản":
               iconName = "person-outline";
@@ -79,19 +81,36 @@ export default function BottomTabs() {
         },
       })}
     >
-      <Tab.Screen
-        name="Trang chủ"
-        component={withHeaderAndFooter(HomeScreen)}
-      />
-
-      <Tab.Screen name="Nhắn tin" component={withHeader(MessagesScreen)} />
-
+      {/* 1: Tìm phòng (danh sách) */}
       <Tab.Screen
         name="Tìm phòng"
-        component={withHeader(RoomListScreen)}
+        component={withHeaderAndFooter(HomeRoomScreen)}
         initialParams={{ buildingId: null }}
       />
 
+      {/* 2: Chi tiết phòng (thay cho Trang chủ trước đây) */}
+      <Tab.Screen
+        name="Chi tiết phòng"
+        component={withHeader(RoomScreen)}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* 3: Hợp đồng */}
+      <Tab.Screen
+        name="Hợp đồng"
+        component={withHeader(ContractsListScreen)}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="document-text-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* 4: Tài khoản */}
       <Tab.Screen name="Tài khoản" component={withHeader(ProfileScreen)} />
     </Tab.Navigator>
   );

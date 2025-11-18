@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -11,27 +11,42 @@ import { Building2, Clock, Users, Zap } from "lucide-react-native";
 
 const { width } = Dimensions.get("window");
 
-const CountUp = ({ from, to, duration, suffix }) => {
+const CountUp = ({ from = 0, to = 0, duration = 1.5, suffix = "" }) => {
   const [count, setCount] = useState(from);
-  const animatedValue = new Animated.Value(from);
+  const animatedValueRef = useRef(new Animated.Value(from));
 
   useEffect(() => {
+    const animatedValue = animatedValueRef.current;
+
     Animated.timing(animatedValue, {
       toValue: to,
-      duration: duration * 1000,
+      duration: Math.max(0, duration) * 1000,
       easing: Easing.out(Easing.ease),
       useNativeDriver: false,
     }).start();
 
-    const listener = animatedValue.addListener(({ value }) => {
-      setCount(Math.floor(value * 10) / 10);
+    const listenerId = animatedValue.addListener(({ value }) => {
+      const displayVal =
+        Math.abs(value - Math.round(value)) < 0.0001
+          ? Math.round(value)
+          : Math.floor(value * 10) / 10;
+      setCount(displayVal);
     });
 
-    return () => animatedValue.removeListener(listener);
-  }, [to]);
+    return () => {
+      animatedValue.removeListener(listenerId);
+    };
+  }, [to, duration]);
 
   const formatNumber = (num) => {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    try {
+      if (typeof num !== "number") return String(num);
+      const parts = String(num).split(".");
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      return parts.join(".");
+    } catch {
+      return String(num);
+    }
   };
 
   return (
@@ -43,26 +58,27 @@ const CountUp = ({ from, to, duration, suffix }) => {
 };
 
 const StatCard = ({ stat, index }) => {
-  const scaleAnim = new Animated.Value(0.8);
-  const opacityAnim = new Animated.Value(0);
+  // useRef so Animated.Values persist across re-renders
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
-        tension: 50,
-        friction: 7,
+        friction: 8,
+        tension: 40,
         delay: index * 100,
         useNativeDriver: true,
       }),
       Animated.timing(opacityAnim, {
         toValue: 1,
-        duration: 500,
+        duration: 450,
         delay: index * 100,
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [scaleAnim, opacityAnim, index]);
 
   const IconComponent = stat.icon;
 
@@ -77,8 +93,13 @@ const StatCard = ({ stat, index }) => {
       ]}
     >
       <View style={styles.iconContainer}>
-        <IconComponent size={32} color="#2563eb" strokeWidth={2} />
+        {IconComponent ? (
+          <IconComponent size={32} color="#2563eb" strokeWidth={2} />
+        ) : (
+          <Text style={{ fontSize: 18 }}>🏢</Text>
+        )}
       </View>
+
       <CountUp from={0} to={stat.number} duration={1.5} suffix={stat.suffix} />
       <Text style={styles.labelText}>{stat.label}</Text>
     </Animated.View>
@@ -106,7 +127,7 @@ const StatsSection = () => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 40,
+    paddingVertical: 24,
     paddingHorizontal: 16,
     backgroundColor: "#f0f9ff",
   },
@@ -120,31 +141,31 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: (width - 48) / 2,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.2)",
+    borderColor: "rgba(59, 130, 246, 0.12)",
     shadowColor: "#3b82f6",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 3,
   },
   iconContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   numberText: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginBottom: 8,
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: 6,
   },
   labelText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#64748b",
     textAlign: "center",
   },
