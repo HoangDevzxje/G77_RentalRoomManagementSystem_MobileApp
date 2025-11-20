@@ -1,3 +1,4 @@
+// screens/RoomScreen.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -13,6 +14,7 @@ import {
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMyRoomDetail } from "../../api/roomApi";
+import { Ionicons } from "@expo/vector-icons";
 
 const IMAGE_BASE_URL = "";
 
@@ -94,6 +96,15 @@ export default function RoomScreen({ navigation }) {
     </View>
   );
 
+  const goToRoommates = () => {
+    const roomId = room?.id ?? room?._id ?? room?.id ?? room?._id;
+    if (!roomId) {
+      Toast.show({ type: "info", text1: "ID phòng không sẵn sàng" });
+      return;
+    }
+    navigation.navigate("Roommates", { roomId });
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -106,7 +117,9 @@ export default function RoomScreen({ navigation }) {
   if (!room) {
     return (
       <View style={styles.center}>
-        <Text style={styles.emptyIcon}>🏠</Text>
+        <View style={styles.emptyIconContainer}>
+          <Ionicons name="home-outline" size={64} color="#cbd5e1" />
+        </View>
         <Text style={styles.emptyTitle}>Chưa có phòng</Text>
         <Text style={styles.emptyText}>
           Bạn chưa được gán vào phòng nào hoặc không có dữ liệu.
@@ -123,6 +136,7 @@ export default function RoomScreen({ navigation }) {
     images,
     building,
     floor,
+    area,
     price,
     currentContract,
     tenants,
@@ -143,6 +157,10 @@ export default function RoomScreen({ navigation }) {
     }
   };
 
+  const totalRoommates =
+    (Array.isArray(tenants) ? tenants.length : 0) +
+    (Array.isArray(contractRoommates) ? contractRoommates.length : 0);
+
   return (
     <ScrollView
       style={styles.screen}
@@ -162,7 +180,7 @@ export default function RoomScreen({ navigation }) {
           <Image source={{ uri: mainImageUri }} style={styles.mainImage} />
         ) : (
           <View style={styles.noImage}>
-            <Text style={styles.noImageIcon}>🏠</Text>
+            <Ionicons name="home-outline" size={48} color="#94a3b8" />
             <Text style={styles.noImageText}>Không có ảnh</Text>
           </View>
         )}
@@ -172,49 +190,98 @@ export default function RoomScreen({ navigation }) {
       </View>
 
       <View style={styles.content}>
+        {/* Quick Actions Card */}
+        <View style={styles.quickActionsCard}>
+          <TouchableOpacity
+            style={styles.quickActionItem}
+            onPress={goToRoommates}
+          >
+            <View
+              style={[styles.quickActionIcon, { backgroundColor: "#f0fdfa" }]}
+            >
+              <Ionicons name="people" size={24} color="#0d9488" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Người ở cùng</Text>
+              <Text style={styles.quickActionSubtitle}>
+                {totalRoommates > 0
+                  ? `${totalRoommates} thành viên`
+                  : "Chưa có ai"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#64748b" />
+          </TouchableOpacity>
+        </View>
+
         {/* Basic Info Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Thông tin cơ bản</Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Tòa nhà</Text>
-              <Text style={styles.infoValue}>{building?.name ?? "—"}</Text>
+          <View style={styles.infoGrid}>
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="business" size={18} color="#0d9488" />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Tòa nhà</Text>
+                <Text style={styles.infoValue}>{building?.name ?? "—"}</Text>
+              </View>
             </View>
-          </View>
 
-          <View style={styles.infoRow}>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Địa chỉ</Text>
-              <Text style={styles.infoValue}>{building?.address ?? "—"}</Text>
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="location" size={18} color="#0d9488" />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Địa chỉ</Text>
+                <Text style={styles.infoValue} numberOfLines={2}>
+                  {building?.address ?? "—"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="layers" size={18} color="#0d9488" />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Tầng</Text>
+                <Text style={styles.infoValue}>
+                  {typeof floor === "string"
+                    ? floor
+                    : floor?.name ?? floor?.floorNumber ?? "—"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="resize" size={18} color="#0d9488" />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Diện tích</Text>
+                <Text style={styles.infoValue}>
+                  {area ? `${area} m²` : "—"}
+                </Text>
+              </View>
             </View>
           </View>
 
           {building?.contact ? (
-            <View style={styles.infoRow}>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Liên hệ quản lý</Text>
-                <Text style={styles.infoValue}>{building.contact}</Text>
+            <View style={styles.contactSection}>
+              <View style={styles.contactHeader}>
+                <Ionicons name="call" size={16} color="#64748b" />
+                <Text style={styles.contactLabel}>Liên hệ quản lý</Text>
               </View>
+              <Text style={styles.contactValue}>{building.contact}</Text>
             </View>
           ) : null}
 
-          <View style={styles.infoRow}>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Tầng</Text>
-              <Text style={styles.infoValue}>
-                {typeof floor === "string"
-                  ? floor
-                  : floor?.name ?? floor?.floorNumber ?? "—"}
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.infoRow, styles.priceRow]}>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Giá thuê</Text>
+          <View style={styles.priceSection}>
+            <View style={styles.priceContent}>
+              <Text style={styles.priceLabel}>Giá thuê</Text>
               <Text style={styles.priceValue}>
                 {price
                   ? `${Number(price).toLocaleString("vi-VN")} đ/tháng`
@@ -224,118 +291,60 @@ export default function RoomScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Contract Card */}
+        {/* Contract */}
         {currentContract ? (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>Hợp đồng</Text>
               <View style={styles.contractBadge}>
+                <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
                 <Text style={styles.contractBadgeText}>Đang hiệu lực</Text>
               </View>
             </View>
 
             <View style={styles.contractInfo}>
-              <View style={styles.contractItem}>
-                <Text style={styles.contractLabel}>Số hợp đồng</Text>
-                <Text style={styles.contractValue}>
-                  {currentContract.no ?? "—"}
-                </Text>
-              </View>
-              <View style={styles.contractDivider} />
-              <View style={styles.contractItem}>
-                <Text style={styles.contractLabel}>Thời hạn</Text>
-                <Text style={styles.contractValue}>
-                  {formatDate(currentContract.startDate)} -{" "}
-                  {formatDate(currentContract.endDate)}
-                </Text>
+              <View style={styles.contractRow}>
+                <View style={styles.contractItem}>
+                  <Text style={styles.contractLabel}>Số hợp đồng</Text>
+                  <Text style={styles.contractValue}>
+                    {currentContract.no ?? "—"}
+                  </Text>
+                </View>
+                <View style={styles.contractItem}>
+                  <Text style={styles.contractLabel}>Thời hạn</Text>
+                  <Text style={styles.contractValue}>
+                    {formatDate(currentContract.startDate)} -{" "}
+                    {formatDate(currentContract.endDate)}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
         ) : null}
 
-        {/* Tenants Card */}
-        {(Array.isArray(tenants) && tenants.length > 0) ||
-        (Array.isArray(contractRoommates) && contractRoommates.length > 0) ? (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Người ở cùng</Text>
-            </View>
-
-            {Array.isArray(tenants) && tenants.length > 0 ? (
-              <>
-                <Text style={styles.sectionSubtitle}>Có tài khoản</Text>
-                {tenants.map((t) => (
-                  <View key={t.id ?? t._id} style={styles.tenantCard}>
-                    <View style={styles.tenantAvatar}>
-                      <Text style={styles.tenantAvatarText}>
-                        {(t.fullName ?? t.username ?? "?")
-                          .charAt(0)
-                          .toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.tenantInfo}>
-                      <Text style={styles.tenantName}>
-                        {t.fullName ?? t.username ?? "—"}
-                      </Text>
-                      {t.phoneNumber ? (
-                        <Text style={styles.tenantDetail}>{t.phoneNumber}</Text>
-                      ) : null}
-                      {t.username ? (
-                        <Text style={styles.tenantUsername}>@{t.username}</Text>
-                      ) : null}
-                    </View>
-                  </View>
-                ))}
-              </>
-            ) : null}
-
-            {Array.isArray(contractRoommates) &&
-            contractRoommates.length > 0 ? (
-              <>
-                <Text style={[styles.sectionSubtitle, { marginTop: 16 }]}>
-                  Trong hợp đồng
-                </Text>
-                {contractRoommates.map((p, idx) => (
-                  <View key={idx} style={styles.tenantCard}>
-                    <View style={styles.tenantAvatar}>
-                      <Text style={styles.tenantAvatarText}>
-                        {(p.name ?? "?").charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.tenantInfo}>
-                      <Text style={styles.tenantName}>{p.name ?? "—"}</Text>
-                      {p.phone ? (
-                        <Text style={styles.tenantDetail}>📱 {p.phone}</Text>
-                      ) : null}
-                      {p.cccd ? (
-                        <Text style={styles.tenantDetail}>🆔 {p.cccd}</Text>
-                      ) : null}
-                      {p.dob ? (
-                        <Text style={styles.tenantDetail}>
-                          🎂 {formatDate(p.dob)}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-                ))}
-              </>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Utilities Card */}
+        {/* Utilities */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Tiện ích</Text>
+            <Text style={styles.cardTitle}>Chỉ số tiện ích</Text>
           </View>
 
           <View style={styles.utilityRow}>
             <View style={styles.utilityCard}>
+              <View
+                style={[styles.utilityIcon, { backgroundColor: "#fef3c7" }]}
+              >
+                <Ionicons name="flash" size={24} color="#d97706" />
+              </View>
               <Text style={styles.utilityLabel}>Điện</Text>
               <Text style={styles.utilityValue}>{eStart ?? 0}</Text>
               <Text style={styles.utilityUnit}>kWh</Text>
             </View>
             <View style={styles.utilityCard}>
+              <View
+                style={[styles.utilityIcon, { backgroundColor: "#dbeafe" }]}
+              >
+                <Ionicons name="water" size={24} color="#2563eb" />
+              </View>
               <Text style={styles.utilityLabel}>Nước</Text>
               <Text style={styles.utilityValue}>{wStart ?? 0}</Text>
               <Text style={styles.utilityUnit}>m³</Text>
@@ -343,7 +352,7 @@ export default function RoomScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Furniture Card */}
+        {/* Furniture */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Nội thất</Text>
@@ -365,7 +374,7 @@ export default function RoomScreen({ navigation }) {
             />
           ) : (
             <View style={styles.emptyFurniture}>
-              <Text style={styles.emptyFurnitureIcon}>📦</Text>
+              <Ionicons name="cube-outline" size={48} color="#cbd5e1" />
               <Text style={styles.emptyFurnitureText}>
                 Chưa có nội thất được ghi nhận
               </Text>
@@ -380,152 +389,219 @@ export default function RoomScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#f1f5f9",
-  },
-  content: {
-    padding: 16,
-  },
+  screen: { flex: 1, backgroundColor: "#f8fafc" },
+  content: { padding: 16 },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 32,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#f8fafc",
   },
-  loadingText: {
-    marginTop: 12,
-    color: "#64748b",
-    fontSize: 14,
-  },
+  loadingText: { marginTop: 12, color: "#64748b", fontSize: 14 },
 
-  // Image Section
-  imageContainer: {
-    position: "relative",
-    marginBottom: 16,
-  },
+  imageContainer: { position: "relative", marginBottom: 16 },
+  // mainImage and noImage: hiển thị vuông, không bo tròn
   mainImage: {
     width: "100%",
-    height: 240,
+    height: 200,
     backgroundColor: "#e2e8f0",
   },
   noImage: {
     width: "100%",
-    height: 240,
+    height: 200,
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
   },
-  noImageIcon: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  noImageText: {
-    color: "#94a3b8",
-    fontSize: 14,
-  },
+  noImageText: { color: "#94a3b8", fontSize: 14, marginTop: 8 },
+
   roomNumberBadge: {
     position: "absolute",
-    bottom: 16,
+    top: 16,
     left: 16,
     backgroundColor: "rgba(13, 148, 136, 0.95)",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
   },
-  roomNumberText: {
-    color: "#fff",
+  roomNumberText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  quickActionsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  quickActionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  quickActionContent: {
+    flex: 1,
+  },
+  quickActionTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
+    color: "#0f172a",
+    marginBottom: 2,
+  },
+  quickActionSubtitle: {
+    fontSize: 14,
+    color: "#64748b",
   },
 
-  // Card Styles
   card: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     elevation: 2,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    marginBottom: 12,
   },
   cardTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
     color: "#0f172a",
   },
 
-  // Info Rows
-  infoRow: {
-    paddingVertical: 12,
+  infoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -8,
+    marginBottom: 12,
+  },
+  infoItem: {
+    width: "50%",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#f8fafc",
   },
-  infoContent: {
+  infoIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#f0fdfa",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  infoTextContainer: {
     flex: 1,
   },
   infoLabel: {
     fontSize: 13,
     color: "#64748b",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   infoValue: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#0f172a",
     fontWeight: "600",
   },
-  priceRow: {
-    borderBottomWidth: 0,
+
+  contactSection: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  contactHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  contactLabel: {
+    fontSize: 13,
+    color: "#64748b",
+    marginLeft: 6,
+    fontWeight: "500",
+  },
+  contactValue: {
+    fontSize: 14,
+    color: "#0f172a",
+    fontWeight: "600",
+  },
+
+  priceSection: {
     backgroundColor: "#f0fdfa",
-    marginHorizontal: -16,
-    marginBottom: -16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#0d9488",
+  },
+  priceContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "500",
   },
   priceValue: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#0d9488",
     fontWeight: "700",
   },
 
-  // Contract Section
   contractBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#dcfce7",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
+    gap: 4,
   },
   contractBadgeText: {
     color: "#16a34a",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   contractInfo: {
     backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 8,
+    padding: 12,
+  },
+  contractRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   contractItem: {
-    marginBottom: 8,
+    flex: 1,
   },
   contractLabel: {
     fontSize: 12,
@@ -537,33 +613,19 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontWeight: "600",
   },
-  contractDivider: {
-    height: 1,
-    backgroundColor: "#e2e8f0",
-    marginVertical: 12,
-  },
 
-  // Tenants Section
-  sectionSubtitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#64748b",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
   tenantCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f8fafc",
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 12,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   tenantAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#0d9488",
     justifyContent: "center",
     alignItems: "center",
@@ -571,50 +633,48 @@ const styles = StyleSheet.create({
   },
   tenantAvatarText: {
     color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
   },
   tenantInfo: {
     flex: 1,
   },
   tenantName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     color: "#0f172a",
-    marginBottom: 4,
-  },
-  tenantDetail: {
-    fontSize: 13,
-    color: "#64748b",
-    marginTop: 2,
-  },
-  tenantUsername: {
-    fontSize: 12,
-    color: "#0d9488",
-    fontWeight: "500",
-    marginTop: 4,
+    marginBottom: 2,
   },
 
-  // Utilities Section
   utilityRow: {
     flexDirection: "row",
     gap: 12,
   },
   utilityCard: {
     flex: 1,
-    backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 12,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  utilityIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
   },
   utilityLabel: {
     fontSize: 13,
     color: "#64748b",
-    marginBottom: 8,
+    marginBottom: 4,
     fontWeight: "600",
   },
   utilityValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 2,
@@ -624,12 +684,11 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
   },
 
-  // Furniture Section
   furnitureBadge: {
     backgroundColor: "#f1f5f9",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   furnitureBadgeText: {
     color: "#475569",
@@ -640,7 +699,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f8fafc",
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     justifyContent: "space-between",
@@ -673,23 +732,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+
   emptyFurniture: {
     alignItems: "center",
     paddingVertical: 32,
   },
-  emptyFurnitureIcon: {
-    fontSize: 48,
-    marginBottom: 8,
-    opacity: 0.5,
-  },
   emptyFurnitureText: {
     color: "#94a3b8",
     fontSize: 14,
+    marginTop: 8,
   },
-
-  // Empty State
-  emptyIcon: {
-    fontSize: 64,
+  emptyIconContainer: {
     marginBottom: 16,
   },
   emptyTitle: {
@@ -706,7 +759,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Button
   btn: {
     backgroundColor: "#0d9488",
     paddingHorizontal: 24,

@@ -22,6 +22,8 @@ import ContractsListScreen from "../screens/contract/ContractsListScreen";
 import ContractDetailScreen from "../screens/contract/ContractDetailScreen";
 import UpcomingExpireScreen from "../screens/contract/UpcomingExpireScreen";
 import RoomScreen from "../screens/room/RoomScreen";
+import RoommatesScreen from "../screens/room/RoommatesScreen";
+import RoommateDetail from "../screens/room/RoommateDetail";
 
 const Stack = createNativeStackNavigator();
 
@@ -73,6 +75,8 @@ export default function AppNavigator() {
       <Stack.Screen name="UpcomingExpire" component={UpcomingExpireScreen} />
       {/*Room*/}
       <Stack.Screen name="Room" component={RoomScreen} />
+      <Stack.Screen name="Roommates" component={RoommatesScreen} />
+      <Stack.Screen name="RoommateDetail" component={RoommateDetail} />
     </Stack.Navigator>
   );
 }
