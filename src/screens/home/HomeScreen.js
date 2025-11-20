@@ -20,7 +20,6 @@ import Testimonials from "../../components/Homepage/Testimonials";
 import PostCard from "../../components/post/PostCard";
 import { useAuth } from "../../context/AuthContext";
 import { getPosts } from "../../api/postApi";
-import { getMyRoomDetail } from "../../api/roomApi";
 import { useFocusEffect } from "@react-navigation/native";
 import StatsSection from "../../components/Homepage/StatsSection";
 
@@ -36,15 +35,8 @@ export default function HomeCombinedScreen({ navigation, route }) {
   const scrollViewRef = useRef(null);
   const { isAuthenticated } = useAuth();
 
-  // login-toast
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
-  // ROOM (tenant's room)
-  const [roomLoading, setRoomLoading] = useState(true);
-  const [room, setRoom] = useState(null);
-  const [furnitures, setFurnitures] = useState([]);
-
-  // POSTS (listings)
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState(null);
@@ -53,7 +45,6 @@ export default function HomeCombinedScreen({ navigation, route }) {
   const [postsLoadingMore, setPostsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // refresh
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -82,32 +73,6 @@ export default function HomeCombinedScreen({ navigation, route }) {
     }
   };
 
-  // --- ROOM fetch ---
-  const fetchRoom = async (showLoading = true) => {
-    try {
-      if (showLoading) setRoomLoading(true);
-      const res = await getMyRoomDetail();
-      setRoom(res?.room || null);
-      setFurnitures(Array.isArray(res?.furnitures) ? res.furnitures : []);
-    } catch (err) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2:
-          err?.response?.data?.message ||
-          err?.message ||
-          "Không thể tải thông tin phòng",
-        position: "top",
-      });
-      setRoom(null);
-      setFurnitures([]);
-    } finally {
-      if (showLoading) setRoomLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // --- POSTS fetch (paginated) ---
   const fetchPosts = async (page = 1, append = false) => {
     try {
       if (!append) {
@@ -148,7 +113,6 @@ export default function HomeCombinedScreen({ navigation, route }) {
 
   // initial loads
   useEffect(() => {
-    fetchRoom(true);
     if (isAuthenticated) fetchPosts(1, false);
     else {
       setPostsError("Vui lòng đăng nhập để xem danh sách bài đăng");
@@ -159,14 +123,12 @@ export default function HomeCombinedScreen({ navigation, route }) {
   // refresh on focus
   useFocusEffect(
     useCallback(() => {
-      fetchRoom(false);
       if (isAuthenticated) fetchPosts(1, false);
     }, [isAuthenticated])
   );
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchRoom(false);
     if (isAuthenticated) fetchPosts(1, false);
     else setRefreshing(false);
   };
@@ -186,27 +148,6 @@ export default function HomeCombinedScreen({ navigation, route }) {
     }
     fetchPosts(1, false);
   };
-
-  const renderFurniture = ({ item }) => (
-    <View style={styles.furnitureCard}>
-      <View style={styles.furnitureLeft}>
-        <Text style={styles.furnitureName} numberOfLines={1}>
-          {item?.name || "Không tên"}
-        </Text>
-        {item?.description ? (
-          <Text style={styles.furnitureDesc} numberOfLines={2}>
-            {item.description}
-          </Text>
-        ) : null}
-      </View>
-      <View style={styles.furnitureMeta}>
-        <Text style={styles.furnitureQty}>x{item?.quantity ?? 0}</Text>
-        {item?.condition ? (
-          <Text style={styles.furnitureCondition}>{item.condition}</Text>
-        ) : null}
-      </View>
-    </View>
-  );
 
   // Preview posts = first 4 posts
   const previewPosts = (posts || []).slice(0, 4);
@@ -309,85 +250,6 @@ export default function HomeCombinedScreen({ navigation, route }) {
         {/* WHY CHOOSE / TESTIMONIALS */}
         <WhyChoose />
         <Testimonials />
-
-        {/* ROOM DETAIL (show only when tenant has a room) */}
-        {roomLoading ? (
-          <View style={styles.roomLoader}>
-            <ActivityIndicator size="small" color="#0d9488" />
-            <Text style={styles.loadingText}>Đang tải thông tin phòng...</Text>
-          </View>
-        ) : room ? (
-          <View style={styles.roomCardWrapper}>
-            <View style={styles.roomCard}>
-              <View style={styles.roomHeader}>
-                <Text style={styles.roomTitle}>Chi tiết phòng của bạn</Text>
-                <TouchableOpacity
-                  style={styles.roomAction}
-                  onPress={() =>
-                    navigation.navigate("RoomDetail", { id: room.id })
-                  }
-                >
-                  <Ionicons name="chevron-forward" size={20} color="#0d9488" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Số phòng</Text>
-                <Text style={styles.value}>{room.roomNumber ?? "—"}</Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Tòa nhà</Text>
-                <Text style={styles.value}>{room.building?.name ?? "—"}</Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Địa chỉ</Text>
-                <Text style={styles.value}>
-                  {room.building?.address ?? "—"}
-                </Text>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.label}>Diện tích</Text>
-                <Text style={styles.value}>
-                  {room.area ? `${room.area} m²` : "—"}
-                </Text>
-              </View>
-
-              <View style={[styles.row, { borderBottomWidth: 0 }]}>
-                <Text style={styles.label}>Giá thuê</Text>
-                <Text style={styles.value}>
-                  {room.price
-                    ? `${Number(room.price).toLocaleString("vi-VN")} đ/tháng`
-                    : "Liên hệ"}
-                </Text>
-              </View>
-
-              {furnitures.length > 0 && (
-                <>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>
-                      Nội thất trong phòng
-                    </Text>
-                    <Text style={styles.sectionSub}>
-                      {furnitures.length} mục
-                    </Text>
-                  </View>
-
-                  <FlatList
-                    data={furnitures}
-                    keyExtractor={(i) =>
-                      i.id?.toString() || `${i.furnitureId || i.name}`
-                    }
-                    renderItem={renderFurniture}
-                    scrollEnabled={false}
-                  />
-                </>
-              )}
-            </View>
-          </View>
-        ) : null}
 
         <View style={{ height: 48 }} />
       </ScrollView>
@@ -527,69 +389,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
     marginLeft: 6,
-  },
-
-  roomLoader: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    alignItems: "center",
-  },
-  roomCardWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 12,
-  },
-  roomCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  roomHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  roomTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  roomAction: {
-    padding: 8,
-    backgroundColor: "#f0fdfa",
-    borderRadius: 8,
-  },
-
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f8fafc",
-  },
-  label: {
-    color: "#64748b",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  value: {
-    color: "#0f172a",
-    fontSize: 14,
-    fontWeight: "700",
-    maxWidth: "60%",
-    textAlign: "right",
   },
 
   sectionHeader: {
