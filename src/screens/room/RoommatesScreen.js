@@ -11,6 +11,9 @@ import {
   Alert,
   RefreshControl,
   ScrollView,
+  SafeAreaView,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -20,7 +23,7 @@ import {
   searchUser,
   addRoommate,
   removeRoommate,
-} from "../../api/roomApi";
+} from "../../api/roomatesApi";
 import { useFocusEffect } from "@react-navigation/native";
 
 export default function RoommatesScreen({ navigation, route }) {
@@ -435,143 +438,161 @@ export default function RoommatesScreen({ navigation, route }) {
   };
 
   return (
-    <View style={styles.wrapper}>
-      {/* HEADER */}
-      <View style={styles.headerBar}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={22} color="#0f172a" />
-        </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#ffffff"
+        translucent={false}
+      />
+      <View style={styles.wrapper}>
+        {/* HEADER */}
+        <View style={styles.headerBar}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={22} color="#0f172a" />
+          </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Người ở cùng</Text>
+          <Text style={styles.headerTitle}>Người ở cùng</Text>
 
-        <TouchableOpacity
-          style={styles.refreshBtn}
-          onPress={onRefresh}
-          disabled={refreshing}
-        >
-          <Ionicons
-            name="refresh"
-            size={20}
-            color={refreshing ? "#94a3b8" : "#0f172a"}
-          />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.container}>
-        {room && <RoomInfoHeader />}
-
-        {/* SEARCH SECTION */}
-        <View style={styles.searchSection}>
-          <Text style={styles.sectionTitle}>Tìm người để thêm</Text>
-          <View style={styles.searchRow}>
-            <View style={styles.searchInputContainer}>
-              <Ionicons
-                name="search"
-                size={18}
-                color="#64748b"
-                style={styles.searchIcon}
-              />
-              <TextInput
-                placeholder="Nhập email để tìm kiếm..."
-                value={query}
-                onChangeText={handleQueryChange}
-                style={styles.searchInput}
-                onSubmitEditing={onSearch}
-                returnKeyType="search"
-              />
-              {query.length > 0 && (
-                <TouchableOpacity
-                  style={styles.clearInputBtn}
-                  onPress={() => {
-                    setQuery("");
-                    setShowSearchResults(false);
-                    setSearchResults([]);
-                  }}
-                >
-                  <Ionicons name="close-circle" size={18} color="#94a3b8" />
-                </TouchableOpacity>
-              )}
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.searchBtn,
-                (!query || query.trim().length < 2) && styles.searchBtnDisabled,
-              ]}
-              onPress={onSearch}
-              disabled={searching || !query || query.trim().length < 2}
-            >
-              {searching ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Ionicons name="search" size={18} color="#fff" />
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.refreshBtn}
+            onPress={onRefresh}
+            disabled={refreshing}
+          >
+            <Ionicons
+              name="refresh"
+              size={20}
+              color={refreshing ? "#94a3b8" : "#0f172a"}
+            />
+          </TouchableOpacity>
         </View>
 
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color="#0d9488" />
-            <Text style={styles.loadingText}>Đang tải thông tin...</Text>
-          </View>
-        ) : (
-          <ScrollView
-            style={styles.contentScroll}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={["#0d9488"]}
-                tintColor="#0d9488"
-              />
-            }
-          >
-            {/* ROOMMATES LIST */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Thành viên trong phòng</Text>
-                <Text style={styles.sectionSubtitle}>
-                  {roommatesData.length} người
-                </Text>
-              </View>
+        <View style={styles.container}>
+          {room && <RoomInfoHeader />}
 
-              {roommatesData.length > 0 ? (
-                <FlatList
-                  data={roommatesData}
-                  keyExtractor={(i, idx) =>
-                    i?._id ?? i?.id ?? `roommate-${idx}`
-                  }
-                  renderItem={renderRoommateItem}
-                  scrollEnabled={false}
-                  showsVerticalScrollIndicator={false}
+          {/* SEARCH SECTION */}
+          <View style={styles.searchSection}>
+            <Text style={styles.sectionTitle}>Tìm người để thêm</Text>
+            <View style={styles.searchRow}>
+              <View style={styles.searchInputContainer}>
+                <Ionicons
+                  name="search"
+                  size={18}
+                  color="#64748b"
+                  style={styles.searchIcon}
                 />
-              ) : (
-                <View style={styles.emptyState}>
-                  <Ionicons name="people-outline" size={48} color="#cbd5e1" />
-                  <Text style={styles.emptyTitle}>Chưa có người ở cùng</Text>
-                  <Text style={styles.emptySubtitle}>
-                    Tìm kiếm và thêm người vào phòng của bạn
+                <TextInput
+                  placeholder="Nhập email để tìm kiếm..."
+                  placeholderTextColor="#64748b"
+                  value={query}
+                  onChangeText={handleQueryChange}
+                  style={styles.searchInput}
+                  onSubmitEditing={onSearch}
+                  returnKeyType="search"
+                  color="#0f172a"
+                />
+
+                {query.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.clearInputBtn}
+                    onPress={() => {
+                      setQuery("");
+                      setShowSearchResults(false);
+                      setSearchResults([]);
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.searchBtn,
+                  (!query || query.trim().length < 2) &&
+                    styles.searchBtnDisabled,
+                ]}
+                onPress={onSearch}
+                disabled={searching || !query || query.trim().length < 2}
+              >
+                {searching ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Ionicons name="search" size={18} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {loading ? (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color="#0d9488" />
+              <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.contentScroll}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={["#0d9488"]}
+                  tintColor="#0d9488"
+                />
+              }
+              contentContainerStyle={styles.scrollContent}
+            >
+              {/* ROOMMATES LIST */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>
+                    Thành viên trong phòng
+                  </Text>
+                  <Text style={styles.sectionSubtitle}>
+                    {roommatesData.length} người
                   </Text>
                 </View>
-              )}
-            </View>
 
-            {/* SEARCH RESULTS */}
-            <SearchResultsSection />
-          </ScrollView>
-        )}
+                {roommatesData.length > 0 ? (
+                  <FlatList
+                    data={roommatesData}
+                    keyExtractor={(i, idx) =>
+                      i?._id ?? i?.id ?? `roommate-${idx}`
+                    }
+                    renderItem={renderRoommateItem}
+                    scrollEnabled={false}
+                    showsVerticalScrollIndicator={false}
+                  />
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="people-outline" size={48} color="#cbd5e1" />
+                    <Text style={styles.emptyTitle}>Chưa có người ở cùng</Text>
+                    <Text style={styles.emptySubtitle}>
+                      Tìm kiếm và thêm người vào phòng của bạn
+                    </Text>
+                  </View>
+                )}
+              </View>
 
-        <Toast />
+              {/* SEARCH RESULTS */}
+              <SearchResultsSection />
+            </ScrollView>
+          )}
+
+          <Toast />
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
   wrapper: {
     flex: 1,
     backgroundColor: "#f8fafc",
@@ -590,6 +611,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
+    // Thêm padding top cho iOS
+    paddingTop: Platform.OS === "ios" ? 0 : 0,
   },
   backBtn: {
     width: 40,
@@ -617,6 +640,9 @@ const styles = StyleSheet.create({
   },
   contentScroll: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   roomHeader: {
     flexDirection: "row",
@@ -706,6 +732,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     paddingHorizontal: 12,
+    // Thêm chiều cao cố định cho iOS
+    minHeight: 50,
   },
   searchIcon: {
     marginRight: 8,
@@ -715,6 +743,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: "#0f172a",
+    // Thêm padding cho iOS
+    paddingTop: Platform.OS === "ios" ? 8 : 12,
+    paddingBottom: Platform.OS === "ios" ? 8 : 12,
   },
   clearInputBtn: {
     padding: 4,
@@ -731,6 +762,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
+    // Thêm chiều cao cố định cho iOS
+    minHeight: 50,
   },
   searchBtnDisabled: {
     backgroundColor: "#cbd5e1",
@@ -757,6 +790,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
+    // Thêm minHeight cho iOS
+    minHeight: 80,
   },
   firstItem: {
     borderLeftWidth: 4,
@@ -866,6 +901,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
+    minHeight: 80,
   },
   searchResultsList: {
     maxHeight: 300,
@@ -880,6 +916,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
+    minHeight: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   addBtnDisabled: {
     backgroundColor: "#cbd5e1",

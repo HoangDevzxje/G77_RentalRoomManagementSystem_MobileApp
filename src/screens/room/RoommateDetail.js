@@ -10,10 +10,12 @@ import {
   Linking,
   Platform,
   RefreshControl,
+  SafeAreaView,
+  StatusBar,
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { Ionicons } from "@expo/vector-icons";
-import { getRoommateDetail } from "../../api/roomApi";
+import { getRoommateDetail } from "../../api/roomatesApi";
 
 export default function RoommateDetail({ route, navigation }) {
   const { userId } = route.params || {};
@@ -209,39 +211,53 @@ export default function RoommateDetail({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.wrapper}>
-        <Header
-          onBack={handleBack}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#ffffff"
+          translucent={false}
         />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0d9488" />
-          <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+        <View style={styles.wrapper}>
+          <Header
+            onBack={handleBack}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+          />
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color="#0d9488" />
+            <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (!data) {
     return (
-      <View style={styles.wrapper}>
-        <Header
-          onBack={handleBack}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#ffffff"
+          translucent={false}
         />
-        <View style={styles.center}>
-          <Ionicons name="person-outline" size={64} color="#cbd5e1" />
-          <Text style={styles.errorTitle}>Không tìm thấy thông tin</Text>
-          <Text style={styles.errorSubtitle}>
-            Người dùng không tồn tại hoặc bạn không có quyền xem
-          </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={handleRefresh}>
-            <Text style={styles.retryText}>Thử lại</Text>
-          </TouchableOpacity>
+        <View style={styles.wrapper}>
+          <Header
+            onBack={handleBack}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+          />
+          <View style={styles.center}>
+            <Ionicons name="person-outline" size={64} color="#cbd5e1" />
+            <Text style={styles.errorTitle}>Không tìm thấy thông tin</Text>
+            <Text style={styles.errorSubtitle}>
+              Người dùng không tồn tại hoặc bạn không có quyền xem
+            </Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={handleRefresh}>
+              <Text style={styles.retryText}>Thử lại</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -261,116 +277,126 @@ export default function RoommateDetail({ route, navigation }) {
   const isMe = data.isMe || false;
 
   return (
-    <View style={styles.wrapper}>
-      <Header
-        onBack={handleBack}
-        onRefresh={handleRefresh}
-        refreshing={refreshing}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#ffffff"
+        translucent={false}
       />
+      <View style={styles.wrapper}>
+        <Header
+          onBack={handleBack}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+        />
 
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={["#0d9488"]}
-            tintColor="#0d9488"
-          />
-        }
-      >
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(fullName[0] || email[0] || "U").toUpperCase()}
+        <ScrollView
+          style={styles.container}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={["#0d9488"]}
+              tintColor="#0d9488"
+            />
+          }
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Profile Header */}
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {(fullName[0] || email[0] || "U").toUpperCase()}
+                </Text>
+              </View>
+              <StatusBadge isMainTenant={isMainTenant} isMe={isMe} />
+            </View>
+
+            <Text style={styles.name}>{fullName}</Text>
+            <Text style={styles.email}>{email}</Text>
+          </View>
+
+          {/* Contact Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin liên hệ</Text>
+
+            <InfoCard
+              title="Số điện thoại"
+              value={phoneNumber}
+              icon="call-outline"
+              type="phone"
+              onPress={handleContact}
+            />
+
+            <InfoCard
+              title="Email"
+              value={email}
+              icon="mail-outline"
+              type="email"
+              onPress={handleContact}
+            />
+          </View>
+
+          {/* Personal Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+
+            <InfoCard
+              title="Ngày sinh"
+              value={
+                dob
+                  ? new Date(dob).toLocaleDateString("vi-VN")
+                  : "Chưa cập nhật"
+              }
+              icon="calendar-outline"
+            />
+
+            <InfoCard
+              title="Giới tính"
+              value={getGenderText(gender)}
+              icon="person-outline"
+            />
+
+            <InfoCard title="Địa chỉ" value={address} icon="location-outline" />
+          </View>
+
+          {/* Room Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin phòng</Text>
+
+            <View style={styles.infoCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardTitleContainer}>
+                  <Ionicons name="business-outline" size={18} color="#0d9488" />
+                  <Text style={styles.cardTitle}>Vai trò</Text>
+                </View>
+              </View>
+              <Text style={styles.cardValue}>
+                {isMainTenant
+                  ? "Chủ phòng (Người đứng tên hợp đồng)"
+                  : "Thành viên"}
               </Text>
             </View>
-            <StatusBadge isMainTenant={isMainTenant} isMe={isMe} />
           </View>
 
-          <Text style={styles.name}>{fullName}</Text>
-          <Text style={styles.email}>{email}</Text>
-        </View>
-
-        {/* Contact Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin liên hệ</Text>
-
-          <InfoCard
-            title="Số điện thoại"
-            value={phoneNumber}
-            icon="call-outline"
-            type="phone"
-            onPress={handleContact}
-          />
-
-          <InfoCard
-            title="Email"
-            value={email}
-            icon="mail-outline"
-            type="email"
-            onPress={handleContact}
-          />
-        </View>
-
-        {/* Personal Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
-
-          <InfoCard
-            title="Ngày sinh"
-            value={
-              dob ? new Date(dob).toLocaleDateString("vi-VN") : "Chưa cập nhật"
-            }
-            icon="calendar-outline"
-          />
-
-          <InfoCard
-            title="Giới tính"
-            value={getGenderText(gender)}
-            icon="person-outline"
-          />
-
-          <InfoCard title="Địa chỉ" value={address} icon="location-outline" />
-        </View>
-
-        {/* Room Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin phòng</Text>
-
-          <View style={styles.infoCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardTitleContainer}>
-                <Ionicons name="business-outline" size={18} color="#0d9488" />
-                <Text style={styles.cardTitle}>Vai trò</Text>
-              </View>
-            </View>
-            <Text style={styles.cardValue}>
-              {isMainTenant
-                ? "Chủ phòng (Người đứng tên hợp đồng)"
-                : "Thành viên"}
+          {/* Additional Info */}
+          <View style={styles.footerNote}>
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color="#64748b"
+            />
+            <Text style={styles.footerText}>
+              Chỉ có thể xem thông tin của người cùng phòng
             </Text>
           </View>
-        </View>
+        </ScrollView>
 
-        {/* Additional Info */}
-        <View style={styles.footerNote}>
-          <Ionicons
-            name="information-circle-outline"
-            size={16}
-            color="#64748b"
-          />
-          <Text style={styles.footerText}>
-            Chỉ có thể xem thông tin của người cùng phòng
-          </Text>
-        </View>
-      </ScrollView>
-
-      <Toast />
-    </View>
+        <Toast />
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -406,6 +432,10 @@ const getGenderText = (gender) => {
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
   wrapper: {
     flex: 1,
     backgroundColor: "#f8fafc",
@@ -424,6 +454,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
+    paddingTop: Platform.OS === "ios" ? 0 : 0,
   },
   backBtn: {
     width: 40,
@@ -447,7 +478,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  scrollContent: {
     padding: 16,
+    flexGrow: 1,
   },
   center: {
     flex: 1,
@@ -554,6 +588,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
+    minHeight: Platform.OS === "ios" ? 80 : undefined,
   },
   cardHeader: {
     flexDirection: "row",
@@ -577,6 +612,10 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 8,
     backgroundColor: "#f0fdfa",
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
   },
   cardValue: {
     fontSize: 16,
@@ -622,12 +661,20 @@ const styles = StyleSheet.create({
   retryBtn: {
     backgroundColor: "#0d9488",
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 8,
+    shadowColor: "#0d9488",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    minHeight: 44,
+    justifyContent: "center",
   },
   retryText: {
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
+    textAlign: "center",
   },
 });

@@ -1,4 +1,3 @@
-// screens/RoomScreen.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -18,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 const IMAGE_BASE_URL = "";
 
+// normalize image uri helper
 function normalizeUri(uri) {
   if (!uri || typeof uri !== "string") return null;
   if (uri.startsWith("http://") || uri.startsWith("https://")) return uri;
@@ -25,6 +25,93 @@ function normalizeUri(uri) {
     return IMAGE_BASE_URL.replace(/\/$/, "") + "/" + uri.replace(/^\//, "");
   return uri;
 }
+
+// Helper functions để hiển thị thông tin điện nước
+const getElectricityDisplay = (electricity) => {
+  if (!electricity) return "—";
+
+  const { indexType, price } = electricity;
+
+  switch (indexType) {
+    case "byNumber":
+      return price > 0
+        ? `${Number(price).toLocaleString("vi-VN")} đ/kWh`
+        : "Miễn phí";
+    case "included":
+      return "Đã bao gồm trong giá thuê";
+    default:
+      return "—";
+  }
+};
+
+const getWaterDisplay = (water) => {
+  if (!water) return "—";
+
+  const { indexType, price } = water;
+
+  switch (indexType) {
+    case "byNumber":
+      return price > 0
+        ? `${Number(price).toLocaleString("vi-VN")} đ/m³`
+        : "Miễn phí";
+    case "byPerson":
+      return price > 0
+        ? `${Number(price).toLocaleString("vi-VN")} đ/người`
+        : "Miễn phí";
+    case "included":
+      return "Đã bao gồm trong giá thuê";
+    default:
+      return "—";
+  }
+};
+
+const getElectricityDescription = (electricity) => {
+  if (!electricity) return "";
+  switch (electricity.indexType) {
+    case "byNumber":
+      return "Tính theo chỉ số công tơ";
+    case "included":
+      return "Đã bao gồm trong tiền thuê";
+    default:
+      return "";
+  }
+};
+
+const getWaterDescription = (water) => {
+  if (!water) return "";
+  switch (water.indexType) {
+    case "byNumber":
+      return "Tính theo chỉ số đồng hồ nước";
+    case "byPerson":
+      return "Tính theo số người";
+    case "included":
+      return "Đã bao gồm trong tiền thuê";
+    default:
+      return "";
+  }
+};
+
+const getServiceIcon = (serviceName) => {
+  const icons = {
+    internet: "wifi",
+    parking: "car-sport",
+    cleaning: "brush",
+    security: "shield-checkmark",
+    other: "ellipsis-horizontal",
+  };
+  return icons[serviceName] || "cube";
+};
+
+const getServiceColor = (serviceName) => {
+  const colors = {
+    internet: "#3B82F6",
+    parking: "#10B981",
+    cleaning: "#8B5CF6",
+    security: "#EF4444",
+    other: "#6B7280",
+  };
+  return colors[serviceName] || "#6B7280";
+};
 
 export default function RoomScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -45,9 +132,15 @@ export default function RoomScreen({ navigation }) {
       const res = await getMyRoomDetail();
       const { room: r, furnitures: f } = parseResponse(res);
       setRoom(r || null);
-      setFurnitures(Array.isArray(f) ? f : []);
+
+      const safeFurnitures = Array.isArray(f)
+        ? f.map((it) => {
+            const { condition, ...rest } = it || {};
+            return rest;
+          })
+        : [];
+      setFurnitures(safeFurnitures);
     } catch (err) {
-      console.error("Fetch room detail error:", err);
       Toast.show({
         type: "error",
         text1: "Lỗi",
@@ -86,9 +179,6 @@ export default function RoomScreen({ navigation }) {
         <Text style={styles.furnitureName} numberOfLines={1}>
           {item?.name || "Không tên"}
         </Text>
-        {item?.condition ? (
-          <Text style={styles.furnitureCondition}>{item.condition}</Text>
-        ) : null}
       </View>
       <View style={styles.furnitureQtyBadge}>
         <Text style={styles.furnitureQty}>×{item?.quantity ?? 0}</Text>
@@ -96,13 +186,72 @@ export default function RoomScreen({ navigation }) {
     </View>
   );
 
+  const renderService = ({ item }) => (
+    <View style={styles.serviceCard}>
+      <View
+        style={[
+          styles.serviceIcon,
+          { backgroundColor: `${getServiceColor(item.name)}20` },
+        ]}
+      >
+        <Ionicons
+          name={getServiceIcon(item.name)}
+          size={20}
+          color={getServiceColor(item.name)}
+        />
+      </View>
+      <View style={styles.serviceContent}>
+        <Text style={styles.serviceName}>{item.label}</Text>
+        {item.description ? (
+          <Text style={styles.serviceDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.servicePrice}>
+        <Text style={styles.servicePriceText}>{item.displayText}</Text>
+      </View>
+    </View>
+  );
+
   const goToRoommates = () => {
-    const roomId = room?.id ?? room?._id ?? room?.id ?? room?._id;
+    const roomId = room?.id ?? room?._id ?? null;
     if (!roomId) {
       Toast.show({ type: "info", text1: "ID phòng không sẵn sàng" });
       return;
     }
     navigation.navigate("Roommates", { roomId });
+  };
+
+  const goToMaintenanceList = () => {
+    const roomId = room?.id ?? room?._id ?? null;
+    navigation.navigate("MaintenanceRequests", { roomId });
+  };
+
+  const goToCreateMaintenance = () => {
+    const roomId = room?.id ?? room?._id ?? null;
+    navigation.navigate("CreateMaintenanceRequest", { roomId });
+  };
+
+  const openBuildingReviewList = () => {
+    const buildingId = room?.building?._id ?? room?.buildingId ?? null;
+    if (!buildingId) {
+      Toast.show({ type: "info", text1: "Thông tin tòa nhà không sẵn sàng" });
+      return;
+    }
+    navigation.navigate("BuildingReviewList", { buildingId });
+  };
+
+  const openCreateBuildingReview = () => {
+    const buildingId = room?.building?._id ?? room?.buildingId ?? null;
+    if (!buildingId) {
+      Toast.show({ type: "info", text1: "Thông tin tòa nhà không sẵn sàng" });
+      return;
+    }
+    navigation.navigate("CreateBuildingReview", {
+      buildingId,
+      buildingName: room?.building?.name ?? null,
+    });
   };
 
   if (loading) {
@@ -134,7 +283,6 @@ export default function RoomScreen({ navigation }) {
   const {
     roomNumber,
     images,
-    building,
     floor,
     area,
     price,
@@ -143,19 +291,14 @@ export default function RoomScreen({ navigation }) {
     contractRoommates,
     eStart,
     wStart,
+    electricity,
+    water,
+    building,
+    services = [],
   } = room;
 
   const mainImageUri =
     Array.isArray(images) && images.length > 0 ? normalizeUri(images[0]) : null;
-
-  const formatDate = (d) => {
-    if (!d) return "—";
-    try {
-      return new Date(d).toLocaleDateString("vi-VN");
-    } catch {
-      return d;
-    }
-  };
 
   const totalRoommates =
     (Array.isArray(tenants) ? tenants.length : 0) +
@@ -174,7 +317,6 @@ export default function RoomScreen({ navigation }) {
         />
       }
     >
-      {/* Header Image */}
       <View style={styles.imageContainer}>
         {mainImageUri ? (
           <Image source={{ uri: mainImageUri }} style={styles.mainImage} />
@@ -207,6 +349,62 @@ export default function RoomScreen({ navigation }) {
                 {totalRoommates > 0
                   ? `${totalRoommates} thành viên`
                   : "Chưa có ai"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          <View style={{ height: 12 }} />
+
+          <View style={styles.maintenanceRow}>
+            <TouchableOpacity
+              style={styles.maintenanceBtn}
+              onPress={goToMaintenanceList}
+            >
+              <Ionicons name="construct" size={18} color="#fff" />
+              <Text style={styles.maintenanceBtnText}>Yêu cầu bảo trì</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.maintenanceBtn, styles.maintenanceCreateBtn]}
+              onPress={goToCreateMaintenance}
+            >
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.maintenanceBtnText}>Tạo yêu cầu</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ height: 12 }} />
+
+          <TouchableOpacity
+            style={styles.quickActionItem}
+            onPress={openBuildingReviewList}
+          >
+            <View
+              style={[styles.quickActionIcon, { backgroundColor: "#ecfeff" }]}
+            >
+              <Ionicons name="book" size={22} color="#0ea5a4" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Xem đánh giá tòa nhà</Text>
+              <Text style={styles.quickActionSubtitle}>Danh sách đánh giá</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionItem}
+            onPress={openCreateBuildingReview}
+          >
+            <View
+              style={[styles.quickActionIcon, { backgroundColor: "#62B686" }]}
+            >
+              <Ionicons name="star" size={22} color="#fff" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Gửi đánh giá tòa nhà</Text>
+              <Text style={styles.quickActionSubtitle}>
+                Chia sẻ trải nghiệm của bạn
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#64748b" />
@@ -267,7 +465,33 @@ export default function RoomScreen({ navigation }) {
                 </Text>
               </View>
             </View>
+
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="play-forward" size={18} color="#0d9488" />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Chỉ số điện đầu</Text>
+                <Text style={styles.infoValue}>{eStart ?? 0}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoItem}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="play-forward" size={18} color="#0d9488" />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Chỉ số nước đầu</Text>
+                <Text style={styles.infoValue}>{wStart ?? 0}</Text>
+              </View>
+            </View>
           </View>
+
+          {building?.description ? (
+            <View style={styles.descriptionSection}>
+              <Text style={styles.descriptionText}>{building.description}</Text>
+            </View>
+          ) : null}
 
           {building?.contact ? (
             <View style={styles.contactSection}>
@@ -291,68 +515,69 @@ export default function RoomScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Contract */}
-        {currentContract ? (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Hợp đồng</Text>
-              <View style={styles.contractBadge}>
-                <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
-                <Text style={styles.contractBadgeText}>Đang hiệu lực</Text>
-              </View>
-            </View>
-
-            <View style={styles.contractInfo}>
-              <View style={styles.contractRow}>
-                <View style={styles.contractItem}>
-                  <Text style={styles.contractLabel}>Số hợp đồng</Text>
-                  <Text style={styles.contractValue}>
-                    {currentContract.no ?? "—"}
-                  </Text>
-                </View>
-                <View style={styles.contractItem}>
-                  <Text style={styles.contractLabel}>Thời hạn</Text>
-                  <Text style={styles.contractValue}>
-                    {formatDate(currentContract.startDate)} -{" "}
-                    {formatDate(currentContract.endDate)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Utilities */}
+        {/* Electricity and Water Info Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Chỉ số tiện ích</Text>
+            <Text style={styles.cardTitle}>Điện & Nước</Text>
           </View>
 
-          <View style={styles.utilityRow}>
-            <View style={styles.utilityCard}>
+          <View style={styles.utilityGrid}>
+            <View style={styles.utilityItem}>
               <View
                 style={[styles.utilityIcon, { backgroundColor: "#fef3c7" }]}
               >
                 <Ionicons name="flash" size={24} color="#d97706" />
               </View>
-              <Text style={styles.utilityLabel}>Điện</Text>
-              <Text style={styles.utilityValue}>{eStart ?? 0}</Text>
-              <Text style={styles.utilityUnit}>kWh</Text>
+              <View style={styles.utilityContent}>
+                <Text style={styles.utilityTitle}>Điện</Text>
+                <Text style={styles.utilitySubtitle}>
+                  {getElectricityDisplay(electricity)}
+                </Text>
+                <Text style={styles.utilityDescription}>
+                  {getElectricityDescription(electricity)}
+                </Text>
+              </View>
             </View>
-            <View style={styles.utilityCard}>
+
+            <View style={styles.utilityItem}>
               <View
                 style={[styles.utilityIcon, { backgroundColor: "#dbeafe" }]}
               >
                 <Ionicons name="water" size={24} color="#2563eb" />
               </View>
-              <Text style={styles.utilityLabel}>Nước</Text>
-              <Text style={styles.utilityValue}>{wStart ?? 0}</Text>
-              <Text style={styles.utilityUnit}>m³</Text>
+              <View style={styles.utilityContent}>
+                <Text style={styles.utilityTitle}>Nước</Text>
+                <Text style={styles.utilitySubtitle}>
+                  {getWaterDisplay(water)}
+                </Text>
+                <Text style={styles.utilityDescription}>
+                  {getWaterDescription(water)}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        {/* Furniture */}
+        {/* Services Card */}
+        {services && services.length > 0 && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Dịch vụ</Text>
+              <View style={styles.servicesBadge}>
+                <Text style={styles.servicesBadgeText}>{services.length}</Text>
+              </View>
+            </View>
+
+            <FlatList
+              data={services}
+              keyExtractor={(item, index) => `service-${item.id || index}`}
+              renderItem={renderService}
+              scrollEnabled={false}
+            />
+          </View>
+        )}
+
+        {/* Furniture Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Nội thất</Text>
@@ -401,7 +626,6 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 12, color: "#64748b", fontSize: 14 },
 
   imageContainer: { position: "relative", marginBottom: 16 },
-  // mainImage and noImage: hiển thị vuông, không bo tròn
   mainImage: {
     width: "100%",
     height: 200,
@@ -470,6 +694,31 @@ const styles = StyleSheet.create({
     color: "#64748b",
   },
 
+  maintenanceRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  maintenanceBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#0d9488",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  maintenanceCreateBtn: {
+    backgroundColor: "#10b981",
+  },
+  maintenanceBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -531,6 +780,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  descriptionSection: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: "#475569",
+    lineHeight: 20,
+  },
+
   contactSection: {
     backgroundColor: "#f8fafc",
     borderRadius: 8,
@@ -577,111 +838,91 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  contractBadge: {
+  utilityGrid: {
+    marginBottom: 12,
+  },
+  utilityItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#dcfce7",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    gap: 4,
-  },
-  contractBadgeText: {
-    color: "#16a34a",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  contractInfo: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 8,
-    padding: 12,
-  },
-  contractRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  contractItem: {
-    flex: 1,
-  },
-  contractLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 4,
-  },
-  contractValue: {
-    fontSize: 14,
-    color: "#0f172a",
-    fontWeight: "600",
-  },
-
-  tenantCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderRadius: 8,
-    padding: 12,
+    paddingVertical: 12,
     marginBottom: 8,
   },
-  tenantAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#0d9488",
+  utilityIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-  tenantAvatarText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  tenantInfo: {
+  utilityContent: {
     flex: 1,
   },
-  tenantName: {
+  utilityTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0f172a",
+    marginBottom: 2,
+  },
+  utilitySubtitle: {
+    fontSize: 14,
+    color: "#0d9488",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  utilityDescription: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+
+  servicesBadge: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  servicesBadgeText: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  serviceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  serviceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  serviceContent: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  serviceName: {
     fontSize: 14,
     fontWeight: "600",
     color: "#0f172a",
     marginBottom: 2,
   },
-
-  utilityRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  utilityCard: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-  utilityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  utilityLabel: {
-    fontSize: 13,
+  serviceDescription: {
+    fontSize: 12,
     color: "#64748b",
-    marginBottom: 4,
+  },
+  servicePrice: {
+    alignItems: "flex-end",
+  },
+  servicePriceText: {
+    fontSize: 13,
     fontWeight: "600",
-  },
-  utilityValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 2,
-  },
-  utilityUnit: {
-    fontSize: 11,
-    color: "#94a3b8",
+    color: "#0d9488",
   },
 
   furnitureBadge: {
@@ -713,10 +954,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#0f172a",
     marginBottom: 2,
-  },
-  furnitureCondition: {
-    fontSize: 12,
-    color: "#64748b",
   },
   furnitureQtyBadge: {
     backgroundColor: "#0d9488",
