@@ -1,5 +1,4 @@
-// screens/MaintenanceRequestsScreen.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +10,12 @@ import {
   Platform,
   StatusBar,
   Dimensions,
+  SafeAreaView,
+  TextInput,
+  Keyboard,
+  ActionSheetIOS,
+  Modal,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -18,6 +23,14 @@ import { listMyRoomRequests } from "../../api/maintenanceApi";
 import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
+
+const STATUS_OPTIONS = [
+  { key: "", label: "Tất cả trạng thái", icon: "apps-outline" },
+  { key: "open", label: "Chờ xử lý", icon: "time-outline" },
+  { key: "in_progress", label: "Đang xử lý", icon: "build-outline" },
+  { key: "resolved", label: "Đã hoàn thành", icon: "checkmark-done-outline" },
+  { key: "rejected", label: "Đã từ chối", icon: "close-outline" },
+];
 
 export default function MaintenanceRequestsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -28,6 +41,19 @@ export default function MaintenanceRequestsScreen({ navigation }) {
   const [total, setTotal] = useState(0);
   const limit = 20;
 
+  // search states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const load = async (opts = { showLoading: true, page: 1 }) => {
     try {
       if (opts.showLoading) setLoading(true);
@@ -36,11 +62,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
       const res = await listMyRoomRequests({ page: opts.page, limit });
       const payload = res ?? {};
 
-      console.log("Maintenance requests response:", payload);
-
-      // payload may be: { data: [...], room, total, page, ... } or it could be array (legacy)
       if (Array.isArray(payload)) {
-        // older shape where API returned array directly
         setRequests(payload);
         setRoomInfo(null);
         setTotal(payload.length);
@@ -58,7 +80,6 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         setPage(payload.page || opts.page || 1);
       }
     } catch (err) {
-      console.error("load maintenance requests:", err);
       Toast.show({
         type: "error",
         text1: "Lỗi",
@@ -162,6 +183,28 @@ export default function MaintenanceRequestsScreen({ navigation }) {
     return date.toLocaleDateString("vi-VN");
   };
 
+  const filteredRequests = useMemo(() => {
+    let list = Array.isArray(requests) ? requests : [];
+    if (statusFilter) {
+      list = list.filter((it) => (it.status || "") === statusFilter);
+    }
+    if (!debouncedQuery) return list;
+    const q = debouncedQuery.toLowerCase();
+    return list.filter((it) => {
+      if (!it) return false;
+      const title = (it.title || "").toLowerCase();
+      const furniture = (it.furnitureId?.name || "").toLowerCase();
+      const assignee = (it.assigneeName || "").toLowerCase();
+      const roomNum = (it.roomId?.roomNumber || "").toString().toLowerCase();
+      return (
+        title.includes(q) ||
+        furniture.includes(q) ||
+        assignee.includes(q) ||
+        roomNum.includes(q)
+      );
+    });
+  }, [requests, debouncedQuery, statusFilter]);
+
   const renderItem = ({ item, index }) => {
     const statusInfo = getStatusInfo(item.status);
     const priorityInfo = getPriorityInfo(item.priority);
@@ -175,11 +218,11 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         ]}
         onPress={() =>
           navigation.navigate("MaintenanceDetail", {
-            // gửi cả id và object request để tránh mất dữ liệu do shape khác
             requestId: item._id ?? item.id ?? item.requestId,
             request: item,
           })
         }
+        activeOpacity={0.85}
       >
         <View style={styles.cardHeader}>
           <View style={styles.titleSection}>
@@ -287,8 +330,59 @@ export default function MaintenanceRequestsScreen({ navigation }) {
     );
   };
 
+  const clearSearch = () => {
+    setSearchQuery("");
+    setDebouncedQuery("");
+    Keyboard.dismiss();
+  };
+
+  const clearStatusFilter = () => {
+    setStatusFilter("");
+  };
+
+  const openStatusSelector = () => {
+    if (Platform.OS === "ios") {
+      const options = STATUS_OPTIONS.map((s) => s.label);
+      const iosOptions = [...options, "Hủy"];
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: iosOptions,
+          cancelButtonIndex: iosOptions.length - 1,
+          title: "Lọc theo trạng thái",
+        },
+        (buttonIndex) => {
+          if (buttonIndex === iosOptions.length - 1) return; // cancel
+          const selected = STATUS_OPTIONS[buttonIndex];
+          setStatusFilter(selected.key);
+        }
+      );
+    } else {
+      setStatusModalVisible(true);
+    }
+  };
+
+  const onSelectStatusAndroid = (key) => {
+    setStatusFilter(key);
+    setStatusModalVisible(false);
+  };
+
+  const getStatusIcon = (statusKey) => {
+    const status = STATUS_OPTIONS.find((s) => s.key === statusKey);
+    return status ? status.icon : "filter";
+  };
+
+  const getStatusLabel = (statusKey) => {
+    const status = STATUS_OPTIONS.find((s) => s.key === statusKey);
+    return status ? status.label : "Trạng thái";
+  };
+
+  const clearAllFilters = () => {
+    clearSearch();
+    clearStatusFilter();
+  };
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -306,10 +400,140 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         </View>
 
         <TouchableOpacity style={styles.createButton} onPress={goToCreate}>
-          <Ionicons name="add" size={20} color="#fff" />
+          <Ionicons name="add" size={18} color="#fff" />
           <Text style={styles.createButtonText}>Tạo mới</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Search Section - Ở TRÊN */}
+      <View style={styles.searchSection}>
+        <View
+          style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}
+        >
+          <Ionicons
+            name="search"
+            size={20}
+            color={searchFocused ? "#0d9488" : "#9ca3af"}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Tìm kiếm yêu cầu bảo trì..."
+            placeholderTextColor="#9ca3af"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            returnKeyType="search"
+            onSubmitEditing={() => {
+              setDebouncedQuery(searchQuery.trim());
+              Keyboard.dismiss();
+            }}
+            clearButtonMode="never"
+            underlineColorAndroid="transparent"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={clearSearch}
+              style={styles.searchClear}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close-circle" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Status Filter Section - Ở DƯỚI */}
+      <View style={styles.filterSection}>
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            statusFilter && styles.filterButtonActive,
+          ]}
+          onPress={openStatusSelector}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={getStatusIcon(statusFilter)}
+            size={18}
+            color={statusFilter ? "#fff" : "#0d9488"}
+          />
+          <Text
+            style={[
+              styles.filterButtonText,
+              statusFilter && styles.filterButtonTextActive,
+            ]}
+          >
+            {getStatusLabel(statusFilter)}
+          </Text>
+          {statusFilter && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                clearStatusFilter();
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.filterClear}
+            >
+              <Ionicons name="close-circle" size={16} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Android modal for status selection */}
+      {Platform.OS !== "ios" && (
+        <Modal
+          visible={statusModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setStatusModalVisible(false)}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setStatusModalVisible(false)}
+          />
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Lọc theo trạng thái</Text>
+            {STATUS_OPTIONS.map((s) => {
+              const active = s.key === statusFilter;
+              return (
+                <TouchableOpacity
+                  key={s.key || "all"}
+                  style={[
+                    styles.modalOption,
+                    active && styles.modalOptionActive,
+                  ]}
+                  onPress={() => onSelectStatusAndroid(s.key)}
+                >
+                  <Ionicons
+                    name={s.icon}
+                    size={18}
+                    color={active ? "#fff" : "#64748b"}
+                  />
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      active && styles.modalOptionTextActive,
+                    ]}
+                  >
+                    {s.label}
+                  </Text>
+                  {active && (
+                    <Ionicons name="checkmark" size={18} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => setStatusModalVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Hủy</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      )}
 
       {/* Loading State */}
       {loading ? (
@@ -319,7 +543,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={requests}
+          data={filteredRequests}
           keyExtractor={(item, index) =>
             item._id ?? item.id ?? `request-${index}`
           }
@@ -338,7 +562,8 @@ export default function MaintenanceRequestsScreen({ navigation }) {
             total > 0 && (
               <View style={styles.listHeader}>
                 <Text style={styles.listHeaderText}>
-                  {total} yêu cầu bảo trì
+                  {filteredRequests.length} yêu cầu
+                  {(debouncedQuery || statusFilter) && " phù hợp"}
                 </Text>
               </View>
             )
@@ -348,18 +573,40 @@ export default function MaintenanceRequestsScreen({ navigation }) {
               <View style={styles.emptyIcon}>
                 <Ionicons name="construct-outline" size={80} color="#d1d5db" />
               </View>
-              <Text style={styles.emptyTitle}>Chưa có yêu cầu bảo trì</Text>
+              <Text style={styles.emptyTitle}>
+                {debouncedQuery || statusFilter
+                  ? "Không tìm thấy yêu cầu phù hợp"
+                  : "Chưa có yêu cầu bảo trì"}
+              </Text>
               <Text style={styles.emptySubtitle}>
-                Bắt đầu bằng cách tạo yêu cầu mới để báo cáo sự cố nội thất
-                trong phòng của bạn
+                {debouncedQuery || statusFilter
+                  ? "Thử thay đổi từ khóa tìm kiếm hoặc xóa bộ lọc trạng thái"
+                  : "Tạo yêu cầu đầu tiên để báo cáo sự cố nội thất trong phòng"}
               </Text>
               <TouchableOpacity
                 style={styles.emptyCreateButton}
-                onPress={goToCreate}
+                onPress={() => {
+                  if (debouncedQuery || statusFilter) {
+                    clearAllFilters();
+                  } else {
+                    goToCreate();
+                  }
+                }}
+                activeOpacity={0.9}
               >
-                <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                <Ionicons
+                  name={
+                    debouncedQuery || statusFilter
+                      ? "refresh"
+                      : "add-circle-outline"
+                  }
+                  size={18}
+                  color="#fff"
+                />
                 <Text style={styles.emptyCreateButtonText}>
-                  Tạo yêu cầu đầu tiên
+                  {debouncedQuery || statusFilter
+                    ? "Xóa bộ lọc"
+                    : "Tạo yêu cầu mới"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -369,7 +616,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
       )}
 
       <Toast />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -377,28 +624,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    paddingTop: Platform.OS === "ios" ? 0 : StatusBar.currentHeight,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
   },
   headerLeft: {
     flexDirection: "row",
@@ -407,19 +643,19 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
-    marginRight: 12,
+    marginRight: 10,
   },
   headerTitleContainer: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 2,
   },
   roomInfo: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#64748b",
     fontWeight: "500",
   },
@@ -427,17 +663,147 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#0d9488",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
     gap: 6,
-    marginLeft: 12,
+    marginLeft: 8,
   },
   createButtonText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
   },
+
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#f8fafc",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    minHeight: 44,
+  },
+  searchBoxFocused: {
+    borderColor: "#0d9488",
+    backgroundColor: "#fff",
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+    color: "#0f172a",
+    paddingVertical: 0,
+  },
+  searchClear: {
+    paddingLeft: 8,
+  },
+
+  filterSection: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  filterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    minHeight: 44,
+    alignSelf: "flex-start",
+  },
+  filterButtonActive: {
+    backgroundColor: "#0d9488",
+    borderColor: "#0d9488",
+  },
+  filterButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#0d9488",
+    fontWeight: "600",
+  },
+  filterButtonTextActive: {
+    color: "#fff",
+  },
+  filterClear: {
+    marginLeft: 8,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    paddingTop: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 18,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 4,
+    gap: 12,
+  },
+  modalOptionActive: {
+    backgroundColor: "#0d9488",
+  },
+  modalOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  modalOptionTextActive: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  modalCancel: {
+    marginTop: 16,
+    alignItems: "center",
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  modalCancelText: {
+    color: "#ef4444",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  /* Loading / List */
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -445,14 +811,15 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 12,
     color: "#64748b",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "500",
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingBottom: 32,
   },
   listHeader: {
     paddingVertical: 8,
@@ -460,47 +827,47 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   listHeaderText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#374151",
   },
   separator: {
     height: 12,
   },
+
   card: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
   firstCard: {
-    marginTop: 4,
+    marginTop: 2,
   },
   lastCard: {
-    marginBottom: 4,
+    marginBottom: 2,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   titleSection: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
   },
   title: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "600",
     color: "#0f172a",
-    lineHeight: 22,
-    marginBottom: 8,
+    lineHeight: 20,
+    marginBottom: 6,
   },
   badgeContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
   },
   priorityBadge: {
     flexDirection: "row",
@@ -508,12 +875,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    gap: 4,
   },
   priorityDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
+    marginRight: 6,
   },
   priorityText: {
     fontSize: 12,
@@ -525,7 +892,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
-    gap: 4,
+    gap: 6,
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
@@ -534,108 +901,99 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   cardContent: {
-    gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 8,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 16,
-    gap: 6,
+    marginRight: 14,
   },
   metaText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#4b5563",
     fontWeight: "500",
+    marginLeft: 6,
   },
   metaTextLight: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#9ca3af",
     fontWeight: "500",
+    marginLeft: 6,
   },
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 16,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#f3f4f6",
   },
   timeSection: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
   },
   timeText: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#9ca3af",
     fontWeight: "500",
+    marginLeft: 6,
   },
   costSection: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
   },
   costLabel: {
     fontSize: 13,
     color: "#6b7280",
     fontWeight: "500",
+    marginRight: 6,
   },
   costText: {
     fontSize: 13,
     color: "#0d9488",
     fontWeight: "600",
   },
+
   emptyState: {
     alignItems: "center",
     paddingVertical: 80,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   emptyIcon: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     color: "#374151",
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#6b7280",
     textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 32,
-    maxWidth: 300,
+    lineHeight: 20,
+    marginBottom: 20,
+    maxWidth: width * 0.85,
   },
   emptyCreateButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#0d9488",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
     gap: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#0d9488",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
   },
   emptyCreateButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
   },
 });

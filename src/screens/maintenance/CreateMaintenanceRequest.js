@@ -19,34 +19,35 @@ import {
   TouchableWithoutFeedback,
   SafeAreaView,
   Image,
+  Linking,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
 import { Ionicons } from "@expo/vector-icons";
 import { getMyRoomDetail } from "../../api/roomApi";
 import { createRequest } from "../../api/maintenanceApi";
+import { useAuth } from "../../context/AuthContext";
 
 const { width } = Dimensions.get("window");
-const isWeb = Platform.OS === "web";
+const MAX_IMAGES = 5;
 
 export default function CreateMaintenanceRequest({ navigation }) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [furnitures, setFurnitures] = useState([]);
   const [roomId, setRoomId] = useState(null);
   const [showFurnitureModal, setShowFurnitureModal] = useState(false);
 
+  // furnitureId stores the actual _id string of the furniture
   const [furnitureId, setFurnitureId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
   const [affectedQuantity, setAffectedQuantity] = useState("1");
-  const [photosText, setPhotosText] = useState("");
 
   // Image picker state (phone images)
-  const [images, setImages] = useState([]); // { uri, name?, type?, width?, height?, fileSize? }
-  const MAX_IMAGES = 5;
+  const [images, setImages] = useState([]); // { uri, name, type }
 
   useEffect(() => {
     loadRoomData();
@@ -62,13 +63,20 @@ export default function CreateMaintenanceRequest({ navigation }) {
       setRoomId(room.id ?? room._id);
       const roomFurn = r?.furnitures ?? room?.furnitures ?? [];
 
-      const validFurnitures = roomFurn.filter((f) => f && f.name);
+      const validFurnitures = roomFurn.filter(
+        (f) => f && (f.name || f._id || f.id)
+      );
       setFurnitures(validFurnitures);
 
       if (validFurnitures.length > 0) {
-        setFurnitureId("0");
+        // set default to the actual _id (or id) of the first furniture
+        const first = validFurnitures[0];
+        setFurnitureId(String(first._id || first.id || first.name || ""));
+      } else {
+        setFurnitureId("");
       }
     } catch (err) {
+      console.error("loadRoomData error:", err);
       Toast.show({
         type: "error",
         text1: "Lỗi",
@@ -79,7 +87,17 @@ export default function CreateMaintenanceRequest({ navigation }) {
     }
   };
 
-  // --- Image picker (Expo) ---
+  const normalizeFileUri = (uri) => {
+    if (!uri || typeof uri !== "string") return uri;
+    if (uri.startsWith("ph://")) {
+      return uri.replace("ph://", "assets-library://");
+    }
+    if (uri.startsWith("/")) {
+      if (!uri.startsWith("file://")) return `file://${uri}`;
+    }
+    return uri;
+  };
+
   const openSettingsPrompt = () => {
     Toast.show({
       type: "info",
@@ -87,10 +105,13 @@ export default function CreateMaintenanceRequest({ navigation }) {
       text2: "Bật quyền Photos nếu bạn đã từ chối",
     });
     setTimeout(() => {
-      ImagePicker.launchImageLibraryAsync; // noop to avoid eslint unused; actual open handled by Linking if needed
+      if (Platform.OS !== "web") {
+        Linking.openSettings?.();
+      }
     }, 300);
   };
 
+  // --- Image picker (Expo) ---
   const pickImages = async () => {
     try {
       const remaining = MAX_IMAGES - images.length;
@@ -109,54 +130,47 @@ export default function CreateMaintenanceRequest({ navigation }) {
         return openSettingsPrompt();
       }
 
-      // Single-select recommended on Expo Go. User can tap multiple times to add more.
       const options = {
         quality: 0.7,
-        mediaTypes:
-          (ImagePicker.MediaType && ImagePicker.MediaType.Images) ||
-          ImagePicker.MediaTypeOptions?.Images ||
-          undefined,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
       };
 
       const result = await ImagePicker.launchImageLibraryAsync(options);
-      if (!result) {
-        Toast.show({ type: "error", text1: "Không có phản hồi từ picker" });
+
+      if (result.canceled) {
         return;
       }
 
-      const wasCancelled =
-        result.canceled === true || result.cancelled === true;
-      if (wasCancelled) return;
-
-      let assets = [];
-      if (Array.isArray(result.assets) && result.assets.length > 0) {
-        assets = result.assets;
-      } else if (result.uri) {
-        assets = [
-          {
-            uri: result.uri,
-            fileName: result.fileName || result.uri.split("/").pop(),
-            type: result.type || "image",
-          },
-        ];
-      } else {
+      const assets = result.assets || [];
+      if (assets.length === 0) {
         Toast.show({ type: "info", text1: "Không có ảnh được chọn" });
         return;
       }
 
-      const items = assets.slice(0, remaining).map((asset, idx) => ({
-        uri: asset.uri,
-        name:
+      const items = assets.map((asset, idx) => {
+        const originalUri = asset.uri;
+        const uri = normalizeFileUri(originalUri);
+        const filename =
           asset.fileName ||
-          asset.name ||
-          (asset.uri
-            ? asset.uri.split("/").pop()
-            : `photo_${Date.now()}_${idx}.jpg`),
-        type: asset.type ? `${asset.type}/jpeg` : "image/jpeg",
-        width: asset.width,
-        height: asset.height,
-        fileSize: asset.fileSize,
-      }));
+          (uri ? uri.split("/").pop() : `photo_${Date.now()}_${idx}.jpg`);
+
+        const lower = filename.toLowerCase();
+        let mime = "image/jpeg";
+        if (lower.endsWith(".png")) mime = "image/png";
+        else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg"))
+          mime = "image/jpeg";
+
+        return {
+          uri,
+          name: filename,
+          type: mime,
+          width: asset.width,
+          height: asset.height,
+          fileSize: asset.fileSize,
+        };
+      });
 
       setImages((prev) => {
         const merged = [...prev, ...items];
@@ -165,6 +179,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
 
       Toast.show({ type: "success", text1: `Đã thêm ${items.length} ảnh` });
     } catch (err) {
+      console.error("pickImages error:", err);
       Toast.show({ type: "error", text1: "Lỗi chọn ảnh", text2: String(err) });
     }
   };
@@ -175,6 +190,11 @@ export default function CreateMaintenanceRequest({ navigation }) {
 
   // --- Submit ---
   const submit = async () => {
+    if (!user?.accessToken) {
+      Toast.show({ type: "info", text1: "Bạn phải đăng nhập để tạo yêu cầu" });
+      return;
+    }
+
     if (!roomId) {
       Toast.show({ type: "info", text1: "Phòng chưa xác định" });
       return;
@@ -188,12 +208,6 @@ export default function CreateMaintenanceRequest({ navigation }) {
       return;
     }
 
-    const photos = photosText
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((url) => ({ url }));
-
     Alert.alert("Xác nhận", "Bạn có chắc muốn tạo yêu cầu bảo trì này?", [
       { text: "Hủy", style: "cancel" },
       {
@@ -202,34 +216,54 @@ export default function CreateMaintenanceRequest({ navigation }) {
           try {
             setSubmitting(true);
 
-            const selectedFurniture = furnitures[parseInt(furnitureId)];
+            // Find selected furniture by its _id (or fallback to furnitureId)
+            const selectedFurniture =
+              furnitures.find(
+                (f) => String(f._id || f.id || f.name) === String(furnitureId)
+              ) || null;
+
             const payload = {
               roomId,
               furnitureId:
-                selectedFurniture._id ||
-                selectedFurniture.id ||
-                selectedFurniture.name,
+                selectedFurniture?._id ||
+                selectedFurniture?.id ||
+                String(furnitureId),
               title: title.trim(),
               description: description.trim(),
               priority,
               affectedQuantity: Number(affectedQuantity) || 1,
-              photos, // URLs typed by user
-              images, // local images picked from device (array of {uri, name, type})
+              // CHỈ gửi images từ thiết bị, không gửi photos URLs nữa
+              images: images.map((img) => ({
+                uri: img.uri,
+                name: img.name || `photo_${Date.now()}.jpg`,
+                type: img.type || "image/jpeg",
+              })),
             };
 
-            await createRequest(payload);
+            await createRequest(payload, user.accessToken);
 
+            // show success toast then navigate back after a short delay
             Toast.show({
               type: "success",
               text1: "Thành công",
               text2: "Đã tạo yêu cầu bảo trì",
             });
-            navigation.goBack();
+
+            // wait for toast to be visible before navigating
+            setTimeout(() => {
+              navigation.goBack();
+            }, 1200);
           } catch (err) {
+            const serverMsg =
+              err?.response?.data?.message ||
+              err?.response?.data ||
+              err?.message ||
+              String(err);
+            console.error("createRequest error:", err);
             Toast.show({
               type: "error",
               text1: "Lỗi",
-              text2: err?.response?.data?.message || "Tạo yêu cầu thất bại",
+              text2: serverMsg || "Tạo yêu cầu thất bại",
             });
           } finally {
             setSubmitting(false);
@@ -239,7 +273,6 @@ export default function CreateMaintenanceRequest({ navigation }) {
     ]);
   };
 
-  // Header component uses SafeAreaView to ensure correct on iOS/Android
   const Header = () => (
     <SafeAreaView style={styles.headerSafe}>
       <View style={styles.header}>
@@ -312,30 +345,35 @@ export default function CreateMaintenanceRequest({ navigation }) {
 
           <FlatList
             data={furnitures}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item, index }) => (
-              <TouchableOpacity
-                style={[
-                  styles.furnitureItem,
-                  furnitureId === index.toString() &&
-                    styles.furnitureItemSelected,
-                ]}
-                onPress={() => {
-                  setFurnitureId(index.toString());
-                  setShowFurnitureModal(false);
-                }}
-              >
-                <View style={styles.furnitureItemContent}>
-                  <Text style={styles.furnitureItemName}>{item.name}</Text>
-                  <Text style={styles.furnitureItemQuantity}>
-                    Số lượng: {item.quantity || 1}
-                  </Text>
-                </View>
-                {furnitureId === index.toString() && (
-                  <Ionicons name="checkmark" size={20} color="#0d9488" />
-                )}
-              </TouchableOpacity>
-            )}
+            keyExtractor={(item, index) =>
+              String(item._id || item.id || item.name || index)
+            }
+            renderItem={({ item }) => {
+              const itemId = String(item._id || item.id || item.name || "");
+              const selected = String(furnitureId) === itemId;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.furnitureItem,
+                    selected && styles.furnitureItemSelected,
+                  ]}
+                  onPress={() => {
+                    setFurnitureId(itemId);
+                    setShowFurnitureModal(false);
+                  }}
+                >
+                  <View style={styles.furnitureItemContent}>
+                    <Text style={styles.furnitureItemName}>{item.name}</Text>
+                    <Text style={styles.furnitureItemQuantity}>
+                      Số lượng: {item.quantity || 1}
+                    </Text>
+                  </View>
+                  {selected && (
+                    <Ionicons name="checkmark" size={20} color="#0d9488" />
+                  )}
+                </TouchableOpacity>
+              );
+            }}
             style={styles.modalList}
           />
         </View>
@@ -344,7 +382,9 @@ export default function CreateMaintenanceRequest({ navigation }) {
   );
 
   const FurnitureSelector = () => {
-    const selectedFurniture = furnitures[parseInt(furnitureId)];
+    const selectedFurniture = furnitures.find(
+      (f) => String(f._id || f.id || f.name) === String(furnitureId)
+    );
 
     return (
       <View style={styles.field}>
@@ -358,47 +398,22 @@ export default function CreateMaintenanceRequest({ navigation }) {
           </View>
         ) : (
           <View style={styles.furnitureContainer}>
-            {isWeb ? (
-              <TouchableOpacity
-                style={styles.furnitureButton}
-                onPress={() => setShowFurnitureModal(true)}
-              >
-                <View style={styles.furnitureButtonContent}>
-                  <Ionicons name="cube" size={20} color="#0d9488" />
-                  <Text style={styles.furnitureButtonText}>
-                    {selectedFurniture
-                      ? `${selectedFurniture.name} (${
-                          selectedFurniture.quantity || 1
-                        } cái)`
-                      : "Chọn đồ nội thất..."}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-down" size={20} color="#64748b" />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={furnitureId}
-                  onValueChange={setFurnitureId}
-                  style={styles.picker}
-                  dropdownIconColor="#0d9488"
-                >
-                  <Picker.Item
-                    label="Chọn đồ nội thất..."
-                    value=""
-                    color="#94a3b8"
-                  />
-                  {furnitures.map((f, index) => (
-                    <Picker.Item
-                      key={index}
-                      label={`${f.name} (${f.quantity || 1} cái)`}
-                      value={index.toString()}
-                      color="#374151"
-                    />
-                  ))}
-                </Picker>
+            <TouchableOpacity
+              style={styles.furnitureButton}
+              onPress={() => setShowFurnitureModal(true)}
+            >
+              <View style={styles.furnitureButtonContent}>
+                <Ionicons name="cube" size={20} color="#0d9488" />
+                <Text style={styles.furnitureButtonText}>
+                  {selectedFurniture
+                    ? `${selectedFurniture.name} (${
+                        selectedFurniture.quantity || 1
+                      } cái)`
+                    : "Chọn đồ nội thất..."}
+                </Text>
               </View>
-            )}
+              <Ionicons name="chevron-down" size={20} color="#64748b" />
+            </TouchableOpacity>
 
             {selectedFurniture && (
               <View style={styles.selectedInfo}>
@@ -418,7 +433,6 @@ export default function CreateMaintenanceRequest({ navigation }) {
     );
   };
 
-  // keyboardVerticalOffset: adjust so content is not hidden under header
   const keyboardVerticalOffset = Platform.select({
     ios: 0,
     android: StatusBar.currentHeight ? StatusBar.currentHeight + 8 : 64,
@@ -479,31 +493,13 @@ export default function CreateMaintenanceRequest({ navigation }) {
                 />
               </View>
 
-              {/* Photos input (URLs) */}
-              <View style={styles.field}>
-                <Text style={styles.label}>Hình ảnh đính kèm (URL)</Text>
-                <Text style={styles.subLabel}>
-                  Nhập URL ảnh, cách nhau bởi dấu phẩy
-                </Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="https://example.com/photo1.jpg, https://example.com/photo2.jpg"
-                  placeholderTextColor="#94a3b8"
-                  value={photosText}
-                  onChangeText={setPhotosText}
-                  multiline
-                  textAlignVertical="top"
-                  contextMenuHidden={true}
-                />
-                <Text style={styles.hintText}>
-                  Hoặc chọn ảnh từ thiết bị bên dưới.
-                </Text>
-              </View>
-
-              {/* Device images picker */}
+              {/* Device images picker - CHỈ CÒN PHẦN NÀY */}
               <View style={styles.field}>
                 <Text style={styles.label}>
-                  Ảnh từ thiết bị ({images.length}/{MAX_IMAGES})
+                  Hình ảnh đính kèm ({images.length}/{MAX_IMAGES})
+                </Text>
+                <Text style={styles.subLabel}>
+                  Chọn ảnh từ thiết bị của bạn (tối đa {MAX_IMAGES} ảnh)
                 </Text>
 
                 <View style={styles.imagesRow}>
@@ -682,11 +678,6 @@ const styles = StyleSheet.create({
     minHeight: 100,
     paddingTop: Platform.OS === "ios" ? 12 : 10,
   },
-  hintText: {
-    marginTop: 8,
-    color: "#9ca3af",
-    fontSize: 12,
-  },
 
   /* Images UI */
   imagesRow: {
@@ -759,13 +750,6 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginLeft: 12,
     flex: 1,
-  },
-  pickerWrapper: {
-    paddingHorizontal: 12,
-  },
-  picker: {
-    height: Platform.OS === "ios" ? 180 : 50,
-    color: "#374151",
   },
   selectedInfo: {
     flexDirection: "row",

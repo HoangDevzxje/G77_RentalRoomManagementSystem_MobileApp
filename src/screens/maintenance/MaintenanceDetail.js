@@ -1,4 +1,3 @@
-// screens/MaintenanceDetail.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -10,6 +9,9 @@ import {
   TextInput,
   Alert,
   Image,
+  SafeAreaView,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -34,7 +36,6 @@ export default function MaintenanceDetail({ route, navigation }) {
   const normalizeDoc = (res) => {
     if (!res) return null;
 
-    // API trả về { data: doc } hoặc { data: { data: doc } }
     if (res.data) {
       if (res.data._id || res.data.id) return res.data;
       if (res.data.data && (res.data.data._id || res.data.data.id))
@@ -63,9 +64,7 @@ export default function MaintenanceDetail({ route, navigation }) {
 
     try {
       setLoading(true);
-      console.log("MaintenanceDetail: fetching id=", requestId);
       const res = await getRequest(requestId);
-      console.log("MaintenanceDetail: raw response:", res);
       const doc = normalizeDoc(res);
 
       if (!doc || (!doc._id && !doc.id)) {
@@ -79,12 +78,12 @@ export default function MaintenanceDetail({ route, navigation }) {
         setRequest(doc);
       }
     } catch (err) {
-      console.error("getRequest:", err);
       Toast.show({
         type: "error",
         text1: "Lỗi",
         text2: err?.response?.data?.message || "Không thể tải chi tiết",
       });
+      setRequest(null);
     } finally {
       setLoading(false);
     }
@@ -94,7 +93,6 @@ export default function MaintenanceDetail({ route, navigation }) {
     if (paramRequest) {
       setRequest(paramRequest);
       setLoading(false);
-      // refresh in background
       load(true);
     } else {
       load();
@@ -117,7 +115,7 @@ export default function MaintenanceDetail({ route, navigation }) {
             await commentRequest(requestId, comment.trim());
             Toast.show({ type: "success", text1: "Đã gửi bình luận" });
             setComment("");
-            await load(true); // Reload để cập nhật timeline
+            await load(true);
           } catch (err) {
             Toast.show({
               type: "error",
@@ -132,13 +130,11 @@ export default function MaintenanceDetail({ route, navigation }) {
     ]);
   };
 
-  // Helper function để lấy tên hiển thị
   const getDisplayName = (user) => {
     if (!user) return "Hệ thống";
     return user.userInfo?.fullName || user.email || "Người dùng";
   };
 
-  // Helper function để format date
   const formatDate = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -167,17 +163,29 @@ export default function MaintenanceDetail({ route, navigation }) {
   const photos = request.photos || [];
 
   return (
-    <View style={styles.wrapper}>
-      {/* Header */}
+    <SafeAreaView style={styles.wrapper}>
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#0f172a" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi tiết yêu cầu</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={22} color="#0f766e" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Chi tiết yêu cầu</Text>
+            {request.roomId?.roomNumber && (
+              <Text style={styles.headerSubtitle}>
+                Phòng {request.roomId.roomNumber}
+                {request.roomId?.building?.name
+                  ? ` • ${request.roomId.building.name}`
+                  : ""}
+              </Text>
+            )}
+          </View>
+        </View>
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView
@@ -348,6 +356,7 @@ export default function MaintenanceDetail({ route, navigation }) {
             ]}
             onPress={submitComment}
             disabled={sending}
+            activeOpacity={0.85}
           >
             {sending ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -362,7 +371,7 @@ export default function MaintenanceDetail({ route, navigation }) {
       </ScrollView>
 
       <Toast />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -370,35 +379,57 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: "#f8fafc",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
-    height: 60,
-    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderBottomColor: "#f1f5f9",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
   backButton: {
-    padding: 4,
+    padding: 6,
+    marginRight: 8,
+  },
+  headerTitleContainer: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#0f172a",
   },
+  headerSubtitle: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 2,
+  },
   container: {
     flex: 1,
   },
   contentContainer: {
     padding: 16,
+    paddingBottom: 32,
   },
   center: {
     flex: 1,
@@ -423,7 +454,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
   },
@@ -447,16 +478,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   metaContainer: {
-    gap: 8,
+    marginTop: 4,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    marginBottom: 8,
   },
   metaText: {
     color: "#64748b",
     fontSize: 14,
+    marginLeft: 8,
   },
   sectionTitle: {
     fontSize: 16,
