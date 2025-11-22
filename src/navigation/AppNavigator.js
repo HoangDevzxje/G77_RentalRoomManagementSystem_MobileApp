@@ -22,6 +22,13 @@ import ContractsListScreen from "../screens/contract/ContractsListScreen";
 import ContractDetailScreen from "../screens/contract/ContractDetailScreen";
 import UpcomingExpireScreen from "../screens/contract/UpcomingExpireScreen";
 import RoomScreen from "../screens/room/RoomScreen";
+import RoommatesScreen from "../screens/room/RoommatesScreen";
+import RoommateDetail from "../screens/room/RoommateDetail";
+import MaintenanceRequestsScreen from "../screens/maintenance/MaintenanceRequestsScreen";
+import CreateMaintenanceRequest from "../screens/maintenance/CreateMaintenanceRequest";
+import MaintenanceDetail from "../screens/maintenance/MaintenanceDetail";
+import BuildingReviewCreateScreen from "../screens/buildingReview/BuildingReviewCreateScreen";
+import BuildingReviewListScreen from "../screens/buildingReview/BuildingReviewListScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -73,6 +80,27 @@ export default function AppNavigator() {
       <Stack.Screen name="UpcomingExpire" component={UpcomingExpireScreen} />
       {/*Room*/}
       <Stack.Screen name="Room" component={RoomScreen} />
+      <Stack.Screen name="Roommates" component={RoommatesScreen} />
+      <Stack.Screen name="RoommateDetail" component={RoommateDetail} />
+      {/* Maintenance */}
+      <Stack.Screen
+        name="MaintenanceRequests"
+        component={MaintenanceRequestsScreen}
+      />
+      <Stack.Screen name="MaintenanceDetail" component={MaintenanceDetail} />
+      <Stack.Screen
+        name="CreateMaintenanceRequest"
+        component={CreateMaintenanceRequest}
+      />
+      {/* Building Reviews */}
+      <Stack.Screen
+        name="CreateBuildingReview"
+        component={BuildingReviewCreateScreen}
+      />
+      <Stack.Screen
+        name="BuildingReviewList"
+        component={BuildingReviewListScreen}
+      />
     </Stack.Navigator>
   );
 }
