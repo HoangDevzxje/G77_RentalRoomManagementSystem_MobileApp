@@ -10,29 +10,57 @@ import {
   Platform,
   StatusBar,
   SafeAreaView,
+  RefreshControl,
+  Linking,
+  Modal,
+  ScrollView,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Toast from "react-native-toast-message";
-import { getMyContracts } from "../../api/contractApi";
+import {
+  getMyContracts,
+  downloadContractPdf,
+  requestExtend,
+} from "../../api/contractApi";
 
 const STATUS_BAR_HEIGHT =
   Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
 
+const statusOptions = [
+  { value: "", label: "Tất cả trạng thái" },
+  { value: "draft", label: "Bản nháp" },
+  { value: "sent_to_tenant", label: "Chờ ký" },
+  { value: "signed_by_tenant", label: "Đã ký - Chờ chủ" },
+  { value: "signed_by_landlord", label: "Đã ký - Chờ người thuê" },
+  { value: "completed", label: "Hoàn thành" },
+  { value: "voided", label: "Đã huỷ" },
+  { value: "terminated", label: "Đã chấm dứt" },
+];
+
 const ContractsListScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [contracts, setContracts] = useState([]);
   const [page] = useState(1);
-  const [statusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [submittingSearch, setSubmittingSearch] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [downloading, setDownloading] = useState(null);
+  const [showStatusFilter, setShowStatusFilter] = useState(false);
+
+  const [extendModalVisible, setExtendModalVisible] = useState(false);
+  const [selectedContract, setSelectedContract] = useState(null);
+  const [extendMonths, setExtendMonths] = useState("");
+  const [extendNote, setExtendNote] = useState("");
+  const [extendLoading, setExtendLoading] = useState(false);
 
   useEffect(() => {
     fetchContracts();
   }, [page, statusFilter]);
 
   const fetchContracts = async (opts = {}) => {
-    setLoading(true);
+    if (!opts.isRefreshing) setLoading(true);
     try {
       const res = await getMyContracts({
         status: statusFilter || undefined,
@@ -40,9 +68,13 @@ const ContractsListScreen = ({ navigation }) => {
         limit: 20,
         ...(opts.keyword ? { keyword: opts.keyword } : {}),
       });
-
-      const items = res.items || res.data || res;
-      setContracts(Array.isArray(items) ? items : []);
+      const items = res.items || res.data || res || [];
+      const prepared = (Array.isArray(items) ? items : []).map((c) => ({
+        ...c,
+        __daysLeft: computeDaysLeft(c.contract?.endDate),
+        __statusFromDates: computeStatusFromDates(c),
+      }));
+      setContracts(prepared);
     } catch (e) {
       Toast.show({
         type: "error",
@@ -53,8 +85,14 @@ const ContractsListScreen = ({ navigation }) => {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
       setSubmittingSearch(false);
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchContracts({ isRefreshing: true });
   };
 
   const onSubmitSearch = () => {
@@ -73,14 +111,15 @@ const ContractsListScreen = ({ navigation }) => {
     navigation.navigate("ContractDetail", { id });
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "--/--/----";
-    return new Date(dateString).toLocaleDateString("vi-VN");
+  const computeDaysLeft = (endDate) => {
+    if (!endDate) return null;
+    const diff = new Date(endDate) - new Date();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
   };
 
   const getContractStatus = (contractData) => {
-    if (!contractData) return "unknown";
-
+    if (!contractData) return { type: "unknown", text: "Không xác định" };
     const status = contractData.status;
     const startDate = contractData.contract?.startDate;
     const endDate = contractData.contract?.endDate;
@@ -89,37 +128,29 @@ const ContractsListScreen = ({ navigation }) => {
     switch (status) {
       case "draft":
         return { type: "draft", text: "Bản nháp" };
-
       case "sent_to_tenant":
         return { type: "pending", text: "Chờ ký" };
-
       case "signed_by_tenant":
         return { type: "pending", text: "Đã ký - Chờ chủ" };
-
       case "signed_by_landlord":
         return { type: "pending", text: "Đã ký - Chờ người thuê" };
-
       case "completed":
         if (startDate && endDate) {
           const start = new Date(startDate);
           const end = new Date(endDate);
-
           if (now < start) {
             return { type: "pending", text: "Sắp bắt đầu" };
           } else if (now > end) {
             return { type: "expired", text: "Đã hết hạn" };
           } else {
-            return { type: "active", text: "Đang hoạt động" };
+            return { type: "active", text: "Hoàn thành" };
           }
         }
-        return { type: "active", text: "Đang hoạt động" };
-
+        return { type: "active", text: "Hoàn thành" };
       case "voided":
         return { type: "voided", text: "Đã huỷ" };
-
       case "terminated":
         return { type: "terminated", text: "Đã chấm dứt" };
-
       default:
         return { type: "unknown", text: "Không xác định" };
     }
@@ -129,30 +160,153 @@ const ContractsListScreen = ({ navigation }) => {
     switch (status.type) {
       case "draft":
         return { color: "#6b7280", text: status.text, bgColor: "#f3f4f6" };
-
       case "pending":
         return { color: "#f59e0b", text: status.text, bgColor: "#fef3c7" };
-
       case "active":
         return { color: "#10b981", text: status.text, bgColor: "#d1fae5" };
-
       case "expired":
         return { color: "#6b7280", text: status.text, bgColor: "#f3f4f6" };
-
       case "voided":
         return { color: "#ef4444", text: status.text, bgColor: "#fee2e2" };
-
       case "terminated":
         return { color: "#dc2626", text: status.text, bgColor: "#fef2f2" };
-
       default:
         return { color: "#6b7280", text: status.text, bgColor: "#f3f4f6" };
     }
   };
 
+  const computeStatusFromDates = (contractData) => {
+    if (!contractData) return { type: "unknown", text: "Không xác định" };
+    const startDate = contractData.contract?.startDate;
+    const endDate = contractData.contract?.endDate;
+    const now = new Date();
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (now < start) {
+        return { type: "pending", text: "Hợp đồng sắp bắt đầu" };
+      } else if (now > end) {
+        return { type: "expired", text: "Hợp đồng đã hết hạn" };
+      } else {
+        return { type: "active", text: "Hợp đồng đang có hiệu lực" };
+      }
+    }
+    return { type: "unknown", text: "Không xác định" };
+  };
+
+  const getUrgencyLevel = (daysLeft) => {
+    if (daysLeft === null)
+      return { color: "#6b7280", label: "Không có ngày", bgColor: "#f3f4f6" };
+    if (daysLeft <= 7)
+      return { color: "#ef4444", label: "Sắp hết hạn", bgColor: "#fef2f2" };
+    if (daysLeft <= 30)
+      return { color: "#f59e0b", label: "Sắp đến hạn", bgColor: "#fffbeb" };
+    if (daysLeft <= 60)
+      return { color: "#10b981", label: "Còn thời gian", bgColor: "#f0fdf4" };
+    return { color: "#6b7280", label: "Còn lâu", bgColor: "#f3f4f6" };
+  };
+
+  const goToUpcomingFromItem = (item) => {
+    const upcomingContracts = contracts.filter((contract) => {
+      const daysLeft =
+        contract.__daysLeft ?? computeDaysLeft(contract.contract?.endDate);
+      return daysLeft !== null && daysLeft <= 60 && daysLeft > 0;
+    });
+    navigation.navigate("UpcomingContracts", {
+      contracts: upcomingContracts,
+      fromFilter: true,
+      focusedId: item._id,
+    });
+  };
+
+  const handleDownloadPdf = async (contract) => {
+    if (!contract) return;
+    setDownloading(contract._id);
+    try {
+      if (Platform.OS === "web") {
+        await downloadContractPdf(contract._id);
+        Toast.show({ type: "success", text1: "Đang tải file PDF..." });
+      } else {
+        const downloadUrl = `${
+          process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"
+        }/api/contracts/${contract._id}/download`;
+        const supported = await Linking.canOpenURL(downloadUrl);
+        if (supported) {
+          await Linking.openURL(downloadUrl);
+          Toast.show({ type: "success", text1: "Đang mở file PDF..." });
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Lỗi",
+            text2: "Không thể mở file PDF trên thiết bị này",
+          });
+        }
+      }
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Tải thất bại",
+        text2: e?.message || "Không thể tải file PDF",
+      });
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const openExtendModal = (contract) => {
+    setSelectedContract(contract);
+    setExtendMonths("");
+    setExtendNote("");
+    setExtendModalVisible(true);
+  };
+
+  const closeExtendModal = () => {
+    if (!extendLoading) {
+      setExtendModalVisible(false);
+      setSelectedContract(null);
+    }
+  };
+
+  const submitExtend = async () => {
+    if (!selectedContract) return;
+
+    const months = Number(extendMonths);
+    if (!months || months <= 0) {
+      Toast.show({ type: "error", text1: "Số tháng không hợp lệ" });
+      return;
+    }
+
+    setExtendLoading(true);
+    try {
+      await requestExtend(selectedContract._id, months, extendNote.trim());
+      Toast.show({ type: "success", text1: "Đã gửi yêu cầu gia hạn" });
+      setExtendModalVisible(false);
+      setSelectedContract(null);
+      fetchContracts();
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Gửi thất bại",
+        text2: e?.response?.data?.message || e.message,
+      });
+    } finally {
+      setExtendLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "--/--/----";
+    return new Date(dateString).toLocaleDateString("vi-VN");
+  };
+
   const renderItem = ({ item, index }) => {
-    const status = getContractStatus(item);
-    const statusInfo = getStatusInfo(status);
+    const statusObj = getContractStatus(item);
+    const statusInfo = getStatusInfo(statusObj);
+    const statusFromDates =
+      item.__statusFromDates ?? computeStatusFromDates(item);
+    const daysLeft = item.__daysLeft ?? computeDaysLeft(item.contract?.endDate);
+    const urgency = getUrgencyLevel(daysLeft);
+    const isDownloading = downloading === item._id;
 
     return (
       <TouchableOpacity
@@ -162,20 +316,22 @@ const ContractsListScreen = ({ navigation }) => {
           index === contracts.length - 1 && styles.lastCard,
         ]}
         onPress={() => openDetail(item._id)}
-        activeOpacity={0.85}
+        activeOpacity={0.7}
       >
         <View style={styles.cardHeader}>
           <View style={styles.contractMainInfo}>
             <View style={styles.contractIcon}>
-              <Ionicons name="document-text" size={20} color="#0d9488" />
+              <Ionicons name="document-text" size={22} color="#0d9488" />
             </View>
             <View style={styles.contractText}>
-              <Text style={styles.contractNumber}>
+              <Text style={styles.contractNumber} numberOfLines={1}>
                 {item.contract?.no
-                  ? `HĐ ${item.contract.no}`
-                  : `HĐ ${item._id?.slice(-8)}`}
+                  ? `Số hợp đồng: ${item.contract.no}`
+                  : `Số HĐ: ${item._id?.slice(-8)}`}
               </Text>
-              <Text style={styles.contractSubtitle}>Hợp đồng thuê phòng</Text>
+              <Text style={styles.contractSubtitle} numberOfLines={1}>
+                Hợp đồng thuê phòng
+              </Text>
             </View>
           </View>
 
@@ -200,48 +356,83 @@ const ContractsListScreen = ({ navigation }) => {
           <View style={styles.propertyRow}>
             <View style={styles.propertyItem}>
               <Ionicons name="business" size={16} color="#64748b" />
-              <Text style={styles.propertyLabel}>Tòa nhà</Text>
               <Text style={styles.propertyValue} numberOfLines={1}>
                 {item.buildingId?.name || "---"}
               </Text>
             </View>
-
+          </View>
+          <View style={[styles.propertyRow, { marginTop: 8 }]}>
             <View style={styles.propertyItem}>
-              <Ionicons name="home" size={16} color="#64748b" />
+              <Ionicons name="bed" size={16} color="#64748b" />
               <Text style={styles.propertyLabel}>Phòng</Text>
-              <Text style={styles.propertyValue}>
+              <Text style={styles.propertyValue} numberOfLines={1}>
                 {item.roomId?.roomNumber || "---"}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Date Section */}
-        <View style={styles.dateSection}>
+        {/* Date section is tappable:  */}
+        <TouchableOpacity
+          style={[styles.dateSection, { borderColor: urgency.color }]}
+          onPress={() => goToUpcomingFromItem(item)}
+          activeOpacity={0.8}
+        >
           <View style={styles.dateContainer}>
-            <Ionicons name="calendar-outline" size={16} color="#64748b" />
+            <Ionicons name="calendar-outline" size={18} color="#0d9488" />
             <View style={styles.dateTextContainer}>
-              <Text style={styles.dateRange}>
-                Từ{" "}
-                <Text style={styles.dateHighlight}>
-                  {formatDate(item.contract?.startDate)}
-                </Text>{" "}
-                đến{" "}
-                <Text style={styles.dateHighlight}>
-                  {formatDate(item.contract?.endDate)}
+              <Text style={styles.dateLabelText}>Thời hạn hợp đồng</Text>
+              {item.contract?.startDate && item.contract?.endDate ? (
+                <Text style={styles.dateRange}>
+                  <Text style={styles.dateHighlight}>
+                    {formatDate(item.contract.startDate)}
+                  </Text>
+                  {" → "}
+                  <Text style={styles.dateHighlight}>
+                    {formatDate(item.contract.endDate)}
+                  </Text>
                 </Text>
-              </Text>
+              ) : (
+                <Text style={styles.dateRangeEmpty}>
+                  Chưa có thời hạn hợp đồng
+                </Text>
+              )}
+              {daysLeft !== null && daysLeft > 0 && (
+                <Text
+                  style={[styles.expiryTextSmall, { color: urgency.color }]}
+                >
+                  {`${statusFromDates.text}`}
+                </Text>
+              )}
             </View>
+            <Ionicons name="chevron-forward" size={18} color={urgency.color} />
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.cardFooter}>
           <TouchableOpacity
             style={styles.detailButton}
             onPress={() => openDetail(item._id)}
+            activeOpacity={0.7}
           >
-            <Text style={styles.detailButtonText}>Xem chi tiết</Text>
-            <Ionicons name="chevron-forward" size={16} color="#0d9488" />
+            <Ionicons name="eye" size={16} color="#0d9488" />
+            <Text style={styles.detailButtonText}>Chi tiết</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.downloadButton}
+            onPress={() => handleDownloadPdf(item)}
+            disabled={isDownloading}
+            activeOpacity={0.7}
+          >
+            {isDownloading ? (
+              <ActivityIndicator size="small" color="#059669" />
+            ) : (
+              <Ionicons name="download" size={16} color="#059669" />
+            )}
+            <Text style={styles.downloadButtonText}>
+              {isDownloading ? "Đang tải..." : "Tải PDF"}
+            </Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -258,48 +449,113 @@ const ContractsListScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Search Section */}
+      {/* Search and Filter Section */}
       <View style={styles.searchSection}>
-        <View
-          style={[
-            styles.searchContainer,
-            searchFocused && styles.searchContainerFocused,
-          ]}
-        >
-          <Ionicons
-            name="search"
-            size={20}
-            color={searchFocused ? "#0d9488" : "#94a3b8"}
-          />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Tìm kiếm hợp đồng..."
-            placeholderTextColor="#94a3b8"
-            style={styles.searchInput}
-            returnKeyType="search"
-            onSubmitEditing={onSubmitSearch}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={20} color="#94a3b8" />
+        <View style={styles.searchRow}>
+          <View
+            style={[
+              styles.searchContainer,
+              searchFocused && styles.searchContainerFocused,
+            ]}
+          >
+            <Ionicons
+              name="search"
+              size={20}
+              color={searchFocused ? "#0d9488" : "#94a3b8"}
+            />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Tìm hợp đồng..."
+              placeholderTextColor="#94a3b8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={onSubmitSearch}
+              returnKeyType="search"
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+            />
+            {searchQuery ? (
+              <TouchableOpacity
+                onPress={clearSearch}
+                style={styles.clearButton}
+              >
+                <Ionicons name="close-circle" size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={onSubmitSearch}
+            activeOpacity={0.8}
+          >
+            {submittingSearch ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="search" size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Filter Row: status filter UI */}
+        <View style={styles.filterRow}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowStatusFilter(!showStatusFilter)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="filter" size={16} color="#64748b" />
+            <Text style={styles.filterButtonText}>
+              {statusOptions.find((o) => o.value === statusFilter)?.label ||
+                "Lọc trạng thái"}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#64748b" />
+          </TouchableOpacity>
+
+          {statusFilter ? (
+            <TouchableOpacity
+              style={styles.clearFilterButton}
+              onPress={() => setStatusFilter("")}
+            >
+              <Ionicons name="close" size={16} color="#64748b" />
+              <Text style={styles.clearFilterText}>Xóa</Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
-        <TouchableOpacity
-          style={styles.searchButton}
-          onPress={onSubmitSearch}
-          disabled={submittingSearch}
-        >
-          {submittingSearch ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Ionicons name="search" size={18} color="#fff" />
-          )}
-        </TouchableOpacity>
+        {/* Status Filter Dropdown */}
+        {showStatusFilter && (
+          <View style={styles.statusFilterDropdown}>
+            <ScrollView style={styles.statusFilterList}>
+              {statusOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.statusFilterItem,
+                    statusFilter === option.value &&
+                      styles.statusFilterItemSelected,
+                  ]}
+                  onPress={() => {
+                    setStatusFilter(option.value);
+                    setShowStatusFilter(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.statusFilterText,
+                      statusFilter === option.value &&
+                        styles.statusFilterTextSelected,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  {statusFilter === option.value && (
+                    <Ionicons name="checkmark" size={16} color="#0d9488" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {/* Content */}
@@ -315,21 +571,15 @@ const ContractsListScreen = ({ navigation }) => {
           renderItem={renderItem}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            contracts.length > 0 && (
-              <View style={styles.listHeader}>
-                <Text style={styles.listHeaderText}>
-                  {contracts.length} hợp đồng
-                </Text>
-              </View>
-            )
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIcon}>
                 <Ionicons
                   name="document-text-outline"
-                  size={80}
+                  size={64}
                   color="#cbd5e1"
                 />
               </View>
@@ -342,6 +592,67 @@ const ContractsListScreen = ({ navigation }) => {
         />
       )}
 
+      {/* Extend Modal (kept as fallback) */}
+      <Modal visible={extendModalVisible} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Yêu cầu gia hạn hợp đồng</Text>
+
+            {selectedContract && (
+              <View style={styles.contractInfoModal}>
+                <Text style={styles.contractInfoText}>
+                  Phòng: {selectedContract.roomId?.roomNumber} -{" "}
+                  {selectedContract.buildingId?.name}
+                </Text>
+                <Text style={styles.contractInfoText}>
+                  Kết thúc: {formatDate(selectedContract.contract?.endDate)}
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.inputLabel}>Số tháng gia hạn *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Ví dụ: 12"
+              keyboardType="numeric"
+              value={extendMonths}
+              onChangeText={setExtendMonths}
+            />
+
+            <Text style={styles.inputLabel}>Ghi chú (không bắt buộc)</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 80 }]}
+              placeholder="Lý do gia hạn..."
+              multiline
+              value={extendNote}
+              onChangeText={setExtendNote}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalBtnSecondary}
+                onPress={closeExtendModal}
+                disabled={extendLoading}
+              >
+                <Text>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalBtnPrimary,
+                  (!extendMonths || extendLoading) && styles.modalBtnDisabled,
+                ]}
+                onPress={submitExtend}
+                disabled={!extendMonths || extendLoading}
+              >
+                <Text style={{ color: "#fff" }}>
+                  {extendLoading ? "Đang gửi..." : "Gửi yêu cầu"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Toast />
     </SafeAreaView>
   );
@@ -350,53 +661,68 @@ const ContractsListScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f1f5f9",
     paddingTop: STATUS_BAR_HEIGHT,
   },
-
   header: {
     backgroundColor: "#fff",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#e2e8f0",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   headerContent: {
     alignItems: "center",
+    marginBottom: 12,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 14,
     color: "#64748b",
     fontWeight: "500",
   },
-
   searchSection: {
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#f8fafc",
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-    gap: 12,
+    borderBottomColor: "#e2e8f0",
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
   },
   searchContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "#f8fafc",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "ios" ? 12 : 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#e2e8f0",
-    minHeight: 44,
+    minHeight: 48,
   },
   searchContainerFocused: {
     borderColor: "#0d9488",
@@ -405,7 +731,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     marginLeft: 10,
-    fontSize: 16,
+    fontSize: 15,
     color: "#0f172a",
     paddingVertical: 0,
   },
@@ -415,64 +741,164 @@ const styles = StyleSheet.create({
   searchButton: {
     backgroundColor: "#0d9488",
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    minHeight: 44,
-    minWidth: 44,
+    minHeight: 48,
+    minWidth: 48,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0d9488",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
-
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  filterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "500",
+    flex: 1,
+  },
+  clearFilterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 4,
+  },
+  clearFilterText: {
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  statusFilterDropdown: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginTop: 8,
+    maxHeight: 200,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  statusFilterList: {
+    maxHeight: 200,
+  },
+  statusFilterItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  statusFilterItemSelected: {
+    backgroundColor: "#f0fdfa",
+  },
+  statusFilterText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  statusFilterTextSelected: {
+    color: "#0d9488",
+    fontWeight: "600",
+  },
   listContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 8,
     paddingBottom: 32,
   },
   listHeader: {
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 4,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   listHeaderText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#374151",
+    color: "#475569",
+    marginBottom: 4,
   },
-
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    padding: 18,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#f1f5f9",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    borderColor: "#e2e8f0",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   firstCard: {
-    marginTop: 2,
+    marginTop: 4,
   },
   lastCard: {
-    marginBottom: 2,
+    marginBottom: 8,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   contractMainInfo: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    marginRight: 12,
   },
   contractIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: "#f0fdfa",
     justifyContent: "center",
     alignItems: "center",
@@ -482,10 +908,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contractNumber: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
     color: "#0f172a",
-    marginBottom: 2,
+    marginBottom: 3,
+    letterSpacing: -0.3,
   },
   contractSubtitle: {
     fontSize: 13,
@@ -497,9 +924,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
+    borderRadius: 8,
   },
   statusDot: {
     width: 6,
@@ -513,27 +938,25 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#f8fafc",
-    marginBottom: 12,
+    backgroundColor: "#f1f5f9",
+    marginBottom: 14,
   },
   propertySection: {
     marginBottom: 12,
   },
   propertyRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
   },
   propertyItem: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
   },
   propertyLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#64748b",
     marginLeft: 6,
-    marginRight: 4,
+    marginRight: 6,
     fontWeight: "500",
   },
   propertyValue: {
@@ -541,13 +964,15 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontWeight: "600",
     flex: 1,
+    marginLeft: 6,
   },
-
   dateSection: {
     backgroundColor: "#f8fafc",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   dateContainer: {
     flexDirection: "row",
@@ -555,7 +980,13 @@ const styles = StyleSheet.create({
   },
   dateTextContainer: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 10,
+  },
+  dateLabelText: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "500",
+    marginBottom: 4,
   },
   dateRange: {
     fontSize: 14,
@@ -563,12 +994,25 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 20,
   },
+  dateRangeEmpty: {
+    fontSize: 14,
+    color: "#94a3b8",
+    fontWeight: "500",
+    fontStyle: "italic",
+    lineHeight: 20,
+  },
   dateHighlight: {
     color: "#0f172a",
+    fontWeight: "700",
+  },
+  expiryTextSmall: {
+    marginTop: 6,
+    fontSize: 13,
     fontWeight: "600",
   },
-
   cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
     paddingTop: 12,
@@ -576,16 +1020,26 @@ const styles = StyleSheet.create({
   detailButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
+    paddingVertical: 4,
+    gap: 6,
   },
   detailButtonText: {
     fontSize: 14,
     color: "#0d9488",
     fontWeight: "600",
-    marginRight: 4,
   },
-
+  downloadButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    gap: 6,
+  },
+  downloadButtonText: {
+    fontSize: 14,
+    color: "#059669",
+    fontWeight: "600",
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -593,12 +1047,11 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     color: "#64748b",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "500",
   },
-
   emptyContainer: {
     alignItems: "center",
     paddingVertical: 80,
@@ -606,20 +1059,99 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     marginBottom: 20,
+    opacity: 0.8,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#374151",
+    color: "#334155",
     marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: 15,
+    color: "#64748b",
     textAlign: "center",
-    lineHeight: 20,
-    maxWidth: 300,
+    lineHeight: 22,
+    maxWidth: 320,
+    marginBottom: 16,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalBox: {
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  contractInfoModal: {
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  contractInfoText: {
+    fontSize: 14,
+    color: "#475569",
+    marginBottom: 4,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "#fff",
+    fontSize: 14,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    marginTop: 20,
+  },
+  modalBtnPrimary: {
+    backgroundColor: "#0d9488",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 120,
+    alignItems: "center",
+  },
+  modalBtnSecondary: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    minWidth: 80,
+    alignItems: "center",
+  },
+  modalBtnDisabled: {
+    backgroundColor: "#94a3b8",
+    opacity: 0.6,
   },
 });
 
