@@ -191,7 +191,7 @@ export default function RoomScreen({ navigation }) {
       <View
         style={[
           styles.serviceIcon,
-          { backgroundColor: `${getServiceColor(item.name)}20` },
+          { backgroundColor: `${getServiceColor(item.name)}10` },
         ]}
       >
         <Ionicons
@@ -226,11 +226,6 @@ export default function RoomScreen({ navigation }) {
   const goToMaintenanceList = () => {
     const roomId = room?.id ?? room?._id ?? null;
     navigation.navigate("MaintenanceRequests", { roomId });
-  };
-
-  const goToCreateMaintenance = () => {
-    const roomId = room?.id ?? room?._id ?? null;
-    navigation.navigate("CreateMaintenanceRequest", { roomId });
   };
 
   const openBuildingReviewList = () => {
@@ -273,8 +268,11 @@ export default function RoomScreen({ navigation }) {
         <Text style={styles.emptyText}>
           Bạn chưa được gán vào phòng nào hoặc không có dữ liệu.
         </Text>
-        <TouchableOpacity style={styles.btn} onPress={() => fetchData(true)}>
-          <Text style={styles.btnText}>Tải lại</Text>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => fetchData(true)}
+        >
+          <Text style={styles.primaryButtonText}>Tải lại</Text>
         </TouchableOpacity>
       </View>
     );
@@ -332,82 +330,83 @@ export default function RoomScreen({ navigation }) {
       </View>
 
       <View style={styles.content}>
-        {/* Quick Actions Card */}
         <View style={styles.quickActionsCard}>
+          {/* Người ở cùng */}
           <TouchableOpacity
-            style={styles.quickActionItem}
+            style={styles.actionItem}
             onPress={goToRoommates}
+            activeOpacity={0.7}
           >
-            <View
-              style={[styles.quickActionIcon, { backgroundColor: "#f0fdfa" }]}
-            >
-              <Ionicons name="people" size={24} color="#0d9488" />
+            <View style={[styles.actionIcon, { backgroundColor: "#f0f9ff" }]}>
+              <Ionicons name="people" size={20} color="#0ea5e9" />
             </View>
-            <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Người ở cùng</Text>
-              <Text style={styles.quickActionSubtitle}>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Người ở cùng</Text>
+              <Text style={styles.actionSubtitle}>
                 {totalRoommates > 0
                   ? `${totalRoommates} thành viên`
                   : "Chưa có ai"}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#64748b" />
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
 
-          <View style={{ height: 12 }} />
+          <View style={styles.divider} />
 
-          <View style={styles.maintenanceRow}>
-            <TouchableOpacity
-              style={styles.maintenanceBtn}
-              onPress={goToMaintenanceList}
-            >
-              <Ionicons name="construct" size={18} color="#fff" />
-              <Text style={styles.maintenanceBtnText}>Yêu cầu bảo trì</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.maintenanceBtn, styles.maintenanceCreateBtn]}
-              onPress={goToCreateMaintenance}
-            >
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.maintenanceBtnText}>Tạo yêu cầu</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ height: 12 }} />
-
+          {/* Yêu cầu bảo trì */}
           <TouchableOpacity
-            style={styles.quickActionItem}
-            onPress={openBuildingReviewList}
+            style={styles.actionItem}
+            onPress={goToMaintenanceList}
+            activeOpacity={0.7}
           >
-            <View
-              style={[styles.quickActionIcon, { backgroundColor: "#ecfeff" }]}
-            >
-              <Ionicons name="book" size={22} color="#0ea5a4" />
+            <View style={[styles.actionIcon, { backgroundColor: "#fef7ed" }]}>
+              <Ionicons name="construct" size={20} color="#f59e0b" />
             </View>
-            <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Xem đánh giá tòa nhà</Text>
-              <Text style={styles.quickActionSubtitle}>Danh sách đánh giá</Text>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Yêu cầu bảo trì</Text>
+              <Text style={styles.actionSubtitle}>
+                Xem & theo dõi các yêu cầu của phòng
+              </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#64748b" />
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
 
+          <View style={styles.divider} />
+
+          {/* Gửi đánh giá */}
           <TouchableOpacity
-            style={styles.quickActionItem}
+            style={styles.actionItem}
             onPress={openCreateBuildingReview}
+            activeOpacity={0.7}
           >
-            <View
-              style={[styles.quickActionIcon, { backgroundColor: "#62B686" }]}
-            >
-              <Ionicons name="star" size={22} color="#fff" />
+            <View style={[styles.actionIcon, { backgroundColor: "#f0fdf4" }]}>
+              <Ionicons name="star" size={18} color="#22c55e" />
             </View>
-            <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Gửi đánh giá tòa nhà</Text>
-              <Text style={styles.quickActionSubtitle}>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Gửi đánh giá tòa nhà</Text>
+              <Text style={styles.actionSubtitle}>
                 Chia sẻ trải nghiệm của bạn
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#64748b" />
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* Xem đánh giá */}
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={openBuildingReviewList}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#faf5ff" }]}>
+              <Ionicons name="book" size={18} color="#8b5cf6" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Xem đánh giá tòa nhà</Text>
+              <Text style={styles.actionSubtitle}>Danh sách đánh giá</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
         </View>
 
@@ -487,12 +486,6 @@ export default function RoomScreen({ navigation }) {
             </View>
           </View>
 
-          {building?.description ? (
-            <View style={styles.descriptionSection}>
-              <Text style={styles.descriptionText}>{building.description}</Text>
-            </View>
-          ) : null}
-
           {building?.contact ? (
             <View style={styles.contactSection}>
               <View style={styles.contactHeader}>
@@ -524,9 +517,9 @@ export default function RoomScreen({ navigation }) {
           <View style={styles.utilityGrid}>
             <View style={styles.utilityItem}>
               <View
-                style={[styles.utilityIcon, { backgroundColor: "#fef3c7" }]}
+                style={[styles.utilityIcon, { backgroundColor: "#fef7ed" }]}
               >
-                <Ionicons name="flash" size={24} color="#d97706" />
+                <Ionicons name="flash" size={20} color="#d97706" />
               </View>
               <View style={styles.utilityContent}>
                 <Text style={styles.utilityTitle}>Điện</Text>
@@ -541,9 +534,9 @@ export default function RoomScreen({ navigation }) {
 
             <View style={styles.utilityItem}>
               <View
-                style={[styles.utilityIcon, { backgroundColor: "#dbeafe" }]}
+                style={[styles.utilityIcon, { backgroundColor: "#f0f9ff" }]}
               >
-                <Ionicons name="water" size={24} color="#2563eb" />
+                <Ionicons name="water" size={20} color="#0ea5e9" />
               </View>
               <View style={styles.utilityContent}>
                 <Text style={styles.utilityTitle}>Nước</Text>
@@ -637,86 +630,62 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   noImageText: { color: "#94a3b8", fontSize: 14, marginTop: 8 },
 
   roomNumberBadge: {
     position: "absolute",
-    top: 16,
-    left: 16,
+    top: 12,
+    left: 12,
     backgroundColor: "rgba(13, 148, 136, 0.95)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  roomNumberText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  roomNumberText: { color: "#fff", fontSize: 14, fontWeight: "600" },
 
   quickActionsCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 12,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
-  quickActionItem: {
+
+  actionItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
+  actionIcon: {
+    width: 40,
+    height: 40,
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-  quickActionContent: {
+  actionContent: {
     flex: 1,
   },
-  quickActionTitle: {
-    fontSize: 16,
+  actionTitle: {
+    fontSize: 15,
     fontWeight: "600",
     color: "#0f172a",
     marginBottom: 2,
   },
-  quickActionSubtitle: {
-    fontSize: 14,
+  actionSubtitle: {
+    fontSize: 13,
     color: "#64748b",
   },
-
-  maintenanceRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  maintenanceBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#0d9488",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-  },
-  maintenanceCreateBtn: {
-    backgroundColor: "#10b981",
-  },
-  maintenanceBtnText: {
-    color: "#fff",
-    fontWeight: "700",
-    marginLeft: 8,
+  divider: {
+    height: 1,
+    backgroundColor: "#f1f5f9",
+    marginLeft: 68,
   },
 
   card: {
@@ -724,21 +693,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#0f172a",
   },
 
@@ -754,8 +720,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f8fafc",
   },
   infoIconContainer: {
     width: 36,
@@ -777,7 +741,7 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     color: "#0f172a",
-    fontWeight: "600",
+    fontWeight: "500",
   },
 
   descriptionSection: {
@@ -812,7 +776,7 @@ const styles = StyleSheet.create({
   contactValue: {
     fontSize: 14,
     color: "#0f172a",
-    fontWeight: "600",
+    fontWeight: "500",
   },
 
   priceSection: {
@@ -835,7 +799,7 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 16,
     color: "#0d9488",
-    fontWeight: "700",
+    fontWeight: "600",
   },
 
   utilityGrid: {
@@ -848,9 +812,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   utilityIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -859,7 +823,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   utilityTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#0f172a",
     marginBottom: 2,
@@ -867,7 +831,7 @@ const styles = StyleSheet.create({
   utilitySubtitle: {
     fontSize: 14,
     color: "#0d9488",
-    fontWeight: "600",
+    fontWeight: "500",
     marginBottom: 2,
   },
   utilityDescription: {
@@ -908,7 +872,7 @@ const styles = StyleSheet.create({
   },
   serviceName: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#0f172a",
     marginBottom: 2,
   },
@@ -921,7 +885,7 @@ const styles = StyleSheet.create({
   },
   servicePriceText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#0d9488",
   },
 
@@ -951,7 +915,7 @@ const styles = StyleSheet.create({
   },
   furnitureName: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#0f172a",
     marginBottom: 2,
   },
@@ -967,7 +931,7 @@ const styles = StyleSheet.create({
   furnitureQty: {
     color: "#fff",
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
   },
 
   emptyFurniture: {
@@ -983,8 +947,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "600",
     color: "#0f172a",
     marginBottom: 8,
   },
@@ -996,20 +960,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  btn: {
+  primaryButton: {
     backgroundColor: "#0d9488",
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 12,
-    shadowColor: "#0d9488",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    borderRadius: 8,
   },
-  btnText: {
+  primaryButtonText: {
     color: "#fff",
-    fontWeight: "700",
+    fontWeight: "600",
     fontSize: 15,
   },
 });
