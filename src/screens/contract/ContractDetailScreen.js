@@ -6,11 +6,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  TextInput,
   Modal,
   Platform,
   Alert,
-  Image,
   StatusBar,
   useWindowDimensions,
 } from "react-native";
@@ -22,7 +20,11 @@ import {
   signByTenant,
   searchAccountByEmail,
 } from "../../api/contractApi";
-import RenderHtml from "react-native-render-html";
+
+import ContractTopBar from "../../components/contracts/detail/ContractTopBar";
+import ContractInfoSection from "../../components/contracts/detail/ContractInfoSection";
+import ContractSignatures from "../../components/contracts/detail/ContractSignatures";
+import ContractTerms from "../../components/contracts/detail/ContractTerms";
 
 const isWeb = Platform.OS === "web";
 
@@ -71,11 +73,9 @@ const ContractDetailScreen = ({ navigation, route }) => {
       const doc = await getMyContract(id);
       const data = doc?.data || doc || null;
       if (!data) throw new Error("Không có dữ liệu hợp đồng");
-
       const bikes = Array.isArray(data.bikes) ? data.bikes : [];
       const roommates = Array.isArray(data.roommates) ? data.roommates : [];
       const B = data.B || {};
-
       setContract(data);
       setPayload({
         B: { ...(B || {}) },
@@ -137,7 +137,6 @@ const ContractDetailScreen = ({ navigation, route }) => {
     const dataURL = webSigRef.current.getTrimmedCanvas().toDataURL("image/png");
     submitSignature(dataURL);
   };
-
   const clearWebPad = () => webSigRef.current?.clear();
 
   const handleSearchByEmail = () => {
@@ -189,10 +188,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
                 ...prev,
                 roommates: [...(prev.roommates || []), newRm],
               }));
-              Toast.show({
-                type: "success",
-                text1: "Đã thêm người ở cùng",
-              });
+              Toast.show({ type: "success", text1: "Đã thêm người ở cùng" });
             },
           },
           { text: "Hủy", style: "cancel" },
@@ -216,39 +212,6 @@ const ContractDetailScreen = ({ navigation, route }) => {
   const fmtDate = (d) =>
     d ? new Date(d).toLocaleDateString("vi-VN") : "--/--/----";
 
-  const getStatusInfo = (status) => {
-    switch (status) {
-      case "draft":
-        return { color: "#6b7280", text: "Bản nháp", bgColor: "#f3f4f6" };
-      case "sent_to_tenant":
-        return { color: "#f59e0b", text: "Chờ ký", bgColor: "#fef3c7" };
-      case "signed_by_tenant":
-        return {
-          color: "#3b82f6",
-          text: "Đã ký - Chờ chủ",
-          bgColor: "#dbeafe",
-        };
-      case "signed_by_landlord":
-        return {
-          color: "#3b82f6",
-          text: "Đã ký - Chờ bạn",
-          bgColor: "#dbeafe",
-        };
-      case "completed":
-        return { color: "#10b981", text: "Hoàn thành", bgColor: "#d1fae5" };
-      case "voided":
-        return { color: "#ef4444", text: "Đã huỷ", bgColor: "#fee2e2" };
-      case "terminated":
-        return { color: "#dc2626", text: "Đã chấm dứt", bgColor: "#fef2f2" };
-      default:
-        return {
-          color: "#6b7280",
-          text: status || "Không xác định",
-          bgColor: "#f3f4f6",
-        };
-    }
-  };
-
   if (loading)
     return (
       <View style={styles.center}>
@@ -262,31 +225,14 @@ const ContractDetailScreen = ({ navigation, route }) => {
       </View>
     );
 
-  const statusInfo = getStatusInfo(contract.status);
-
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* Header */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() =>
-            navigation.canGoBack()
-              ? navigation.goBack()
-              : navigation.replace("Contracts")
-          }
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#0d9488" />
-        </TouchableOpacity>
-        <Text style={styles.topTitle}>Chi tiết hợp đồng</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <ContractTopBar navigation={navigation} title="Chi tiết hợp đồng" />
 
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
-          {/* Official header */}
+          {/* header info */}
           <View style={styles.officialHeader}>
             <Text style={styles.nation}>
               CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
@@ -298,445 +244,27 @@ const ContractDetailScreen = ({ navigation, route }) => {
             </Text>
           </View>
 
-          {/* status and dates */}
-          <View style={styles.statusSection}>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Trạng thái:</Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: statusInfo.bgColor },
-                ]}
-              >
-                <Text style={[styles.statusText, { color: statusInfo.color }]}>
-                  {statusInfo.text}
-                </Text>
-              </View>
-            </View>
+          {/* Sections split into components */}
+          <ContractInfoSection
+            contract={contract}
+            payload={payload}
+            setPayload={setPayload}
+            canEdit={canEdit}
+            fmtDate={fmtDate}
+            onAddRoommate={handleSearchByEmail}
+          />
 
-            {contract.contract?.startDate && (
-              <View style={styles.dateRow}>
-                <Ionicons name="calendar-outline" size={16} color="#64748b" />
-                <Text style={styles.dateText}>
-                  {fmtDate(contract.contract.startDate)} →{" "}
-                  {fmtDate(contract.contract.endDate)}
-                </Text>
-              </View>
-            )}
-          </View>
+          <ContractTerms contract={contract} contentWidth={contentWidth} />
 
-          {/* A - landlord */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Bên cho thuê (Bên A)</Text>
-            <View style={styles.infoGrid}>
-              <Text style={styles.infoLabel}>Họ tên:</Text>
-              <Text style={styles.infoValue}>
-                {contract.A?.name ||
-                  contract.landlordId?.userInfo?.fullName ||
-                  contract.landlordId?.email ||
-                  "—"}
-              </Text>
+          <ContractSignatures
+            contract={contract}
+            payload={payload}
+            canSign={canSign}
+            onOpenSign={() => setSigModalVisible(true)}
+            fmtDate={fmtDate}
+          />
 
-              <Text style={styles.infoLabel}>Ngày sinh:</Text>
-              <Text style={styles.infoValue}>
-                {contract.A?.dob ? fmtDate(contract.A.dob) : "—"}
-              </Text>
-
-              <Text style={styles.infoLabel}>CCCD:</Text>
-              <Text style={styles.infoValue}>
-                {contract.A?.cccd || "—"}{" "}
-                {contract.A?.cccdIssuedDate && contract.A?.cccdIssuedPlace
-                  ? `Cấp ngày: ${fmtDate(
-                      contract.A.cccdIssuedDate
-                    )}, Nơi cấp: ${contract.A.cccdIssuedPlace}`
-                  : ""}
-              </Text>
-
-              <Text style={styles.infoLabel}>Hộ khẩu:</Text>
-              <Text style={styles.infoValue}>
-                {contract.A?.permanentAddress ||
-                  contract.buildingId?.address ||
-                  "—"}
-              </Text>
-
-              <Text style={styles.infoLabel}>Điện thoại:</Text>
-              <Text style={styles.infoValue}>
-                {contract.A?.phone ||
-                  contract.landlordId?.userInfo?.phoneNumber ||
-                  "—"}
-              </Text>
-
-              <Text style={styles.infoLabel}>Email:</Text>
-              <Text style={styles.infoValue}>
-                {contract.A?.email || contract.landlordId?.email || "—"}
-              </Text>
-            </View>
-          </View>
-
-          {/* B - tenant (editable if allowed) */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Bên thuê (Bên B) - Thông tin của bạn
-            </Text>
-            <View style={styles.infoGrid}>
-              <Text style={styles.infoLabel}>Họ tên:</Text>
-              {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={payload.B.name || ""}
-                  onChangeText={(text) =>
-                    setPayload((prev) => ({
-                      ...prev,
-                      B: { ...prev.B, name: text },
-                    }))
-                  }
-                  placeholder="Nhập họ tên"
-                />
-              ) : (
-                <Text style={styles.infoValue}>
-                  {payload.B.name || contract.B?.name || "—"}
-                </Text>
-              )}
-
-              <Text style={styles.infoLabel}>CCCD:</Text>
-              {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={payload.B.cccd || ""}
-                  onChangeText={(text) =>
-                    setPayload((prev) => ({
-                      ...prev,
-                      B: { ...prev.B, cccd: text },
-                    }))
-                  }
-                  placeholder="Nhập số CCCD"
-                />
-              ) : (
-                <Text style={styles.infoValue}>
-                  {payload.B.cccd || contract.B?.cccd || "—"}
-                </Text>
-              )}
-
-              <Text style={styles.infoLabel}>Điện thoại:</Text>
-              {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={payload.B.phone || ""}
-                  onChangeText={(text) =>
-                    setPayload((prev) => ({
-                      ...prev,
-                      B: { ...prev.B, phone: text },
-                    }))
-                  }
-                  placeholder="Nhập số điện thoại"
-                  keyboardType="phone-pad"
-                />
-              ) : (
-                <Text style={styles.infoValue}>
-                  {payload.B.phone || contract.B?.phone || "—"}
-                </Text>
-              )}
-
-              <Text style={styles.infoLabel}>Địa chỉ:</Text>
-              {canEdit ? (
-                <TextInput
-                  style={[styles.textInput, { height: 60 }]}
-                  value={payload.B.permanentAddress || ""}
-                  onChangeText={(text) =>
-                    setPayload((prev) => ({
-                      ...prev,
-                      B: { ...prev.B, permanentAddress: text },
-                    }))
-                  }
-                  placeholder="Nhập địa chỉ thường trú"
-                  multiline
-                />
-              ) : (
-                <Text style={styles.infoValue}>
-                  {payload.B.permanentAddress ||
-                    contract.B?.permanentAddress ||
-                    "—"}
-                </Text>
-              )}
-
-              <Text style={styles.infoLabel}>Email:</Text>
-              <Text style={styles.infoValue}>
-                {contract.B?.email || contract.tenantId?.email || "—"}
-              </Text>
-            </View>
-          </View>
-
-          {/* Room info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thông tin phòng thuê</Text>
-            <View style={styles.infoGrid}>
-              <Text style={styles.infoLabel}>Tòa nhà:</Text>
-              <Text style={styles.infoValue}>
-                {contract.buildingId?.name || "—"}
-              </Text>
-
-              <Text style={styles.infoLabel}>Phòng:</Text>
-              <Text style={styles.infoValue}>
-                {contract.roomId?.roomNumber
-                  ? `P. ${contract.roomId.roomNumber}`
-                  : "—"}
-              </Text>
-
-              <Text style={styles.infoLabel}>Giá thuê:</Text>
-              <Text style={styles.infoValue}>
-                {contract.contract?.price || contract.roomId?.price
-                  ? `${Number(
-                      contract.contract?.price || contract.roomId?.price
-                    ).toLocaleString("vi")} đ/tháng`
-                  : "—"}
-              </Text>
-
-              <Text style={styles.infoLabel}>Tiền cọc:</Text>
-              <Text style={styles.infoValue}>
-                {contract.contract?.deposit
-                  ? `${Number(contract.contract.deposit).toLocaleString(
-                      "vi"
-                    )} đ`
-                  : "—"}
-              </Text>
-
-              <Text style={styles.infoLabel}>Số tối đa người ở:</Text>
-              <Text style={styles.infoValue}>
-                {contract.roomId?.maxTenants ?? "—"}
-              </Text>
-            </View>
-          </View>
-
-          {/* Occupants / Roommates */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Người ở:{" "}
-              {contract.occupants ? `(${contract.occupants.length})` : ""}
-            </Text>
-
-            {Array.isArray(contract.occupants) &&
-            contract.occupants.length > 0 ? (
-              contract.occupants.map((p, idx) => (
-                <View key={`occ-${idx}`} style={styles.roommateCard}>
-                  <Text style={styles.roommateName}>{p.name || "—"}</Text>
-                  <Text style={styles.roommateInfo}>
-                    {[p.phone, p.email].filter(Boolean).join(" • ")}
-                  </Text>
-                  {p.permanentAddress ? (
-                    <Text style={styles.roommateAddress}>
-                      {p.permanentAddress}
-                    </Text>
-                  ) : null}
-                </View>
-              ))
-            ) : payload.roommates && payload.roommates.length > 0 ? (
-              payload.roommates.map((r, i) => (
-                <View key={`rm-${i}`} style={styles.roommateCard}>
-                  <Text style={styles.roommateName}>{r.name || "—"}</Text>
-                  <Text style={styles.roommateInfo}>
-                    {[r.phone, r.email].filter(Boolean).join(" • ")}
-                  </Text>
-                  {r.permanentAddress ? (
-                    <Text style={styles.roommateAddress}>
-                      {r.permanentAddress}
-                    </Text>
-                  ) : null}
-                </View>
-              ))
-            ) : (
-              <Text style={{ color: "#64748b" }}>Không có người ở cùng</Text>
-            )}
-          </View>
-
-          {/* Bikes */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Phương tiện: </Text>
-            {Array.isArray(contract.bikes) && contract.bikes.length > 0 ? (
-              contract.bikes.map((b, i) => (
-                <View key={`bike-${i}`} style={styles.furnitureRow}>
-                  <Text style={styles.furnitureName}>
-                    {b.bikeNumber || "—"}
-                  </Text>
-                  <Text style={styles.furnitureQty}>
-                    {[b.brand || "", b.color || ""].filter(Boolean).join(" • ")}
-                  </Text>
-                </View>
-              ))
-            ) : payload.bikes && payload.bikes.length > 0 ? (
-              payload.bikes.map((b, i) => (
-                <View key={`bikep-${i}`} style={styles.furnitureRow}>
-                  <Text style={styles.furnitureName}>
-                    {b.bikeNumber || "—"}
-                  </Text>
-                  <Text style={styles.furnitureQty}>
-                    {[b.brand || "", b.color || ""].filter(Boolean).join(" • ")}
-                  </Text>
-                </View>
-              ))
-            ) : (
-              <Text style={{ color: "#64748b" }}>
-                Không có phương tiện đăng ký
-              </Text>
-            )}
-          </View>
-
-          {/* Furnitures */}
-          {Array.isArray(contract.furnitures) &&
-            contract.furnitures.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Nội thất trong phòng</Text>
-                {contract.furnitures.map((f, i) => (
-                  <View key={`furn-${i}`} style={styles.furnitureRow}>
-                    <Text style={styles.furnitureName}>{f.name || "—"}</Text>
-                    <Text style={styles.furnitureQty}>x{f.quantity || 0}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-          {Array.isArray(contract.terms) && contract.terms.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Điều khoản hợp đồng</Text>
-
-              {contract.terms.slice(0, 50).map((t, i) => {
-                const cleanedHtml = (t.description || "")
-                  .replace(/<br\s*\/?>/gi, "") // remove <br>
-                  .replace(/\r\n|\r/g, "\n") // normalize CRLF -> LF
-                  .replace(/\n\s*\n/g, "\n") // remove consecutive empty lines
-                  .replace(/<p>\s*<\/p>/gi, "") // remove empty <p>
-                  .replace(/style=(["'])[^"']*margin[^"']*\1/gi, "") // remove inline margin styles
-                  .replace(/^\s+|\s+$/g, ""); // trim
-
-                return (
-                  <View key={`term-${i}`} style={styles.termBlockNoCard}>
-                    <Text style={styles.termHeadingNoCard}>
-                      <Text style={styles.termNumber}>{i + 1}. </Text>
-                      <Text style={styles.termTitleNoCard}>
-                        {t.name || "Điều khoản"}
-                      </Text>
-                    </Text>
-
-                    <RenderHtml
-                      contentWidth={contentWidth}
-                      source={{ html: cleanedHtml || "<p></p>" }}
-                      baseStyle={{ color: "#475569", lineHeight: 20 }}
-                      tagsStyles={{
-                        p: { marginTop: 4, marginBottom: 8, lineHeight: 20 },
-                        li: { marginTop: 2, marginBottom: 6, lineHeight: 20 },
-                        ul: { marginTop: 6, marginBottom: 8, paddingLeft: 16 },
-                        ol: { marginTop: 6, marginBottom: 8, paddingLeft: 16 },
-                        strong: { fontWeight: "700" },
-                      }}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Regulations */}
-          {Array.isArray(contract.regulations) &&
-            contract.regulations.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Nội quy / Quy định</Text>
-
-                {contract.regulations.slice(0, 50).map((r, i) => {
-                  const cleanedHtml = (r.description || "")
-                    .replace(/<br\s*\/?>/gi, "")
-                    .replace(/\r\n|\r/g, "\n")
-                    .replace(/\n\s*\n/g, "\n")
-                    .replace(/<p>\s*<\/p>/gi, "")
-                    .replace(/^\s+|\s+$/g, "");
-
-                  return (
-                    <View key={`reg-${i}`} style={styles.termBlockNoCard}>
-                      <Text style={styles.termHeadingNoCard}>
-                        <Text style={styles.termNumber}>{i + 1}. </Text>
-                        <Text style={styles.termTitleNoCard}>
-                          {r.title || "Quy định"}
-                        </Text>
-                      </Text>
-
-                      <RenderHtml
-                        contentWidth={contentWidth}
-                        source={{ html: cleanedHtml || "<p></p>" }}
-                        baseStyle={{ color: "#475569", lineHeight: 20 }}
-                        tagsStyles={{
-                          p: { marginTop: 4, marginBottom: 8, lineHeight: 20 },
-                          li: { marginTop: 2, marginBottom: 6, lineHeight: 20 },
-                          ul: {
-                            marginTop: 6,
-                            marginBottom: 8,
-                            paddingLeft: 16,
-                          },
-                          ol: {
-                            marginTop: 6,
-                            marginBottom: 8,
-                            paddingLeft: 16,
-                          },
-                          strong: { fontWeight: "700" },
-                        }}
-                      />
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Chữ ký các bên</Text>
-            <View style={styles.signRow}>
-              <View style={styles.signBlock}>
-                <Text style={styles.signLabel}>Bên A</Text>
-                <View style={styles.signatureContainer}>
-                  {contract.landlordSignatureUrl ? (
-                    <Image
-                      source={{ uri: contract.landlordSignatureUrl }}
-                      style={styles.signatureImage}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <Text style={styles.noSignature}>Chưa ký</Text>
-                  )}
-                </View>
-                <Text style={styles.signerName}>
-                  {contract.A?.name ||
-                    contract.landlordId?.userInfo?.fullName ||
-                    "—"}
-                </Text>
-                {contract.landlordSignedAt ? (
-                  <Text style={{ color: "#64748b", fontSize: 12 }}>
-                    {`Ký: ${fmtDate(contract.landlordSignedAt)}`}
-                  </Text>
-                ) : null}
-              </View>
-
-              <View style={styles.signBlock}>
-                <Text style={styles.signLabel}>Bên B (Bạn)</Text>
-                <View style={styles.signatureContainer}>
-                  {contract.tenantSignatureUrl ? (
-                    <Image
-                      source={{ uri: contract.tenantSignatureUrl }}
-                      style={styles.signatureImage}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <Text style={styles.noSignature}>Chưa ký</Text>
-                  )}
-                </View>
-                <Text style={styles.signerName}>
-                  {payload.B.name || contract.B?.name || "—"}
-                </Text>
-                {contract.tenantSignedAt ? (
-                  <Text style={{ color: "#64748b", fontSize: 12 }}>
-                    {`Ký: ${fmtDate(contract.tenantSignedAt)}`}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          </View>
-
-          {/* Action buttons */}
+          {/* Action buttons (save/add/sign) */}
           <View style={styles.actionSection}>
             {canEdit && (
               <>
@@ -785,53 +313,79 @@ const ContractDetailScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.modalContent}>
-            {isWeb && WebSignature ? (
-              <>
-                <WebSignature
-                  ref={webSigRef}
-                  canvasProps={{
-                    style: {
-                      width: "100%",
-                      height: 300,
-                      border: "1px solid #ddd",
-                      borderRadius: 8,
-                    },
-                  }}
-                />
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalBtnSecondary}
-                    onPress={clearWebPad}
-                  >
-                    <Text>Xóa</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalBtnPrimary}
-                    onPress={handleWebConfirm}
-                    disabled={sigLoading}
-                  >
-                    <Text style={{ color: "#fff" }}>
-                      {sigLoading ? "Đang gửi..." : "Xác nhận ký"}
+            {isWeb &&
+              typeof require !== "undefined" &&
+              (() => {
+                try {
+                  const WebSignature =
+                    require("react-signature-canvas")?.default;
+                  return (
+                    <>
+                      <WebSignature
+                        ref={webSigRef}
+                        canvasProps={{
+                          style: {
+                            width: "100%",
+                            height: 300,
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                          },
+                        }}
+                      />
+                      <View style={styles.modalActions}>
+                        <TouchableOpacity
+                          style={styles.modalBtnSecondary}
+                          onPress={clearWebPad}
+                        >
+                          <Text>Xóa</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.modalBtnPrimary}
+                          onPress={handleWebConfirm}
+                          disabled={sigLoading}
+                        >
+                          <Text style={{ color: "#fff" }}>
+                            {sigLoading ? "Đang gửi..." : "Xác nhận ký"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  );
+                } catch (err) {
+                  return (
+                    <Text style={styles.notSupportedText}>
+                      Không hỗ trợ ký trên nền Web này
                     </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : NativeSignature ? (
-              <NativeSignature
-                ref={nativeSigRef}
-                onOK={submitSignature}
-                onEmpty={() =>
-                  Toast.show({ type: "info", text1: "Vui lòng ký tên" })
+                  );
                 }
-                clearText="Xóa"
-                confirmText="Xác nhận"
-                autoClear={false}
-              />
-            ) : (
-              <Text style={styles.notSupportedText}>
-                Không hỗ trợ ký trên thiết bị này
-              </Text>
-            )}
+              })()}
+
+            {!isWeb &&
+              typeof require !== "undefined" &&
+              (() => {
+                try {
+                  const NativeSignature =
+                    require("react-native-signature-canvas")?.default;
+                  return NativeSignature ? (
+                    <NativeSignature
+                      ref={nativeSigRef}
+                      onOK={submitSignature}
+                      onEmpty={() =>
+                        Toast.show({ type: "info", text1: "Vui lòng ký tên" })
+                      }
+                      clearText="Xóa"
+                      confirmText="Xác nhận"
+                      autoClear={false}
+                    />
+                  ) : null;
+                } catch (err) {
+                  return (
+                    <Text style={styles.notSupportedText}>
+                      Không hỗ trợ ký trên thiết bị này
+                    </Text>
+                  );
+                }
+              })()}
           </View>
         </View>
       </Modal>
@@ -841,26 +395,33 @@ const ContractDetailScreen = ({ navigation, route }) => {
   );
 };
 
+const getStatusColor = (status) => {
+  switch (status) {
+    case "draft":
+      return { color: "#6b7280", text: "Bản nháp", bgColor: "#f3f4f6" };
+    case "sent_to_tenant":
+      return { color: "#f59e0b", text: "Chờ ký", bgColor: "#fef3c7" };
+    case "signed_by_tenant":
+      return { color: "#3b82f6", text: "Đã ký - Chờ chủ", bgColor: "#dbeafe" };
+    case "signed_by_landlord":
+      return { color: "#3b82f6", text: "Đã ký - Chờ bạn", bgColor: "#dbeafe" };
+    case "completed":
+      return { color: "#10b981", text: "Hoàn thành", bgColor: "#d1fae5" };
+    case "voided":
+      return { color: "#ef4444", text: "Đã huỷ", bgColor: "#fee2e2" };
+    case "terminated":
+      return { color: "#dc2626", text: "Đã chấm dứt", bgColor: "#fef2f2" };
+    default:
+      return {
+        color: "#6b7280",
+        text: status || "Không xác định",
+        bgColor: "#f3f4f6",
+      };
+  }
+};
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#f8fafc" },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 50 : StatusBar.currentHeight + 10,
-    paddingBottom: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderColor: "#eee",
-  },
-  backButton: { padding: 4 },
-  topTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
   container: { padding: 16, paddingBottom: 32 },
   card: {
     backgroundColor: "#fff",
@@ -912,80 +473,6 @@ const styles = StyleSheet.create({
   statusText: { fontWeight: "700", fontSize: 13 },
   dateRow: { flexDirection: "row", alignItems: "center" },
   dateText: { marginLeft: 8, color: "#64748b", fontSize: 14 },
-  section: { marginBottom: 18 },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 6,
-    color: "#0f172a",
-  },
-  infoGrid: { flexDirection: "row", flexWrap: "wrap" },
-  infoLabel: {
-    width: "30%",
-    fontSize: 14,
-    color: "#475569",
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  infoValue: { width: "70%", fontSize: 14, color: "#0f172a", marginBottom: 8 },
-  textInput: {
-    width: "70%",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 8,
-    backgroundColor: "#fafafa",
-    fontSize: 14,
-  },
-  roommateCard: {
-    backgroundColor: "#f8fafc",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  roommateName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#0f172a",
-    marginBottom: 4,
-  },
-  roommateInfo: { fontSize: 13, color: "#64748b", marginBottom: 4 },
-  roommateAddress: { fontSize: 12, color: "#94a3b8", fontStyle: "italic" },
-  furnitureRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  furnitureName: { fontSize: 14, color: "#0f172a" },
-  furnitureQty: { fontSize: 14, color: "#64748b", fontWeight: "600" },
-  signRow: { flexDirection: "row", justifyContent: "space-between", gap: 16 },
-  signBlock: { flex: 1, alignItems: "center" },
-  signLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#475569",
-    marginBottom: 8,
-  },
-  signatureContainer: {
-    height: 100,
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    marginBottom: 8,
-  },
-  signatureImage: { width: "90%", height: "90%", borderRadius: 6 },
-  noSignature: { color: "#94a3b8", fontStyle: "italic" },
-  signerName: { fontSize: 13, color: "#0f172a", fontWeight: "600" },
   actionSection: { marginTop: 20, gap: 12 },
   btnSave: {
     backgroundColor: "#0d9488",
@@ -1054,24 +541,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f8fafc",
-  },
-
-  termBlockNoCard: {
-    marginBottom: 8,
-    paddingBottom: 4,
-  },
-  termHeadingNoCard: {
-    marginBottom: 6,
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  termNumber: {
-    fontWeight: "400",
-    color: "#475569",
-  },
-  termTitleNoCard: {
-    fontWeight: "700",
-    color: "#0f172a",
   },
 });
 

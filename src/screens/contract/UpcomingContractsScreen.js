@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 50 : StatusBar.currentHeight + 10,
+    paddingTop: Platform.OS === "ios" ? 16 : StatusBar.currentHeight + 10,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
