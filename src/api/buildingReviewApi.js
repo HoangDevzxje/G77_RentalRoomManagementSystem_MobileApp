@@ -1,9 +1,5 @@
 import baseApi from "./baseApi";
 
-/**
- * Gửi đánh giá tòa nhà (hỗ trợ upload ảnh từ React Native)
- * images: array of { uri, name?, type? }
- */
 export const submitBuildingReview = async (data) => {
   try {
     const {

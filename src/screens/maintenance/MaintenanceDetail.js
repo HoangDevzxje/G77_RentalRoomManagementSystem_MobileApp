@@ -9,10 +9,10 @@ import {
   TextInput,
   Alert,
   Image,
-  SafeAreaView,
   Platform,
   StatusBar,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { getRequest, commentRequest } from "../../api/maintenanceApi";

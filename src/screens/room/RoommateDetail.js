@@ -9,10 +9,9 @@ import {
   Alert,
   Linking,
   Platform,
-  RefreshControl,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { Ionicons } from "@expo/vector-icons";
 import { getRoommateDetail } from "../../api/roomatesApi";

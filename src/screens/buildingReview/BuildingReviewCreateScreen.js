@@ -199,7 +199,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
         text1: result?.message || "Đánh giá đã được gửi thành công!",
       });
 
-      navigation.navigate("Room", { refresh: true });
+      navigation.navigate("BuildingReviewList", { refresh: true });
     } catch (err) {
       const serverMessage =
         err?.response?.data?.message ||

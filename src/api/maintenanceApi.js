@@ -1,4 +1,3 @@
-// api/maintenanceApi.js
 import baseApi from "./baseApi";
 import { getAccessToken } from "../utils/storage";
 
