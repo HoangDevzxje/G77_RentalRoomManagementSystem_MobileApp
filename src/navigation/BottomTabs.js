@@ -101,7 +101,7 @@ export default function BottomTabs() {
 
       {/* 3: Hợp đồng */}
       <Tab.Screen
-        name="Hợp đồng"
+        name="Hợp đồng thuê"
         component={withHeader(ContractsListScreen)}
         options={{
           tabBarIcon: ({ color, size }) => (

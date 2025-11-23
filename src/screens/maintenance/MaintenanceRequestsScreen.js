@@ -440,7 +440,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
 
         <TouchableOpacity style={styles.createButton} onPress={goToCreate}>
           <Ionicons name="add" size={18} color="#fff" />
-          <Text style={styles.createButtonText}>Tạo mới</Text>
+          <Text style={styles.createButtonText}>Tạo yêu cầu</Text>
         </TouchableOpacity>
       </View>
 

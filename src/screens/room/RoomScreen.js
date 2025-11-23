@@ -286,7 +286,6 @@ export default function RoomScreen({ navigation }) {
   const {
     roomNumber,
     images,
-    floor,
     area,
     price,
     currentContract,
@@ -460,20 +459,6 @@ export default function RoomScreen({ navigation }) {
                 <Text style={styles.infoLabel}>Địa chỉ</Text>
                 <Text style={styles.infoValue} numberOfLines={2}>
                   {building?.address ?? "—"}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.infoItem}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="layers" size={18} color="#0d9488" />
-              </View>
-              <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Tầng</Text>
-                <Text style={styles.infoValue}>
-                  {typeof floor === "string"
-                    ? floor
-                    : floor?.name ?? floor?.floorNumber ?? "—"}
                 </Text>
               </View>
             </View>
