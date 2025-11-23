@@ -8,12 +8,12 @@ import {
   StyleSheet,
   RefreshControl,
   StatusBar,
-  SafeAreaView,
   Platform,
   Modal,
   TextInput,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Toast from "react-native-toast-message";
 import { listUpcomingExpire, requestExtend } from "../../api/contractApi";

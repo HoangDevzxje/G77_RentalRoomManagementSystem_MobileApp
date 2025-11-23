@@ -10,12 +10,12 @@ import {
   ScrollView,
   Alert,
   Platform,
-  SafeAreaView,
   StatusBar,
   Dimensions,
   TouchableWithoutFeedback,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
   fetchBuildingReviews,

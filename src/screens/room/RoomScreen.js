@@ -249,6 +249,11 @@ export default function RoomScreen({ navigation }) {
     });
   };
 
+  // THÊM HÀM MỚI: Điều hướng đến trang hóa đơn
+  const goToInvoices = () => {
+    navigation.navigate("InvoiceList");
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -346,6 +351,26 @@ export default function RoomScreen({ navigation }) {
                 {totalRoommates > 0
                   ? `${totalRoommates} thành viên`
                   : "Chưa có ai"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* Hóa đơn của tôi - THÊM MỚI */}
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={goToInvoices}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#f0fdf4" }]}>
+              <Ionicons name="receipt-outline" size={20} color="#22c55e" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Hóa đơn của tôi</Text>
+              <Text style={styles.actionSubtitle}>
+                Xem & thanh toán hóa đơn
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />

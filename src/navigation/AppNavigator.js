@@ -29,6 +29,8 @@ import MaintenanceDetail from "../screens/maintenance/MaintenanceDetail";
 import BuildingReviewCreateScreen from "../screens/buildingReview/BuildingReviewCreateScreen";
 import BuildingReviewListScreen from "../screens/buildingReview/BuildingReviewListScreen";
 import UpcomingContractsScreen from "../screens/contract/UpcomingContractsScreen";
+import InvoiceListScreen from "../screens/invoice/InvoiceListScreen";
+import InvoiceDetailScreen from "../screens/invoice/InvoiceDetailScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -104,6 +106,9 @@ export default function AppNavigator() {
         name="BuildingReviewList"
         component={BuildingReviewListScreen}
       />
+      {/* Invoice */}
+      <Stack.Screen name="InvoiceList" component={InvoiceListScreen} />
+      <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
     </Stack.Navigator>
   );
 }

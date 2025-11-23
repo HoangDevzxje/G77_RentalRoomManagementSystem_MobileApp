@@ -10,13 +10,14 @@ import {
   Platform,
   StatusBar,
   Dimensions,
-  SafeAreaView,
   TextInput,
   Keyboard,
   ActionSheetIOS,
   Modal,
   Pressable,
+  ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { listMyRoomRequests } from "../../api/maintenanceApi";
@@ -31,6 +32,41 @@ const STATUS_OPTIONS = [
   { key: "resolved", label: "Đã hoàn thành", icon: "checkmark-done-outline" },
   { key: "rejected", label: "Đã từ chối", icon: "close-outline" },
 ];
+
+function StatusFilterDropdownInline({ options, selected, onSelect, visible }) {
+  if (!visible) return null;
+  return (
+    <View style={inlineStyles.dropdown}>
+      <ScrollView style={inlineStyles.dropdownList}>
+        {options.map((opt) => {
+          const active = opt.key === selected;
+          return (
+            <TouchableOpacity
+              key={opt.key ?? "all"}
+              style={[
+                inlineStyles.dropdownItem,
+                active && inlineStyles.dropdownItemActive,
+              ]}
+              onPress={() => onSelect(opt.key)}
+            >
+              <Text
+                style={[
+                  inlineStyles.dropdownText,
+                  active && inlineStyles.dropdownTextActive,
+                ]}
+              >
+                {opt.label}
+              </Text>
+              {active && (
+                <Ionicons name="checkmark" size={16} color="#0d9488" />
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
 
 export default function MaintenanceRequestsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -47,7 +83,8 @@ export default function MaintenanceRequestsScreen({ navigation }) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
 
-  const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [statusDropdownVisible, setStatusDropdownVisible] = useState(false);
+  const [statusModalVisible, setStatusModalVisible] = useState(false); // fallback for ios action sheet use
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
@@ -342,6 +379,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
 
   const openStatusSelector = () => {
     if (Platform.OS === "ios") {
+      // iOS action sheet (native)
       const options = STATUS_OPTIONS.map((s) => s.label);
       const iosOptions = [...options, "Hủy"];
       ActionSheetIOS.showActionSheetWithOptions(
@@ -357,13 +395,14 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         }
       );
     } else {
-      setStatusModalVisible(true);
+      // Android / other: toggle inline dropdown
+      setStatusDropdownVisible((v) => !v);
     }
   };
 
-  const onSelectStatusAndroid = (key) => {
+  const onSelectStatusInline = (key) => {
     setStatusFilter(key);
-    setStatusModalVisible(false);
+    setStatusDropdownVisible(false);
   };
 
   const getStatusIcon = (statusKey) => {
@@ -405,7 +444,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Search Section - Ở TRÊN */}
+      {/* Search Section */}
       <View style={styles.searchSection}>
         <View
           style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}
@@ -443,7 +482,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Status Filter Section - Ở DƯỚI */}
+      {/* Filter Section (inline dropdown for Android/others) */}
       <View style={styles.filterSection}>
         <TouchableOpacity
           style={[
@@ -466,7 +505,8 @@ export default function MaintenanceRequestsScreen({ navigation }) {
           >
             {getStatusLabel(statusFilter)}
           </Text>
-          {statusFilter && (
+
+          {statusFilter ? (
             <TouchableOpacity
               onPress={(e) => {
                 e.stopPropagation();
@@ -477,65 +517,28 @@ export default function MaintenanceRequestsScreen({ navigation }) {
             >
               <Ionicons name="close-circle" size={16} color="#fff" />
             </TouchableOpacity>
+          ) : (
+            <Ionicons
+              name={statusDropdownVisible ? "chevron-up" : "chevron-down"}
+              size={16}
+              color="#0d9488"
+              style={{ marginLeft: 8 }}
+            />
           )}
         </TouchableOpacity>
+
+        {/* Inline dropdown (same-file) */}
+        <StatusFilterDropdownInline
+          options={STATUS_OPTIONS}
+          selected={statusFilter}
+          onSelect={onSelectStatusInline}
+          visible={statusDropdownVisible}
+        />
       </View>
 
-      {/* Android modal for status selection */}
-      {Platform.OS !== "ios" && (
-        <Modal
-          visible={statusModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setStatusModalVisible(false)}
-        >
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={() => setStatusModalVisible(false)}
-          />
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Lọc theo trạng thái</Text>
-            {STATUS_OPTIONS.map((s) => {
-              const active = s.key === statusFilter;
-              return (
-                <TouchableOpacity
-                  key={s.key || "all"}
-                  style={[
-                    styles.modalOption,
-                    active && styles.modalOptionActive,
-                  ]}
-                  onPress={() => onSelectStatusAndroid(s.key)}
-                >
-                  <Ionicons
-                    name={s.icon}
-                    size={18}
-                    color={active ? "#fff" : "#64748b"}
-                  />
-                  <Text
-                    style={[
-                      styles.modalOptionText,
-                      active && styles.modalOptionTextActive,
-                    ]}
-                  >
-                    {s.label}
-                  </Text>
-                  {active && (
-                    <Ionicons name="checkmark" size={18} color="#fff" />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-            <TouchableOpacity
-              style={styles.modalCancel}
-              onPress={() => setStatusModalVisible(false)}
-            >
-              <Text style={styles.modalCancelText}>Hủy</Text>
-            </TouchableOpacity>
-          </View>
-        </Modal>
-      )}
+      {/* Android modal fallback is NOT needed since we have inline dropdown. iOS uses ActionSheet. */}
 
-      {/* Loading State */}
+      {/* Loading / List */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0d9488" />
@@ -563,7 +566,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
               <View style={styles.listHeader}>
                 <Text style={styles.listHeaderText}>
                   {filteredRequests.length} yêu cầu
-                  {(debouncedQuery || statusFilter) && " phù hợp"}
+                  {debouncedQuery || statusFilter ? " phù hợp" : ""}
                 </Text>
               </View>
             )
@@ -620,6 +623,31 @@ export default function MaintenanceRequestsScreen({ navigation }) {
   );
 }
 
+const inlineStyles = StyleSheet.create({
+  dropdown: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginTop: 8,
+    maxHeight: 200,
+    overflow: "hidden",
+  },
+  dropdownList: { maxHeight: 200 },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  dropdownItemActive: { backgroundColor: "#f0fdfa" },
+  dropdownText: { fontSize: 14, color: "#374151", fontWeight: "500" },
+  dropdownTextActive: { color: "#0d9488", fontWeight: "600" },
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -666,13 +694,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    gap: 6,
     marginLeft: 8,
   },
   createButtonText: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "600",
+    marginLeft: 6,
   },
 
   searchSection: {
@@ -775,7 +803,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     marginBottom: 4,
-    gap: 12,
   },
   modalOptionActive: {
     backgroundColor: "#0d9488",
@@ -892,7 +919,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
-    gap: 6,
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
@@ -989,11 +1015,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 12,
-    gap: 8,
   },
   emptyCreateButtonText: {
     color: "#fff",
     fontSize: 15,
     fontWeight: "600",
+    marginLeft: 8,
   },
 });
