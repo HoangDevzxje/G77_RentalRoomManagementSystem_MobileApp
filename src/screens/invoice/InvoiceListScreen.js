@@ -284,7 +284,7 @@ export default function InvoiceListScreen({ navigation }) {
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Hóa đơn của tôi</Text>
             <Text style={styles.headerSubtitle}>
-              {invoices.length} hóa đơn • Quản lý và theo dõi
+              Bạn đang có {invoices.length} hóa đơn
             </Text>
           </View>
           <View style={styles.headerRight} />

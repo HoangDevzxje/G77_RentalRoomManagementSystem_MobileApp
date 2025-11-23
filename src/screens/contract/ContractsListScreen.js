@@ -282,13 +282,6 @@ const ContractsListScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Hợp đồng thuê trọ</Text>
-          <Text style={styles.headerSubtitle}>Quản lý hợp đồng của bạn</Text>
-        </View>
-      </View>
-
       <View style={styles.searchSection}>
         <SearchBar
           value={searchQuery}
@@ -363,18 +356,53 @@ const ContractsListScreen = ({ navigation }) => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <View style={styles.emptyIcon}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={64}
-                  color="#cbd5e1"
-                />
-              </View>
-              <Text style={styles.emptyTitle}>Chưa có hợp đồng</Text>
-              <Text style={styles.emptySubtitle}>
-                Bạn chưa có hợp đồng thuê phòng nào được ghi nhận
+            <View style={{ alignItems: "center", paddingVertical: 60 }}>
+              <Ionicons
+                name="document-text-outline"
+                size={64}
+                color="#cbd5e1"
+                style={{ marginBottom: 16 }}
+              />
+
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "700",
+                  color: "#334155",
+                  marginBottom: 8,
+                }}
+              >
+                Chưa có hợp đồng
               </Text>
+
+              <Text
+                style={{
+                  fontSize: 15,
+                  color: "#64748b",
+                  textAlign: "center",
+                  marginBottom: 20,
+                  paddingHorizontal: 20,
+                  lineHeight: 22,
+                }}
+              >
+                Bạn vui lòng đến trang bài đăng để tạo hợp đồng thuê trọ
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => navigation.navigate("PostList")}
+                style={{
+                  backgroundColor: "#0d9488",
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                }}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}
+                >
+                  Đi đến trang bài đăng
+                </Text>
+              </TouchableOpacity>
             </View>
           }
         />
