@@ -14,10 +14,7 @@ import {
   Modal,
   FlatList,
   KeyboardAvoidingView,
-  Keyboard,
-  TouchableWithoutFeedback,
   Image,
-  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -30,23 +27,42 @@ import { useAuth } from "../../context/AuthContext";
 const { width } = Dimensions.get("window");
 const MAX_IMAGES = 5;
 
+const CATEGORIES = [
+  { label: "Điện (Electrical)", value: "electrical", icon: "flash" },
+  { label: "Nước (Plumbing)", value: "plumbing", icon: "water" },
+  { label: "Điều hòa (A/C)", value: "air_conditioning", icon: "thermometer" },
+  { label: "Khóa cửa (Door Lock)", value: "door_lock", icon: "key" },
+  { label: "Tường/Trần", value: "wall_ceiling", icon: "business" },
+  { label: "Sàn nhà", value: "flooring", icon: "layers" },
+  { label: "Cửa sổ", value: "windows", icon: "browsers" },
+  { label: "Thiết bị gia dụng", value: "appliances", icon: "tv" },
+  { label: "Internet/Wifi", value: "internet_wifi", icon: "wifi" },
+  { label: "Côn trùng", value: "pest_control", icon: "bug" },
+  { label: "Vệ sinh", value: "cleaning", icon: "trash" },
+  { label: "An toàn", value: "safety", icon: "shield-checkmark" },
+  { label: "Khác", value: "other", icon: "ellipsis-horizontal" },
+];
+
 export default function CreateMaintenanceRequest({ navigation }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [furnitures, setFurnitures] = useState([]);
-  const [roomId, setRoomId] = useState(null);
-  const [showFurnitureModal, setShowFurnitureModal] = useState(false);
 
-  // furnitureId stores the actual _id string of the furniture
+  // Data state
+  const [furnitures, setFurnitures] = useState([]);
+  const [roomInfo, setRoomInfo] = useState(null);
+
   const [furnitureId, setFurnitureId] = useState("");
+  const [category, setCategory] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("medium");
   const [affectedQuantity, setAffectedQuantity] = useState("1");
+  const [images, setImages] = useState([]);
 
-  // Image picker state (phone images)
-  const [images, setImages] = useState([]); // { uri, name, type }
+  const [showFurnitureModal, setShowFurnitureModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     loadRoomData();
@@ -57,129 +73,111 @@ export default function CreateMaintenanceRequest({ navigation }) {
       setLoading(true);
       const r = await getMyRoomDetail();
       const room = r?.room ?? r;
-      if (!room) throw new Error("Không tìm thấy phòng");
-
-      setRoomId(room.id ?? room._id);
-      const roomFurn = r?.furnitures ?? room?.furnitures ?? [];
-
-      const validFurnitures = roomFurn.filter(
-        (f) => f && (f.name || f._id || f.id)
-      );
-      setFurnitures(validFurnitures);
-
-      if (validFurnitures.length > 0) {
-        // set default to the actual _id (or id) of the first furniture
-        const first = validFurnitures[0];
-        setFurnitureId(String(first._id || first.id || first.name || ""));
-      } else {
-        setFurnitureId("");
+      if (!room) {
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: "Không tìm thấy thông tin phòng của bạn",
+        });
+        return;
       }
+
+      setRoomInfo(room);
+      const roomFurn = r?.furnitures ?? room?.furnitures ?? [];
+      const validFurnitures = roomFurn.filter((f) => f && (f.name || f._id));
+      setFurnitures(validFurnitures);
     } catch (err) {
       console.error("loadRoomData error:", err);
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2: err?.message || "Không tải được dữ liệu phòng",
+        text2: "Không tải được dữ liệu phòng",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const normalizeFileUri = (uri) => {
-    if (!uri || typeof uri !== "string") return uri;
-    if (uri.startsWith("ph://")) {
-      return uri.replace("ph://", "assets-library://");
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!title.trim()) {
+      newErrors.title = "Vui lòng nhập tiêu đề sự cố";
     }
-    if (uri.startsWith("/")) {
-      if (!uri.startsWith("file://")) return `file://${uri}`;
+
+    if (!category) {
+      newErrors.category = "Vui lòng chọn danh mục sự cố";
     }
-    return uri;
+
+    if (!affectedQuantity || parseInt(affectedQuantity) < 1) {
+      newErrors.affectedQuantity = "Số lượng phải lớn hơn 0";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const openSettingsPrompt = () => {
-    Toast.show({
-      type: "info",
-      text1: "Mở Cài đặt",
-      text2: "Bật quyền Photos nếu bạn đã từ chối",
-    });
-    setTimeout(() => {
-      if (Platform.OS !== "web") {
-        Linking.openSettings?.();
-      }
-    }, 300);
+  const handleInputChange = (field, value) => {
+    if (field === "title") setTitle(value);
+    if (field === "description") setDescription(value);
+    if (field === "affectedQuantity") {
+      const cleaned = value.replace(/[^0-9]/g, "");
+      setAffectedQuantity(cleaned);
+    }
+
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    }
   };
 
-  // --- Image picker (Expo) ---
+  const handleSelectFurniture = (item) => {
+    if (item) {
+      const fId = String(item._id || item.id);
+      setFurnitureId(fId);
+      setCategory("furniture");
+
+      if (errors.category) setErrors((prev) => ({ ...prev, category: "" }));
+    } else {
+      setFurnitureId("");
+      setCategory("");
+    }
+    setShowFurnitureModal(false);
+  };
+
+  const handleSelectCategory = (val) => {
+    setCategory(val);
+    if (errors.category) setErrors((prev) => ({ ...prev, category: "" }));
+    setShowCategoryModal(false);
+  };
+
   const pickImages = async () => {
     try {
       const remaining = MAX_IMAGES - images.length;
-      if (remaining <= 0) {
-        Toast.show({ type: "info", text1: `Tối đa ${MAX_IMAGES} ảnh` });
-        return;
-      }
+      if (remaining <= 0) return;
 
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status !== "granted") {
-        Toast.show({
-          type: "error",
-          text1: "Quyền bị từ chối",
-          text2: "Ứng dụng cần quyền truy cập ảnh để bạn có thể chọn hình",
-        });
-        return openSettingsPrompt();
+        Toast.show({ type: "error", text1: "Cần cấp quyền truy cập ảnh" });
+        return;
       }
 
-      const options = {
+      const result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.7,
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         selectionLimit: remaining,
-      };
-
-      const result = await ImagePicker.launchImageLibraryAsync(options);
-
-      if (result.canceled) {
-        return;
-      }
-
-      const assets = result.assets || [];
-      if (assets.length === 0) {
-        Toast.show({ type: "info", text1: "Không có ảnh được chọn" });
-        return;
-      }
-
-      const items = assets.map((asset, idx) => {
-        const originalUri = asset.uri;
-        const uri = normalizeFileUri(originalUri);
-        const filename =
-          asset.fileName ||
-          (uri ? uri.split("/").pop() : `photo_${Date.now()}_${idx}.jpg`);
-
-        const lower = filename.toLowerCase();
-        let mime = "image/jpeg";
-        if (lower.endsWith(".png")) mime = "image/png";
-        else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg"))
-          mime = "image/jpeg";
-
-        return {
-          uri,
-          name: filename,
-          type: mime,
-          width: asset.width,
-          height: asset.height,
-          fileSize: asset.fileSize,
-        };
       });
 
-      setImages((prev) => {
-        const merged = [...prev, ...items];
-        return merged.slice(0, MAX_IMAGES);
-      });
-
-      Toast.show({ type: "success", text1: `Đã thêm ${items.length} ảnh` });
+      if (!result.canceled && result.assets.length > 0) {
+        const items = result.assets.map((asset, idx) => ({
+          uri: asset.uri,
+          name: asset.fileName || `photo_${Date.now()}_${idx}.jpg`,
+          type: "image/jpeg",
+        }));
+        setImages((prev) => [...prev, ...items].slice(0, MAX_IMAGES));
+      }
     } catch (err) {
-      console.error("pickImages error:", err);
-      Toast.show({ type: "error", text1: "Lỗi chọn ảnh", text2: String(err) });
+      console.log(err);
     }
   };
 
@@ -187,83 +185,40 @@ export default function CreateMaintenanceRequest({ navigation }) {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // --- Submit ---
   const submit = async () => {
-    if (!user?.accessToken) {
-      Toast.show({ type: "info", text1: "Bạn phải đăng nhập để tạo yêu cầu" });
+    if (!validateForm()) {
+      Toast.show({ type: "error", text1: "Vui lòng kiểm tra lại thông tin" });
       return;
     }
 
-    if (!roomId) {
-      Toast.show({ type: "info", text1: "Phòng chưa xác định" });
-      return;
-    }
-    if (!furnitureId || furnitureId === "") {
-      Toast.show({ type: "info", text1: "Vui lòng chọn đồ nội thất bị hỏng" });
-      return;
-    }
-    if (!title || title.trim().length < 3) {
-      Toast.show({ type: "info", text1: "Tiêu đề ít nhất 3 ký tự" });
-      return;
-    }
-
-    Alert.alert("Xác nhận", "Bạn có chắc muốn tạo yêu cầu bảo trì này?", [
+    Alert.alert("Xác nhận", "Gửi yêu cầu bảo trì này?", [
       { text: "Hủy", style: "cancel" },
       {
-        text: "Tạo yêu cầu",
+        text: "Gửi yêu cầu",
         onPress: async () => {
           try {
             setSubmitting(true);
-
-            // Find selected furniture by its _id (or fallback to furnitureId)
-            const selectedFurniture =
-              furnitures.find(
-                (f) => String(f._id || f.id || f.name) === String(furnitureId)
-              ) || null;
-
             const payload = {
-              roomId,
-              furnitureId:
-                selectedFurniture?._id ||
-                selectedFurniture?.id ||
-                String(furnitureId),
+              roomId: roomInfo?.id ?? roomInfo?._id,
+              category,
               title: title.trim(),
               description: description.trim(),
-              priority,
-              affectedQuantity: Number(affectedQuantity) || 1,
-              // CHỈ gửi images từ thiết bị, không gửi photos URLs nữa
-              images: images.map((img) => ({
-                uri: img.uri,
-                name: img.name || `photo_${Date.now()}.jpg`,
-                type: img.type || "image/jpeg",
-              })),
+              affectedQuantity: parseInt(affectedQuantity),
+              images: images,
             };
 
+            if (category === "furniture" && furnitureId) {
+              payload.furnitureId = furnitureId;
+            }
+
+            console.log("Submitting:", payload);
             await createRequest(payload, user.accessToken);
 
-            // show success toast then navigate back after a short delay
-            Toast.show({
-              type: "success",
-              text1: "Thành công",
-              text2: "Đã tạo yêu cầu bảo trì",
-            });
-
-            // wait for toast to be visible before navigating
-            setTimeout(() => {
-              navigation.goBack();
-            }, 1200);
+            Toast.show({ type: "success", text1: "Tạo yêu cầu thành công" });
+            setTimeout(() => navigation.goBack(), 1500);
           } catch (err) {
-            const serverMsg =
-              err?.response?.data?.message ||
-              err?.response?.data ||
-              err?.message ||
-              String(err);
-            console.error("createRequest error:", err);
-            Toast.show({
-              type: "error",
-              text1: "Lỗi",
-              text2: serverMsg || "Tạo yêu cầu thất bại",
-            });
+            const msg = err?.response?.data?.message || "Tạo yêu cầu thất bại";
+            Toast.show({ type: "error", text1: msg });
           } finally {
             setSubmitting(false);
           }
@@ -273,53 +228,15 @@ export default function CreateMaintenanceRequest({ navigation }) {
   };
 
   const Header = () => (
-    <SafeAreaView style={styles.headerSafe}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo yêu cầu bảo trì</Text>
-        <View style={styles.headerRight} />
-      </View>
-    </SafeAreaView>
-  );
-
-  const PrioritySelector = () => (
-    <View style={styles.priorityContainer}>
-      <Text style={styles.label}>Mức độ ưu tiên</Text>
-      <View style={styles.priorityButtons}>
-        {[
-          { value: "low", label: "Thấp", color: "#10b981" },
-          { value: "medium", label: "Bình thường", color: "#3b82f6" },
-          { value: "high", label: "Cao", color: "#f59e0b" },
-          { value: "urgent", label: "Khẩn cấp", color: "#ef4444" },
-        ].map((item) => (
-          <TouchableOpacity
-            key={item.value}
-            style={[
-              styles.priorityButton,
-              priority === item.value && styles.priorityButtonSelected,
-              priority === item.value && { borderColor: item.color },
-            ]}
-            onPress={() => setPriority(item.value)}
-          >
-            <View
-              style={[styles.priorityDot, { backgroundColor: item.color }]}
-            />
-            <Text
-              style={[
-                styles.priorityText,
-                priority === item.value && styles.priorityTextSelected,
-              ]}
-            >
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+    <View style={styles.header}>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.backBtn}
+      >
+        <Ionicons name="arrow-back" size={26} color="#1e293b" />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Báo hỏng / Bảo trì</Text>
+      <View style={{ width: 40 }} />
     </View>
   );
 
@@ -327,597 +244,438 @@ export default function CreateMaintenanceRequest({ navigation }) {
     <Modal
       visible={showFurnitureModal}
       animationType="slide"
-      transparent={true}
+      transparent
       onRequestClose={() => setShowFurnitureModal(false)}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chọn đồ nội thất</Text>
-            <TouchableOpacity
-              onPress={() => setShowFurnitureModal(false)}
-              style={styles.closeButton}
-            >
+            <Text style={styles.modalTitle}>Chọn thiết bị trong phòng</Text>
+            <TouchableOpacity onPress={() => setShowFurnitureModal(false)}>
               <Ionicons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
           </View>
 
+          <TouchableOpacity
+            style={styles.furnitureItem}
+            onPress={() => handleSelectFurniture(null)}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.furnitureItemName}>
+                Vấn đề khác (Điện, Nước, Tường...)
+              </Text>
+              <Text style={styles.subLabel}>
+                Không thuộc danh sách đồ nội thất
+              </Text>
+            </View>
+            {!furnitureId && (
+              <Ionicons name="checkmark" size={20} color="#0d9488" />
+            )}
+          </TouchableOpacity>
+
           <FlatList
             data={furnitures}
-            keyExtractor={(item, index) =>
-              String(item._id || item.id || item.name || index)
-            }
+            keyExtractor={(item, i) => String(item._id || i)}
             renderItem={({ item }) => {
-              const itemId = String(item._id || item.id || item.name || "");
-              const selected = String(furnitureId) === itemId;
+              const fId = String(item._id || item.id);
+              const isSelected = furnitureId === fId;
               return (
                 <TouchableOpacity
                   style={[
                     styles.furnitureItem,
-                    selected && styles.furnitureItemSelected,
+                    isSelected && styles.furnitureItemSelected,
                   ]}
-                  onPress={() => {
-                    setFurnitureId(itemId);
-                    setShowFurnitureModal(false);
-                  }}
+                  onPress={() => handleSelectFurniture(item)}
                 >
-                  <View style={styles.furnitureItemContent}>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.furnitureItemName}>{item.name}</Text>
                     <Text style={styles.furnitureItemQuantity}>
-                      Số lượng: {item.quantity || 1}
+                      SL: {item.quantity}
                     </Text>
                   </View>
-                  {selected && (
+                  {isSelected && (
                     <Ionicons name="checkmark" size={20} color="#0d9488" />
                   )}
                 </TouchableOpacity>
               );
             }}
-            style={styles.modalList}
           />
         </View>
       </View>
     </Modal>
   );
 
-  const FurnitureSelector = () => {
-    const selectedFurniture = furnitures.find(
-      (f) => String(f._id || f.id || f.name) === String(furnitureId)
-    );
-
-    return (
-      <View style={styles.field}>
-        <Text style={styles.label}>Đồ nội thất bị hỏng *</Text>
-        {furnitures.length === 0 ? (
-          <View style={styles.placeholderContainer}>
-            <Ionicons name="cube-outline" size={32} color="#94a3b8" />
-            <Text style={styles.placeholderText}>
-              Không có danh sách nội thất
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.furnitureContainer}>
-            <TouchableOpacity
-              style={styles.furnitureButton}
-              onPress={() => setShowFurnitureModal(true)}
-            >
-              <View style={styles.furnitureButtonContent}>
-                <Ionicons name="cube" size={20} color="#0d9488" />
-                <Text style={styles.furnitureButtonText}>
-                  {selectedFurniture
-                    ? `${selectedFurniture.name} (${
-                        selectedFurniture.quantity || 1
-                      } cái)`
-                    : "Chọn đồ nội thất..."}
-                </Text>
-              </View>
-              <Ionicons name="chevron-down" size={20} color="#64748b" />
+  const CategoryModal = () => (
+    <Modal
+      visible={showCategoryModal}
+      animationType="fade"
+      transparent
+      onRequestClose={() => setShowCategoryModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Chọn loại sự cố</Text>
+            <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
+              <Ionicons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
-
-            {selectedFurniture && (
-              <View style={styles.selectedInfo}>
-                <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-                <Text style={styles.selectedText}>
-                  Đã chọn:{" "}
-                  <Text style={styles.furnitureName}>
-                    {selectedFurniture.name}
-                  </Text>
-                </Text>
-              </View>
-            )}
           </View>
-        )}
-        <FurnitureModal />
+          <FlatList
+            data={CATEGORIES}
+            keyExtractor={(item) => item.value}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.furnitureItem,
+                  category === item.value && styles.furnitureItemSelected,
+                ]}
+                onPress={() => handleSelectCategory(item.value)}
+              >
+                <Ionicons
+                  name={item.icon}
+                  size={20}
+                  color="#64748b"
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.furnitureItemName}>{item.label}</Text>
+                {category === item.value && (
+                  <Ionicons name="checkmark" size={20} color="#0d9488" />
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        </View>
       </View>
-    );
-  };
-
-  const keyboardVerticalOffset = Platform.select({
-    ios: 0,
-    android: StatusBar.currentHeight ? StatusBar.currentHeight + 8 : 64,
-    default: 0,
-  });
+    </Modal>
+  );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Header />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0d9488" />
-          <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
-        </View>
+        <ActivityIndicator
+          size="large"
+          color="#0d9488"
+          style={{ marginTop: 50 }}
+        />
       </SafeAreaView>
     );
   }
 
+  const selectedFurniture = furnitures.find(
+    (f) => String(f._id || f.id) === String(furnitureId)
+  );
+  const selectedCategoryLabel = CATEGORIES.find(
+    (c) => c.value === category
+  )?.label;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <Header />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={keyboardVerticalOffset}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.form}>
-              <FurnitureSelector />
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Thông tin sự cố</Text>
 
-              <View style={styles.field}>
-                <Text style={styles.label}>Tiêu đề sự cố *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ví dụ: Bồn rửa bị rò nước, Đèn không sáng..."
-                  placeholderTextColor="#94a3b8"
-                  value={title}
-                  onChangeText={setTitle}
-                  returnKeyType="next"
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Mô tả chi tiết</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Mô tả chi tiết về sự cố, vị trí, mức độ ảnh hưởng..."
-                  placeholderTextColor="#94a3b8"
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  textAlignVertical="top"
-                />
-              </View>
-
-              {/* Device images picker - CHỈ CÒN PHẦN NÀY */}
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  Hình ảnh đính kèm ({images.length}/{MAX_IMAGES})
-                </Text>
-                <Text style={styles.subLabel}>
-                  Chọn ảnh từ thiết bị của bạn (tối đa {MAX_IMAGES} ảnh)
-                </Text>
-
-                <View style={styles.imagesRow}>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ alignItems: "center" }}
-                  >
-                    {images.map((img, idx) => (
-                      <View key={idx} style={styles.imageWrapper}>
-                        <Image
-                          source={{ uri: img.uri }}
-                          style={styles.pickImage}
-                        />
-                        <TouchableOpacity
-                          onPress={() => removeImageAt(idx)}
-                          style={styles.removeImageBtn}
-                          accessibilityRole="button"
-                          accessibilityLabel="Xóa ảnh"
-                        >
-                          <Ionicons name="close" size={18} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-
-                    {images.length < MAX_IMAGES && (
-                      <TouchableOpacity
-                        style={styles.addImageBtn}
-                        onPress={pickImages}
-                      >
-                        <Ionicons
-                          name="camera-outline"
-                          size={24}
-                          color="#64748b"
-                        />
-                        <Text style={styles.addImageText}>Thêm ảnh</Text>
-                      </TouchableOpacity>
-                    )}
-                  </ScrollView>
-                </View>
-              </View>
-
-              <View style={styles.row}>
-                <View style={[styles.field, styles.priorityField]}>
-                  <PrioritySelector />
-                </View>
-
-                <View style={[styles.field, styles.quantityField]}>
-                  <Text style={styles.label}>Số lượng</Text>
-                  <View style={styles.quantityInput}>
-                    <TextInput
-                      style={styles.quantityText}
-                      keyboardType="number-pad"
-                      value={affectedQuantity}
-                      onChangeText={(t) => {
-                        const cleaned = t.replace(/[^0-9]/g, "");
-                        setAffectedQuantity(cleaned);
-                      }}
-                      textAlign="center"
-                    />
-                  </View>
-                </View>
-              </View>
-
-              <TouchableOpacity
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Đối tượng gặp sự cố</Text>
+            <TouchableOpacity
+              style={styles.selectBtn}
+              onPress={() => setShowFurnitureModal(true)}
+            >
+              <Text
                 style={[
-                  styles.submitButton,
-                  submitting && styles.submitButtonDisabled,
+                  styles.selectBtnText,
+                  !furnitureId && { color: "#1e293b" },
                 ]}
-                onPress={submit}
-                disabled={submitting}
               >
-                {submitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="construct-outline" size={20} color="#fff" />
-                    <Text style={styles.submitButtonText}>
-                      Tạo yêu cầu bảo trì
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+                {selectedFurniture
+                  ? selectedFurniture.name
+                  : "Vấn đề khác (Điện, Nước...)"}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#64748b" />
+            </TouchableOpacity>
+          </View>
 
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, errors.category && styles.labelError]}>
+              Danh mục <Text style={styles.required}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.selectBtn,
+                furnitureId && styles.disabledBtn,
+                errors.category && styles.inputError,
+              ]}
+              onPress={() => !furnitureId && setShowCategoryModal(true)}
+              disabled={!!furnitureId}
+            >
+              <Text style={styles.selectBtnText}>
+                {furnitureId
+                  ? "Nội thất (Furniture)"
+                  : selectedCategoryLabel || "Chọn danh mục..."}
+              </Text>
+              {!furnitureId && (
+                <Ionicons name="chevron-down" size={20} color="#64748b" />
+              )}
+            </TouchableOpacity>
+            {errors.category && (
+              <Text style={styles.errorText}>{errors.category}</Text>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, errors.title && styles.labelError]}>
+              Tiêu đề <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={[styles.textInput, errors.title && styles.inputError]}
+              placeholder="Vd: Vòi nước bị rò, Điều hòa không mát..."
+              value={title}
+              onChangeText={(v) => handleInputChange("title", v)}
+            />
+            {errors.title && (
+              <Text style={styles.errorText}>{errors.title}</Text>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text
+              style={[
+                styles.label,
+                errors.affectedQuantity && styles.labelError,
+              ]}
+            >
+              Số lượng bị ảnh hưởng
+            </Text>
+            <TextInput
+              style={[styles.textInput, { width: 100, textAlign: "center" }]}
+              keyboardType="number-pad"
+              value={affectedQuantity}
+              onChangeText={(v) => handleInputChange("affectedQuantity", v)}
+            />
+          </View>
+        </View>
+
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Mô tả & Hình ảnh</Text>
+
+          <TextInput
+            style={[styles.textInput, styles.textArea]}
+            placeholder="Mô tả chi tiết tình trạng..."
+            multiline
+            numberOfLines={4}
+            value={description}
+            onChangeText={(v) => handleInputChange("description", v)}
+            textAlignVertical="top"
+          />
+
+          <View style={{ marginTop: 16 }}>
+            <Text style={styles.label}>
+              Hình ảnh ({images.length}/{MAX_IMAGES})
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginTop: 8 }}
+            >
+              {images.map((img, idx) => (
+                <View key={idx} style={styles.imageWrapper}>
+                  <Image source={{ uri: img.uri }} style={styles.pickImage} />
+                  <TouchableOpacity
+                    onPress={() => removeImageAt(idx)}
+                    style={styles.removeImageBtn}
+                  >
+                    <Ionicons name="close" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {images.length < MAX_IMAGES && (
+                <TouchableOpacity
+                  style={styles.addImageBtn}
+                  onPress={pickImages}
+                >
+                  <Ionicons name="camera-outline" size={24} color="#64748b" />
+                  <Text style={styles.addImageText}>Thêm</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </ScrollView>
+
+      <View style={styles.actionBar}>
+        <TouchableOpacity
+          style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+          onPress={submit}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="paper-plane-outline" size={20} color="#fff" />
+              <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <FurnitureModal />
+      <CategoryModal />
       <Toast />
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  headerSafe: {
-    backgroundColor: "#fff",
-  },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
   header: {
-    height: 56,
-    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 44 : 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  backButton: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  headerRight: {
-    width: 32,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
-  },
-  form: {
-    padding: 16,
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 24,
-  },
-  loadingText: {
-    marginTop: 12,
-    color: "#64748b",
-    fontSize: 16,
-  },
-  field: {
-    marginBottom: 20,
-  },
-  priorityField: {
-    flex: 1,
-    marginRight: 16,
-  },
-  quantityField: {
-    width: 100,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-  },
-  label: {
-    color: "#374151",
-    marginBottom: 8,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  subLabel: {
-    color: "#64748b",
-    marginBottom: 8,
-    fontSize: 14,
-  },
-  input: {
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#1e293b" },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+
+  formCard: {
     backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    padding: Platform.OS === "ios" ? 14 : 12,
     borderRadius: 12,
-    fontSize: 16,
-    color: "#374151",
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
   },
-  textArea: {
-    minHeight: 100,
-    paddingTop: Platform.OS === "ios" ? 12 : 10,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0f766e",
+    marginBottom: 16,
   },
 
-  /* Images UI */
-  imagesRow: {
+  inputGroup: { marginBottom: 16 },
+  label: { fontSize: 14, fontWeight: "500", color: "#475569", marginBottom: 6 },
+  required: { color: "#dc2626" },
+
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: "#1e293b",
+    backgroundColor: "#fff",
+  },
+  textArea: { minHeight: 100 },
+  inputError: { borderColor: "#dc2626", backgroundColor: "#fef2f2" },
+  errorText: { color: "#dc2626", fontSize: 12, marginTop: 4 },
+  labelError: { color: "#dc2626" },
+
+  selectBtn: {
     flexDirection: "row",
-  },
-  imageWrapper: {
-    width: 96,
-    height: 96,
-    borderRadius: 10,
-    marginRight: 12,
-    overflow: "hidden",
-    position: "relative",
-    backgroundColor: "#f1f5f9",
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "#fff",
   },
-  pickImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
+  disabledBtn: { backgroundColor: "#f1f5f9", borderColor: "#e2e8f0" },
+  selectBtnText: { fontSize: 15, color: "#1e293b" },
+
+  imageWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 10,
+    overflow: "hidden",
   },
+  pickImage: { width: "100%", height: "100%" },
   removeImageBtn: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 4,
+    right: 4,
     backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
     justifyContent: "center",
     alignItems: "center",
   },
   addImageBtn: {
-    width: 96,
-    height: 96,
-    borderRadius: 10,
+    width: 80,
+    height: 80,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
-    backgroundColor: "#fff",
   },
-  addImageText: { fontSize: 12, color: "#64748b", marginTop: 6 },
+  addImageText: { fontSize: 12, color: "#64748b", marginTop: 4 },
 
-  /* Furniture */
-  furnitureContainer: {
+  actionBar: {
+    padding: 16,
     backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    overflow: "hidden",
-  },
-  furnitureButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-  },
-  furnitureButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  furnitureButtonText: {
-    fontSize: 16,
-    color: "#374151",
-    marginLeft: 12,
-    flex: 1,
-  },
-  selectedInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#f0fdf4",
     borderTopWidth: 1,
-    borderTopColor: "#dcfce7",
+    borderTopColor: "#e2e8f0",
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
   },
-  selectedText: {
-    fontSize: 14,
-    color: "#15803d",
-    fontWeight: "500",
-    marginLeft: 8,
-  },
-  furnitureName: {
-    fontWeight: "600",
-    color: "#166534",
-  },
-  placeholderContainer: {
-    backgroundColor: "#f8fafc",
-    borderWidth: 2,
-    borderColor: "#e2e8f0",
-    borderStyle: "dashed",
-    padding: 32,
+  submitBtn: {
+    backgroundColor: "#0d9488",
     borderRadius: 12,
-    alignItems: "center",
+    paddingVertical: 14,
+    flexDirection: "row",
     justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
   },
-  placeholderText: {
-    color: "#94a3b8",
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: "center",
-  },
+  submitBtnDisabled: { backgroundColor: "#94a3b8" },
+  submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 
-  /* Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalContent: {
+    width: "90%",
+    maxHeight: "80%",
     backgroundColor: "#fff",
     borderRadius: 16,
-    width: "90%",
-    maxWidth: 400,
-    maxHeight: "80%",
+    paddingBottom: 20,
   },
   modalHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#0f766e",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalList: {
-    maxHeight: 400,
-  },
-  furnitureItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
-  furnitureItemSelected: {
-    backgroundColor: "#f0fdfa",
-  },
-  furnitureItemContent: {
-    flex: 1,
-  },
-  furnitureItemName: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#374151",
-    marginBottom: 4,
-  },
-  furnitureItemQuantity: {
-    fontSize: 14,
-    color: "#64748b",
-  },
-
-  /* Priority Selector */
-  priorityContainer: {
-    flex: 1,
-  },
-  priorityButtons: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  priorityButton: {
+  modalTitle: { fontSize: 17, fontWeight: "600" },
+  furnitureItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderWidth: 2,
-    borderColor: "#e2e8f0",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: (width - 64) / 4 - 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
-  priorityButtonSelected: {
-    backgroundColor: "#f0fdfa",
-    borderWidth: 2,
-  },
-  priorityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  priorityText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#64748b",
-  },
-  priorityTextSelected: {
-    color: "#0f766e",
-    fontWeight: "600",
-  },
-
-  /* Quantity */
-  quantityInput: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  quantityText: {
-    padding: Platform.OS === "ios" ? 16 : 14,
-    fontSize: 16,
-    color: "#374151",
-    fontWeight: "500",
-    textAlign: "center",
-  },
-
-  submitButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0d9488",
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 8,
-    gap: 8,
-  },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
+  furnitureItemSelected: { backgroundColor: "#f0fdfa" },
+  furnitureItemName: { fontSize: 15, fontWeight: "500", color: "#334155" },
+  furnitureItemQuantity: { fontSize: 13, color: "#64748b", marginTop: 2 },
+  subLabel: { fontSize: 13, color: "#94a3b8" },
 });

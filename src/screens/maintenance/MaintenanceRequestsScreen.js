@@ -13,8 +13,6 @@ import {
   TextInput,
   Keyboard,
   ActionSheetIOS,
-  Modal,
-  Pressable,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -32,6 +30,23 @@ const STATUS_OPTIONS = [
   { key: "resolved", label: "Đã hoàn thành", icon: "checkmark-done-outline" },
   { key: "rejected", label: "Đã từ chối", icon: "close-outline" },
 ];
+
+const CATEGORY_LABELS = {
+  furniture: "Nội thất",
+  electrical: "Điện",
+  plumbing: "Nước",
+  air_conditioning: "Điều hòa",
+  door_lock: "Khóa cửa",
+  wall_ceiling: "Tường/Trần",
+  flooring: "Sàn nhà",
+  windows: "Cửa sổ",
+  appliances: "Gia dụng",
+  internet_wifi: "Internet/Wifi",
+  pest_control: "Côn trùng",
+  cleaning: "Vệ sinh",
+  safety: "An toàn",
+  other: "Khác",
+};
 
 function StatusFilterDropdownInline({ options, selected, onSelect, visible }) {
   if (!visible) return null;
@@ -84,7 +99,6 @@ export default function MaintenanceRequestsScreen({ navigation }) {
   const [statusFilter, setStatusFilter] = useState("");
 
   const [statusDropdownVisible, setStatusDropdownVisible] = useState(false);
-  const [statusModalVisible, setStatusModalVisible] = useState(false); // fallback for ios action sheet use
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
@@ -97,37 +111,35 @@ export default function MaintenanceRequestsScreen({ navigation }) {
       else setRefreshing(true);
 
       const res = await listMyRoomRequests({ page: opts.page, limit });
-      const payload = res ?? {};
+      const payload = res || {};
 
+      let listData = [];
       if (Array.isArray(payload)) {
-        setRequests(payload);
-        setRoomInfo(null);
-        setTotal(payload.length);
-        setPage(opts.page || 1);
-      } else {
-        setRequests(Array.isArray(payload.data) ? payload.data : []);
-        setRoomInfo(payload.room || null);
-        setTotal(
-          typeof payload.total === "number"
-            ? payload.total
-            : Array.isArray(payload.data)
-            ? payload.data.length
-            : 0
-        );
-        setPage(payload.page || opts.page || 1);
+        listData = payload;
+      } else if (payload.requests && Array.isArray(payload.requests)) {
+        listData = payload.requests;
+      } else if (payload.data && Array.isArray(payload.data)) {
+        listData = payload.data;
       }
+
+      setRequests(listData);
+
+      if (payload.rooms && payload.rooms.length > 0) {
+        setRoomInfo(payload.rooms[0]);
+      } else {
+        setRoomInfo(null);
+      }
+
+      setTotal(payload.summary?.totalRequests || listData.length);
+      setPage(opts.page || 1);
     } catch (err) {
+      console.error("Load Requests Error:", err);
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2:
-          err?.response?.data?.message ||
-          err?.message ||
-          "Không thể tải danh sách yêu cầu",
+        text2: "Không thể tải danh sách yêu cầu",
       });
       setRequests([]);
-      setRoomInfo(null);
-      setTotal(0);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -202,22 +214,24 @@ export default function MaintenanceRequestsScreen({ navigation }) {
       case "urgent":
         return { color: "#ef4444", text: "Khẩn cấp" };
       default:
-        return { color: "#94a3b8", text: "Không xác định" };
+        return { color: "#94a3b8", text: "Thường" };
     }
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now - date);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
 
-    if (diffDays === 0) return "Hôm nay";
-    if (diffDays === 1) return "Hôm qua";
-    if (diffDays < 7) return `${diffDays} ngày trước`;
-
-    return date.toLocaleDateString("vi-VN");
+  const getDisplayItemName = (item) => {
+    if (item.itemName) return item.itemName;
+    if (item.furnitureId?.name) return item.furnitureId.name;
+    return CATEGORY_LABELS[item.category] || item.category || "Bảo trì chung";
   };
 
   const filteredRequests = useMemo(() => {
@@ -226,13 +240,15 @@ export default function MaintenanceRequestsScreen({ navigation }) {
       list = list.filter((it) => (it.status || "") === statusFilter);
     }
     if (!debouncedQuery) return list;
+
     const q = debouncedQuery.toLowerCase();
     return list.filter((it) => {
       if (!it) return false;
       const title = (it.title || "").toLowerCase();
-      const furniture = (it.furnitureId?.name || "").toLowerCase();
-      const assignee = (it.assigneeName || "").toLowerCase();
-      const roomNum = (it.roomId?.roomNumber || "").toString().toLowerCase();
+      const furniture = getDisplayItemName(it).toLowerCase();
+      const assignee = (it.assignee?.name || "").toLowerCase();
+      const roomNum = (it.roomNumber || "").toString().toLowerCase();
+
       return (
         title.includes(q) ||
         furniture.includes(q) ||
@@ -244,7 +260,8 @@ export default function MaintenanceRequestsScreen({ navigation }) {
 
   const renderItem = ({ item, index }) => {
     const statusInfo = getStatusInfo(item.status);
-    const priorityInfo = getPriorityInfo(item.priority);
+    const priorityInfo = getPriorityInfo(item.priority || "medium"); // Default medium
+    const displayItemName = getDisplayItemName(item);
 
     return (
       <TouchableOpacity
@@ -255,7 +272,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         ]}
         onPress={() =>
           navigation.navigate("MaintenanceDetail", {
-            requestId: item._id ?? item.id ?? item.requestId,
+            requestId: item._id,
             request: item,
           })
         }
@@ -266,28 +283,13 @@ export default function MaintenanceRequestsScreen({ navigation }) {
             <Text style={styles.title} numberOfLines={2}>
               {item.title}
             </Text>
-            <View style={styles.badgeContainer}>
-              {item.priority && (
-                <View
-                  style={[
-                    styles.priorityBadge,
-                    { backgroundColor: priorityInfo.color + "20" },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.priorityDot,
-                      { backgroundColor: priorityInfo.color },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.priorityText, { color: priorityInfo.color }]}
-                  >
-                    {priorityInfo.text}
-                  </Text>
-                </View>
-              )}
-            </View>
+            {item.category && item.category !== "furniture" && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryBadgeText}>
+                  {CATEGORY_LABELS[item.category] || item.category}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View
@@ -307,41 +309,30 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         <View style={styles.cardContent}>
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Ionicons name="cube-outline" size={16} color="#6b7280" />
-              <Text style={styles.metaText}>
-                {item.furnitureId?.name ?? "Nội thất"}
-              </Text>
+              {/* Icon thay đổi tùy category */}
+              <Ionicons
+                name={
+                  item.category === "furniture"
+                    ? "cube-outline"
+                    : "build-outline"
+                }
+                size={16}
+                color="#6b7280"
+              />
+              <Text style={styles.metaText}>{displayItemName}</Text>
             </View>
             <View style={styles.metaItem}>
               <Ionicons name="copy-outline" size={16} color="#6b7280" />
-              <Text style={styles.metaText}>
-                {item.affectedQuantity || 1} cái
-              </Text>
+              <Text style={styles.metaText}>{item.affectedQuantity || 1}</Text>
             </View>
           </View>
-
-          {item.assigneeName ? (
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <Ionicons name="person-outline" size={16} color="#6b7280" />
-                <Text style={styles.metaText}>{item.assigneeName}</Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <Ionicons name="person-outline" size={16} color="#9ca3af" />
-                <Text style={styles.metaTextLight}>Chưa gán người xử lý</Text>
-              </View>
-            </View>
-          )}
 
           {item.scheduledAt && (
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
                 <Ionicons name="calendar-outline" size={16} color="#6b7280" />
                 <Text style={styles.metaText}>
-                  {new Date(item.scheduledAt).toLocaleDateString("vi-VN")}
+                  Lịch hẹn: {formatDate(item.scheduledAt)}
                 </Text>
               </View>
             </View>
@@ -351,15 +342,16 @@ export default function MaintenanceRequestsScreen({ navigation }) {
         <View style={styles.cardFooter}>
           <View style={styles.timeSection}>
             <Ionicons name="time-outline" size={14} color="#9ca3af" />
-            <Text style={styles.timeText}>{formatDate(item.createdAt)}</Text>
+            <Text style={styles.timeText}>
+              Tạo ngày {formatDate(item.createdAt)}
+            </Text>
           </View>
 
-          {item.estimatedCost && (
-            <View style={styles.costSection}>
-              <Text style={styles.costLabel}>Dự tính:</Text>
-              <Text style={styles.costText}>
-                {Number(item.estimatedCost).toLocaleString("vi-VN")}đ
-              </Text>
+          {/* Hiển thị số ảnh đính kèm nếu có */}
+          {item.hasPhoto && (
+            <View style={styles.photoSection}>
+              <Ionicons name="image-outline" size={14} color="#0d9488" />
+              <Text style={styles.photoText}>{item.photoCount || 1} ảnh</Text>
             </View>
           )}
         </View>
@@ -379,7 +371,6 @@ export default function MaintenanceRequestsScreen({ navigation }) {
 
   const openStatusSelector = () => {
     if (Platform.OS === "ios") {
-      // iOS action sheet (native)
       const options = STATUS_OPTIONS.map((s) => s.label);
       const iosOptions = [...options, "Hủy"];
       ActionSheetIOS.showActionSheetWithOptions(
@@ -389,13 +380,12 @@ export default function MaintenanceRequestsScreen({ navigation }) {
           title: "Lọc theo trạng thái",
         },
         (buttonIndex) => {
-          if (buttonIndex === iosOptions.length - 1) return; // cancel
+          if (buttonIndex === iosOptions.length - 1) return;
           const selected = STATUS_OPTIONS[buttonIndex];
           setStatusFilter(selected.key);
         }
       );
     } else {
-      // Android / other: toggle inline dropdown
       setStatusDropdownVisible((v) => !v);
     }
   };
@@ -431,9 +421,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>Yêu cầu bảo trì</Text>
             {roomInfo && (
-              <Text style={styles.roomInfo}>
-                Phòng {roomInfo.roomNumber} • {roomInfo.building?.name}
-              </Text>
+              <Text style={styles.roomInfo}>Phòng {roomInfo.roomNumber}</Text>
             )}
           </View>
         </View>
@@ -456,7 +444,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
           />
           <TextInput
             style={styles.searchInput}
-            placeholder="Tìm kiếm yêu cầu bảo trì..."
+            placeholder="Tìm theo tên, thiết bị..."
             placeholderTextColor="#9ca3af"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -467,22 +455,16 @@ export default function MaintenanceRequestsScreen({ navigation }) {
               setDebouncedQuery(searchQuery.trim());
               Keyboard.dismiss();
             }}
-            clearButtonMode="never"
-            underlineColorAndroid="transparent"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={clearSearch}
-              style={styles.searchClear}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
+            <TouchableOpacity onPress={clearSearch} style={styles.searchClear}>
               <Ionicons name="close-circle" size={20} color="#9ca3af" />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Filter Section (inline dropdown for Android/others) */}
+      {/* Filter Section */}
       <View style={styles.filterSection}>
         <TouchableOpacity
           style={[
@@ -512,7 +494,6 @@ export default function MaintenanceRequestsScreen({ navigation }) {
                 e.stopPropagation();
                 clearStatusFilter();
               }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.filterClear}
             >
               <Ionicons name="close-circle" size={16} color="#fff" />
@@ -527,7 +508,6 @@ export default function MaintenanceRequestsScreen({ navigation }) {
           )}
         </TouchableOpacity>
 
-        {/* Inline dropdown (same-file) */}
         <StatusFilterDropdownInline
           options={STATUS_OPTIONS}
           selected={statusFilter}
@@ -535,8 +515,6 @@ export default function MaintenanceRequestsScreen({ navigation }) {
           visible={statusDropdownVisible}
         />
       </View>
-
-      {/* Android modal fallback is NOT needed since we have inline dropdown. iOS uses ActionSheet. */}
 
       {/* Loading / List */}
       {loading ? (
@@ -547,9 +525,7 @@ export default function MaintenanceRequestsScreen({ navigation }) {
       ) : (
         <FlatList
           data={filteredRequests}
-          keyExtractor={(item, index) =>
-            item._id ?? item.id ?? `request-${index}`
-          }
+          keyExtractor={(item, index) => item._id || String(index)}
           renderItem={renderItem}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={styles.listContent}
@@ -565,8 +541,8 @@ export default function MaintenanceRequestsScreen({ navigation }) {
             total > 0 && (
               <View style={styles.listHeader}>
                 <Text style={styles.listHeaderText}>
-                  {filteredRequests.length} yêu cầu
-                  {debouncedQuery || statusFilter ? " phù hợp" : ""}
+                  Bạn có đang có {filteredRequests.length} yêu cầu bảo trì
+                  {debouncedQuery || statusFilter ? " tìm thấy" : ""}
                 </Text>
               </View>
             )
@@ -578,24 +554,15 @@ export default function MaintenanceRequestsScreen({ navigation }) {
               </View>
               <Text style={styles.emptyTitle}>
                 {debouncedQuery || statusFilter
-                  ? "Không tìm thấy yêu cầu phù hợp"
-                  : "Chưa có yêu cầu bảo trì"}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {debouncedQuery || statusFilter
-                  ? "Thử thay đổi từ khóa tìm kiếm hoặc xóa bộ lọc trạng thái"
-                  : "Tạo yêu cầu đầu tiên để báo cáo sự cố nội thất trong phòng"}
+                  ? "Không tìm thấy kết quả"
+                  : "Chưa có yêu cầu nào"}
               </Text>
               <TouchableOpacity
                 style={styles.emptyCreateButton}
                 onPress={() => {
-                  if (debouncedQuery || statusFilter) {
-                    clearAllFilters();
-                  } else {
-                    goToCreate();
-                  }
+                  if (debouncedQuery || statusFilter) clearAllFilters();
+                  else goToCreate();
                 }}
-                activeOpacity={0.9}
               >
                 <Ionicons
                   name={
@@ -614,10 +581,8 @@ export default function MaintenanceRequestsScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           }
-          showsVerticalScrollIndicator={false}
         />
       )}
-
       <Toast />
     </SafeAreaView>
   );
@@ -658,209 +623,80 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 10,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 2,
-  },
-  roomInfo: {
-    fontSize: 13,
-    color: "#64748b",
-    fontWeight: "500",
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  backButton: { padding: 8, marginRight: 10 },
+  headerTitleContainer: { flex: 1 },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
+  roomInfo: { fontSize: 13, color: "#64748b", fontWeight: "500" },
   createButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#0d9488",
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
-    marginLeft: 8,
+    borderRadius: 8,
   },
   createButtonText: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "600",
-    marginLeft: 6,
+    marginLeft: 4,
   },
 
-  searchSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#f8fafc",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
+  searchSection: { padding: 16, backgroundColor: "#f8fafc" },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    minHeight: 44,
   },
-  searchBoxFocused: {
-    borderColor: "#0d9488",
-    backgroundColor: "#fff",
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 16,
-    color: "#0f172a",
-    paddingVertical: 0,
-  },
-  searchClear: {
-    paddingLeft: 8,
-  },
+  searchBoxFocused: { borderColor: "#0d9488" },
+  searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: "#0f172a" },
+  searchClear: { padding: 4 },
 
   filterSection: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    paddingBottom: 12,
   },
   filterButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    alignSelf: "flex-start",
     backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 12 : 10,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    minHeight: 44,
-    alignSelf: "flex-start",
   },
-  filterButtonActive: {
-    backgroundColor: "#0d9488",
-    borderColor: "#0d9488",
-  },
+  filterButtonActive: { backgroundColor: "#0d9488", borderColor: "#0d9488" },
   filterButtonText: {
     marginLeft: 8,
-    fontSize: 14,
+    fontSize: 13,
     color: "#0d9488",
     fontWeight: "600",
   },
-  filterButtonTextActive: {
-    color: "#fff",
-  },
-  filterClear: {
-    marginLeft: 8,
-  },
+  filterButtonTextActive: { color: "#fff" },
+  filterClear: { marginLeft: 6 },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    paddingTop: 20,
-    paddingBottom: 24,
-    paddingHorizontal: 18,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  modalOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-  modalOptionActive: {
-    backgroundColor: "#0d9488",
-  },
-  modalOptionText: {
-    flex: 1,
-    fontSize: 16,
-    color: "#374151",
-    fontWeight: "500",
-  },
-  modalOptionTextActive: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  modalCancel: {
-    marginTop: 16,
-    alignItems: "center",
-    paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
-  },
-  modalCancelText: {
-    color: "#ef4444",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 10, color: "#64748b" },
 
-  /* Loading / List */
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 12,
-    color: "#64748b",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    paddingBottom: 32,
-  },
-  listHeader: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 8,
-  },
-  listHeaderText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  separator: {
-    height: 12,
-  },
+  listContent: { padding: 16 },
+  listHeader: { marginBottom: 10 },
+  listHeaderText: { fontSize: 14, fontWeight: "600", color: "#64748b" },
+  separator: { height: 12 },
 
   card: {
     backgroundColor: "#fff",
@@ -869,157 +705,74 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
-  firstCard: {
-    marginTop: 2,
-  },
-  lastCard: {
-    marginBottom: 2,
-  },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 12,
   },
-  titleSection: {
-    flex: 1,
-    marginRight: 8,
+  titleSection: { flex: 1, marginRight: 10 },
+  title: { fontSize: 15, fontWeight: "600", color: "#0f172a", marginBottom: 4 },
+  categoryBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  title: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#0f172a",
-    lineHeight: 20,
-    marginBottom: 6,
-  },
-  badgeContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  priorityBadge: {
+  categoryBadgeText: { fontSize: 11, color: "#64748b", fontWeight: "500" },
+
+  statusBadge: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 6,
   },
-  priorityDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  priorityText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  cardContent: {
-    marginBottom: 12,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  metaText: {
-    fontSize: 13,
-    color: "#4b5563",
-    fontWeight: "500",
-    marginLeft: 6,
-  },
+  statusText: { fontSize: 12, fontWeight: "600", marginLeft: 4 },
+
+  cardContent: { marginBottom: 12 },
+  metaRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  metaItem: { flexDirection: "row", alignItems: "center", marginRight: 16 },
+  metaText: { fontSize: 13, color: "#374151", marginLeft: 6 },
   metaTextLight: {
     fontSize: 13,
     color: "#9ca3af",
-    fontWeight: "500",
     marginLeft: 6,
+    fontStyle: "italic",
   },
+
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
+    borderTopColor: "#f8fafc",
   },
-  timeSection: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  timeText: {
+  timeSection: { flexDirection: "row", alignItems: "center" },
+  timeText: { fontSize: 12, color: "#94a3b8", marginLeft: 6 },
+  photoSection: { flexDirection: "row", alignItems: "center" },
+  photoText: {
     fontSize: 12,
-    color: "#9ca3af",
-    fontWeight: "500",
-    marginLeft: 6,
-  },
-  costSection: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  costLabel: {
-    fontSize: 13,
-    color: "#6b7280",
-    fontWeight: "500",
-    marginRight: 6,
-  },
-  costText: {
-    fontSize: 13,
     color: "#0d9488",
-    fontWeight: "600",
+    marginLeft: 4,
+    fontWeight: "500",
   },
 
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 80,
-    paddingHorizontal: 24,
-  },
-  emptyIcon: {
-    marginBottom: 20,
-  },
+  emptyState: { alignItems: "center", paddingVertical: 60 },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
     color: "#374151",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 20,
-    maxWidth: width * 0.85,
+    marginVertical: 10,
   },
   emptyCreateButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#0d9488",
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
-  emptyCreateButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
+  emptyCreateButtonText: { color: "#fff", fontWeight: "600", marginLeft: 6 },
 });

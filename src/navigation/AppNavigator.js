@@ -31,6 +31,9 @@ import BuildingReviewListScreen from "../screens/buildingReview/BuildingReviewLi
 import UpcomingContractsScreen from "../screens/contract/UpcomingContractsScreen";
 import InvoiceListScreen from "../screens/invoice/InvoiceListScreen";
 import InvoiceDetailScreen from "../screens/invoice/InvoiceDetailScreen";
+import NotificationsList from "../screens/notification/NotificationsList";
+import NotificationDetail from "../screens/notification/NotificationDetail";
+import PaymentScreen from "../screens/invoice/PaymentScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -109,6 +112,10 @@ export default function AppNavigator() {
       {/* Invoice */}
       <Stack.Screen name="InvoiceList" component={InvoiceListScreen} />
       <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
+      <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
+      {/* Notifications */}
+      <Stack.Screen name="NotificationsList" component={NotificationsList} />
+      <Stack.Screen name="NotificationDetail" component={NotificationDetail} />
     </Stack.Navigator>
   );
 }

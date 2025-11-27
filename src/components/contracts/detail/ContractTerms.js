@@ -20,7 +20,7 @@ const ContractTerms = ({ contract, contentWidth }) => {
             return (
               <View key={`term-${i}`} style={styles.termBlockNoCard}>
                 <Text style={styles.termHeadingNoCard}>
-                  <Text style={styles.termNumber}>{i + 1}. </Text>
+                  <Text style={styles.termNumber}></Text>
                   <Text style={styles.termTitleNoCard}>
                     {t.name || "Điều khoản"}
                   </Text>
@@ -58,7 +58,7 @@ const ContractTerms = ({ contract, contentWidth }) => {
               return (
                 <View key={`reg-${i}`} style={styles.termBlockNoCard}>
                   <Text style={styles.termHeadingNoCard}>
-                    <Text style={styles.termNumber}>{i + 1}. </Text>
+                    <Text style={styles.termNumber}></Text>
                     <Text style={styles.termTitleNoCard}>
                       {r.title || "Quy định"}
                     </Text>

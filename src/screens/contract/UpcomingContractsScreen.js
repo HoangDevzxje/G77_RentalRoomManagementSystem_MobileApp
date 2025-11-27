@@ -322,14 +322,6 @@ const UpcomingContractsScreen = ({ navigation, route }) => {
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => openDetail(item._id)}
-          >
-            <Ionicons name="eye" size={16} color="#0d9488" />
-            <Text style={styles.actionButtonText}>Chi tiết</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={[styles.actionButton, styles.extendButton]}
             onPress={() => openExtendModal(item)}
           >

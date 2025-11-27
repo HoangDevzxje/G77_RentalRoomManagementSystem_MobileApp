@@ -8,10 +8,10 @@ import {
   StyleSheet,
   Platform,
   Linking,
+  SafeAreaView,
   TouchableOpacity,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -330,7 +330,6 @@ const ContractsListScreen = ({ navigation }) => {
           visible={showStatusFilter}
         />
       </View>
-
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0d9488" />
@@ -407,7 +406,6 @@ const ContractsListScreen = ({ navigation }) => {
           }
         />
       )}
-
       <ExtendModal
         visible={extendModalVisible}
         onClose={closeExtendModal}
@@ -419,7 +417,6 @@ const ContractsListScreen = ({ navigation }) => {
         setNote={setExtendNote}
         loading={extendLoading}
       />
-
       <Toast />
     </SafeAreaView>
   );
@@ -431,23 +428,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f5f9",
     paddingTop: STATUS_BAR_HEIGHT,
   },
-  header: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  headerContent: { alignItems: "center", marginBottom: 12 },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: { fontSize: 14, color: "#64748b", fontWeight: "500" },
+
   searchSection: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
