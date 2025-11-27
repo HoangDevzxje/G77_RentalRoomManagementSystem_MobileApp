@@ -36,20 +36,27 @@ export const createRequest = async (payload = {}, tokenOverride = null) => {
     }
   };
 
+  // Sử dụng FormData để gửi ảnh + dữ liệu
+  const formData = new FormData();
+
+  // Các trường bắt buộc và tùy chọn theo BE Controller
+  if (p.roomId) formData.append("roomId", String(p.roomId));
+  if (p.category) formData.append("category", String(p.category));
+  if (p.title) formData.append("title", String(p.title));
+
+  // Chỉ gửi furnitureId nếu có giá trị
+  if (p.furnitureId) formData.append("furnitureId", String(p.furnitureId));
+
+  // Description là tùy chọn
+  if (p.description) formData.append("description", String(p.description));
+
+  // Affected Quantity
+  if (p.affectedQuantity !== undefined && p.affectedQuantity !== null) {
+    formData.append("affectedQuantity", String(p.affectedQuantity));
+  }
+
+  // Xử lý ảnh
   if (images.length > 0) {
-    const formData = new FormData();
-
-    ["roomId", "furnitureId", "title", "description", "priority"].forEach(
-      (k) => {
-        if (p[k] !== undefined && p[k] !== null)
-          formData.append(k, String(p[k]));
-      }
-    );
-
-    if (p.affectedQuantity !== undefined && p.affectedQuantity !== null) {
-      formData.append("affectedQuantity", String(p.affectedQuantity));
-    }
-
     images.forEach((f, idx) => {
       let uri = typeof f === "string" ? f : f.uri || f.path || "";
       if (!uri) return;
@@ -67,42 +74,36 @@ export const createRequest = async (payload = {}, tokenOverride = null) => {
         type,
       });
     });
-
-    const token = await resolveToken();
-    const headers = {
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => null);
-      let body;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = text;
-      }
-      const err = new Error(body?.message || `Upload failed: ${res.status}`);
-      err.response = { data: body, status: res.status };
-      throw err;
-    }
-
-    const json = await res.json().catch(() => null);
-    return normalizeResponse({ data: json });
   }
 
-  try {
-    const res = await baseApi.post("/maintenance", p);
-    return normalizeResponse(res);
-  } catch (err) {
+  const token = await resolveToken();
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "multipart/form-data", // Quan trọng
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => null);
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+    const err = new Error(body?.message || `Upload failed: ${res.status}`);
+    err.response = { data: body, status: res.status };
     throw err;
   }
+
+  const json = await res.json().catch(() => null);
+  return normalizeResponse({ data: json });
 };
 
 export const getRequest = async (id) => {

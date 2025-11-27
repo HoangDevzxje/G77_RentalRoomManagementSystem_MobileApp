@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native"; // Thêm import này
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   getContractStatus,
@@ -23,6 +24,8 @@ const ContractCard = ({
   onDownload,
   downloading,
 }) => {
+  const navigation = useNavigation(); // Thêm hook navigation
+
   const statusObj = getContractStatus(item);
   const statusInfo = getStatusInfo(statusObj);
   const statusFromDates =
@@ -30,6 +33,15 @@ const ContractCard = ({
   const daysLeft = item.__daysLeft ?? computeDaysLeft(item.contract?.endDate);
   const urgency = getUrgencyLevel(daysLeft);
   const isDownloading = downloading === item._id;
+
+  // Thêm hàm xử lý khi ấn vào phần thời gian
+  const handleTimePress = () => {
+    navigation.navigate("UpcomingContracts", {
+      fromFilter: true,
+      contracts: [item], // Truyền contract hiện tại
+      focusedId: item._id,
+    });
+  };
 
   return (
     <TouchableOpacity
@@ -92,9 +104,10 @@ const ContractCard = ({
         </View>
       </View>
 
+      {/* Sửa onPress từ () => {} thành handleTimePress */}
       <TouchableOpacity
         style={[styles.dateSection, { borderColor: urgency.color }]}
-        onPress={() => {}}
+        onPress={handleTimePress} // Đã sửa thành hàm mới
         activeOpacity={0.8}
       >
         <View style={styles.dateContainer}>

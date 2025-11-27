@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,12 +28,6 @@ const STATUS_LABELS = {
   paid: "Đã thanh toán",
   overdue: "Quá hạn",
   cancelled: "Đã hủy",
-};
-
-const PAYMENT_METHODS = {
-  cash: "Tiền mặt",
-  bank_transfer: "Chuyển khoản",
-  online_gateway: "Cổng thanh toán",
 };
 
 export default function InvoiceDetailScreen({ route, navigation }) {
@@ -56,6 +51,14 @@ export default function InvoiceDetailScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Hàm chuyển hướng sang màn hình thanh toán
+  const handlePayPress = () => {
+    navigation.navigate("PaymentScreen", {
+      invoiceId: invoiceId,
+      invoiceCode: invoice.invoiceNumber, // Truyền thêm mã HĐ nếu cần hiển thị title
+    });
   };
 
   const formatCurrency = (amount) => {
@@ -105,13 +108,8 @@ export default function InvoiceDetailScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.errorContainer}>
-          <View style={styles.errorIconContainer}>
-            <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
-          </View>
+          <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
           <Text style={styles.errorText}>Không tìm thấy hóa đơn</Text>
-          <Text style={styles.errorSubtext}>
-            Hóa đơn không tồn tại hoặc đã bị xóa
-          </Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={loadInvoiceDetail}
@@ -123,6 +121,8 @@ export default function InvoiceDetailScreen({ route, navigation }) {
       </SafeAreaView>
     );
   }
+
+  const canPay = invoice.status === "sent" || invoice.status === "overdue";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -139,12 +139,12 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             <Text style={styles.headerTitle}>Chi tiết hóa đơn</Text>
             <Text style={styles.headerSubtitle}>{invoice.invoiceNumber}</Text>
           </View>
-          <View style={styles.headerRight} />
         </View>
 
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
         >
           {/* Status Card */}
           <View style={styles.statusCard}>
@@ -180,12 +180,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
                 <Text style={styles.contractText}>
                   Hợp đồng: {invoice.contractId.contract?.no || "N/A"}
                 </Text>
-                {invoice.contractId.contract?.startDate && (
-                  <Text style={styles.contractDate}>
-                    ({formatDate(invoice.contractId.contract.startDate)} -{" "}
-                    {formatDate(invoice.contractId.contract.endDate)})
-                  </Text>
-                )}
               </View>
             )}
           </View>
@@ -277,31 +271,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
                       <Text style={[styles.timelineDate, styles.paidDateText]}>
                         {formatDateTime(invoice.paidAt)}
                       </Text>
-                    </View>
-                  </View>
-                </>
-              )}
-              {invoice.sentAt && (
-                <>
-                  <View style={styles.timelineLine} />
-                  <View style={styles.timelineItem}>
-                    <View
-                      style={[styles.timelineDot, styles.timelineDotPurple]}
-                    />
-                    <View style={styles.timelineContent}>
-                      <Text style={styles.timelineLabel}>Đã gửi email</Text>
-                      <Text style={styles.timelineDate}>
-                        {formatDateTime(invoice.sentAt)}
-                      </Text>
-                      {invoice.emailStatus && (
-                        <View style={styles.emailStatusBadge}>
-                          <Text style={styles.emailStatusText}>
-                            {invoice.emailStatus === "sent"
-                              ? "Gửi thành công"
-                              : invoice.emailStatus}
-                          </Text>
-                        </View>
-                      )}
                     </View>
                   </View>
                 </>
@@ -400,33 +369,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             )}
           </View>
 
-          {/* Payment Info */}
-          {invoice.paymentMethod && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="card" size={20} color="#3b82f6" />
-                <Text style={styles.sectionTitle}>Thông tin thanh toán</Text>
-              </View>
-              <View style={styles.paymentCard}>
-                <View style={styles.paymentRow}>
-                  <Text style={styles.paymentLabel}>Phương thức</Text>
-                  <Text style={styles.paymentValue}>
-                    {PAYMENT_METHODS[invoice.paymentMethod] ||
-                      invoice.paymentMethod}
-                  </Text>
-                </View>
-                {invoice.paymentRef && (
-                  <View style={styles.paymentRow}>
-                    <Text style={styles.paymentLabel}>Mã tham chiếu</Text>
-                    <Text style={styles.paymentValue}>
-                      {invoice.paymentRef}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-
           {/* Notes */}
           {invoice.note && (
             <View style={styles.section}>
@@ -440,22 +382,42 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </View>
           )}
 
-          <View style={{ height: 100 }} />
+          <View style={{ height: 40 }} />
         </ScrollView>
+
+        {/* Bottom Action Bar for Payment */}
+        {canPay && (
+          <View style={styles.bottomBar}>
+            <View style={styles.bottomBarContent}>
+              <View>
+                <Text style={styles.bottomTotalLabel}>Tổng thanh toán</Text>
+                <Text style={styles.bottomTotalValue}>
+                  {formatCurrency(
+                    invoice.totalAmount - (invoice.paidAmount || 0)
+                  )}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.payButton}
+                onPress={handlePayPress}
+              >
+                <>
+                  <Ionicons name="wallet-outline" size={20} color="#fff" />
+                  <Text style={styles.payButtonText}>Thanh toán ngay</Text>
+                </>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
 }
 
+// Styles giữ nguyên như cũ, chỉ bỏ các style liên quan đến modal
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  safeArea: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -464,102 +426,48 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
   },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1e293b",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#64748b",
-    marginTop: 2,
-  },
-  headerRight: {
-    width: 40,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  // Loading & Error
+  backButton: { padding: 8, marginRight: 8 },
+  headerContent: { flex: 1 },
+  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#1e293b" },
+  headerSubtitle: { fontSize: 13, color: "#64748b", marginTop: 2 },
+  scrollView: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f8fafc",
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#64748b",
-    fontWeight: "500",
-  },
+  loadingText: { marginTop: 12, fontSize: 16, color: "#64748b" },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
     padding: 32,
-  },
-  errorIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#fee2e2",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
   },
   errorText: {
     fontSize: 20,
-    color: "#1e293b",
     fontWeight: "700",
-    marginBottom: 8,
-  },
-  errorSubtext: {
-    fontSize: 14,
-    color: "#64748b",
-    textAlign: "center",
-    marginBottom: 24,
+    marginTop: 16,
+    color: "#1e293b",
   },
   retryButton: {
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#3b82f6",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
     gap: 8,
   },
-  retryText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  // Status Card
+  retryText: { color: "#fff", fontWeight: "600" },
   statusCard: {
     backgroundColor: "#fff",
     margin: 16,
     marginBottom: 8,
     padding: 20,
     borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
@@ -567,68 +475,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
   },
-  statusLeft: {
-    flex: 1,
-  },
-  invoiceNumberLarge: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  periodText: {
-    fontSize: 14,
-    color: "#64748b",
-    fontWeight: "500",
-  },
+  invoiceNumberLarge: { fontSize: 22, fontWeight: "bold", color: "#1e293b" },
+  periodText: { color: "#64748b" },
   statusBadgeLarge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  statusTextLarge: {
-    fontSize: 13,
-    color: "#fff",
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
+  statusTextLarge: { color: "#fff", fontWeight: "bold", fontSize: 12 },
   contractInfo: {
     flexDirection: "row",
-    alignItems: "center",
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
-    gap: 6,
+    gap: 8,
   },
-  contractText: {
-    fontSize: 13,
-    color: "#475569",
-    fontWeight: "600",
-  },
-  contractDate: {
-    fontSize: 12,
-    color: "#94a3b8",
-  },
-  // Section
-  section: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-  },
+  contractText: { color: "#475569", fontSize: 13 },
+  section: { marginHorizontal: 16, marginBottom: 16 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
     gap: 8,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  // Property Card
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#1e293b" },
   propertyCard: {
     backgroundColor: "#fff",
     padding: 16,
@@ -636,45 +508,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  propertyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  propertyItem: {
-    flex: 1,
-  },
-  propertyLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 4,
-    fontWeight: "500",
-  },
-  propertyValue: {
-    fontSize: 16,
-    color: "#1e293b",
-    fontWeight: "700",
-  },
+  propertyRow: { flexDirection: "row" },
+  propertyItem: { flex: 1 },
+  propertyLabel: { fontSize: 12, color: "#64748b", marginBottom: 4 },
+  propertyValue: { fontSize: 16, fontWeight: "600", color: "#1e293b" },
   propertyDivider: {
     width: 1,
-    height: 30,
     backgroundColor: "#e2e8f0",
     marginHorizontal: 16,
   },
   addressRow: {
-    flexDirection: "row",
-    alignItems: "center",
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
-    gap: 6,
+    flexDirection: "row",
+    gap: 8,
   },
-  addressText: {
-    fontSize: 13,
-    color: "#64748b",
-    flex: 1,
-  },
-  // Timeline Card
+  addressText: { color: "#64748b", fontSize: 13, flex: 1 },
   timelineCard: {
     backgroundColor: "#fff",
     padding: 16,
@@ -682,259 +533,113 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  timelineItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+  timelineItem: { flexDirection: "row" },
   timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginTop: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 6,
     marginRight: 12,
   },
-  timelineDotBlue: {
-    backgroundColor: "#3b82f6",
-  },
-  timelineDotOrange: {
-    backgroundColor: "#f59e0b",
-  },
-  timelineDotRed: {
-    backgroundColor: "#ef4444",
-  },
-  timelineDotGreen: {
-    backgroundColor: "#10b981",
-  },
-  timelineDotPurple: {
-    backgroundColor: "#8b5cf6",
-  },
+  timelineDotBlue: { backgroundColor: "#3b82f6" },
+  timelineDotOrange: { backgroundColor: "#f59e0b" },
+  timelineDotRed: { backgroundColor: "#ef4444" },
+  timelineDotGreen: { backgroundColor: "#10b981" },
   timelineLine: {
     width: 2,
-    height: 20,
+    height: 24,
     backgroundColor: "#e2e8f0",
-    marginLeft: 5,
-    marginVertical: 4,
+    marginLeft: 4,
+    marginVertical: 2,
   },
-  timelineContent: {
-    flex: 1,
-    paddingBottom: 4,
-  },
-  timelineLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 4,
-    fontWeight: "500",
-  },
-  timelineDate: {
-    fontSize: 14,
-    color: "#1e293b",
-    fontWeight: "600",
-  },
-  overdueDateText: {
-    color: "#ef4444",
-  },
-  paidDateText: {
-    color: "#10b981",
-  },
-  overdueTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-    gap: 4,
-  },
-  overdueTagText: {
-    fontSize: 12,
-    color: "#ef4444",
-    fontWeight: "600",
-  },
-  emailStatusBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 6,
-  },
-  emailStatusText: {
-    fontSize: 11,
-    color: "#3b82f6",
-    fontWeight: "600",
-  },
-  // Items Card
+  timelineContent: { flex: 1, paddingBottom: 4 },
+  timelineLabel: { fontSize: 12, color: "#64748b" },
+  timelineDate: { fontSize: 14, fontWeight: "600", color: "#1e293b" },
   itemsCard: {
     backgroundColor: "#fff",
-    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    overflow: "hidden",
   },
   itemRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingVertical: 14,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
+    justifyContent: "space-between",
   },
-  itemLeft: {
-    flexDirection: "row",
-    flex: 1,
-    marginRight: 12,
-  },
+  itemLeft: { flexDirection: "row", flex: 1, paddingRight: 12 },
   itemIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
     backgroundColor: "#eff6ff",
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
-  itemInfo: {
-    flex: 1,
-  },
-  itemLabel: {
-    fontSize: 15,
-    color: "#1e293b",
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  itemDescription: {
-    fontSize: 13,
-    color: "#64748b",
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  itemMeta: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: "500",
-  },
-  itemAmount: {
-    fontSize: 16,
-    color: "#1e293b",
-    fontWeight: "700",
-  },
-  // Summary Section
+  itemInfo: { flex: 1 },
+  itemLabel: { fontSize: 14, fontWeight: "600", color: "#1e293b" },
+  itemDescription: { fontSize: 12, color: "#64748b", marginTop: 2 },
+  itemMeta: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
+  itemAmount: { fontWeight: "700", color: "#1e293b" },
   summarySection: {
     backgroundColor: "#fff",
-    margin: 16,
-    marginTop: 8,
+    marginHorizontal: 16,
     padding: 20,
     borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  summaryLabel: {
-    fontSize: 14,
-    color: "#64748b",
-    fontWeight: "500",
-  },
-  summaryValue: {
-    fontSize: 15,
-    color: "#1e293b",
-    fontWeight: "600",
-  },
-  discountValue: {
-    color: "#10b981",
-  },
-  lateFeeValue: {
-    color: "#ef4444",
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: "#e2e8f0",
-    marginVertical: 12,
-  },
+  summaryLabel: { color: "#64748b" },
+  summaryValue: { fontWeight: "600", color: "#1e293b" },
+  discountValue: { color: "#10b981" },
+  lateFeeValue: { color: "#ef4444" },
+  summaryDivider: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 12 },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
-    backgroundColor: "#f8fafc",
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginBottom: 12,
   },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  totalValue: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#3b82f6",
-  },
-  paidValue: {
-    color: "#10b981",
-  },
-  remainingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#fef3c7",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 4,
-  },
-  remainingLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#92400e",
-  },
-  remainingValue: {
-    fontSize: 18,
-    color: "#f59e0b",
-    fontWeight: "700",
-  },
-  // Payment Card
-  paymentCard: {
+  totalLabel: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
+  totalValue: { fontSize: 20, fontWeight: "bold", color: "#3b82f6" },
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
+    paddingBottom: Platform.OS === "ios" ? 32 : 16,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  paymentRow: {
+  bottomBarContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    justifyContent: "space-between",
   },
-  paymentLabel: {
-    fontSize: 13,
-    color: "#64748b",
-    fontWeight: "500",
-  },
-  paymentValue: {
-    fontSize: 14,
-    color: "#1e293b",
-    fontWeight: "700",
-  },
-  // Note Card
-  noteCard: {
-    backgroundColor: "#fff",
-    padding: 16,
+  bottomTotalLabel: { fontSize: 12, color: "#64748b" },
+  bottomTotalValue: { fontSize: 18, fontWeight: "bold", color: "#3b82f6" },
+  payButton: {
+    backgroundColor: "#3b82f6",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
+    gap: 8,
   },
-  noteText: {
-    fontSize: 14,
-    color: "#475569",
-    lineHeight: 22,
-  },
+  payButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
 });

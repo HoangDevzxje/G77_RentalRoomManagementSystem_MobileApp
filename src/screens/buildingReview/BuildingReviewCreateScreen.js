@@ -10,10 +10,10 @@ import {
   ActivityIndicator,
   Switch,
   Platform,
-  SafeAreaView,
   StatusBar,
   Linking,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
 import Ionicons from "react-native-vector-icons/Ionicons";

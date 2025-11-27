@@ -1,9 +1,11 @@
+// components/Header.js
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, StatusBar, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import Logo from "../logo/Logo";
+import NotificationIcon from "../../components/header/NotificationIcon";
 
 const Header = ({ scrollY }) => {
   const { user } = useAuth();
@@ -78,6 +80,11 @@ const Header = ({ scrollY }) => {
             </Text>
           </View>
         </View>
+
+        {/* right side: Notification icon */}
+        <View style={styles.rightActions}>
+          <NotificationIcon tintColor={isScrolled ? "#0d9488" : "#fff"} />
+        </View>
       </View>
     </View>
   );
@@ -132,6 +139,10 @@ const styles = StyleSheet.create({
   },
   subTextScrolled: {
     color: "#0d9488",
+  },
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 });
 
