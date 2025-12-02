@@ -10,44 +10,50 @@ export const getMyInvoices = async ({
   page = 1,
   limit = 20,
 } = {}) => {
-  try {
-    const params = { page, limit };
-    if (status) params.status = status;
-    if (buildingId) params.buildingId = buildingId;
-    if (roomId) params.roomId = roomId;
-    if (periodMonth) params.periodMonth = periodMonth;
-    if (periodYear) params.periodYear = periodYear;
-    if (search) params.search = search;
+  const params = {
+    page,
+    limit,
+    status,
+    buildingId,
+    roomId,
+    periodMonth,
+    periodYear,
+    search,
+  };
+  Object.keys(params).forEach(
+    (key) => params[key] === undefined && delete params[key]
+  );
 
-    const res = await baseApi.get("/invoices", { params });
-    return res.data;
-  } catch (err) {
-    throw err;
-  }
+  const res = await baseApi.get("/invoices", { params });
+  return res.data;
 };
 
 export const getMyInvoiceDetail = async (id) => {
-  try {
-    const res = await baseApi.get(`/invoices/${id}`);
-    return res.data;
-  } catch (err) {
-    console.error(
-      "getMyInvoiceDetail error response:",
-      err.response?.status,
-      err.response?.data
-    );
-    throw err;
-  }
+  const res = await baseApi.get(`/invoices/${id}`);
+  return res.data;
 };
 
-export const payInvoice = async (id, { method, note } = {}) => {
-  try {
-    const res = await baseApi.post(`/invoices/${id}/pay`, {
-      method,
-      note,
-    });
-    return res.data;
-  } catch (err) {
-    throw err;
-  }
+export const payInvoice = async (
+  id,
+  { method = "online_gateway", note } = {}
+) => {
+  const res = await baseApi.post(`/invoices/${id}/pay`, {
+    method,
+    note,
+  });
+  return res.data;
+};
+
+export const confirmTransfer = async (id, formData) => {
+  const res = await baseApi.post(
+    `/invoices/${id}/request-transfer-confirmation`,
+    formData,
+    {
+      transformRequest: (data, headers) => {
+        return data;
+      },
+    }
+  );
+
+  return res.data;
 };

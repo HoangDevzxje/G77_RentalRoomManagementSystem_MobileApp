@@ -34,6 +34,7 @@ import InvoiceDetailScreen from "../screens/invoice/InvoiceDetailScreen";
 import NotificationsList from "../screens/notification/NotificationsList";
 import NotificationDetail from "../screens/notification/NotificationDetail";
 import PaymentScreen from "../screens/invoice/PaymentScreen";
+import BuildingLaundryDevicesScreen from "../screens/building/BuildingLaundryDevicesScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -116,6 +117,11 @@ export default function AppNavigator() {
       {/* Notifications */}
       <Stack.Screen name="NotificationsList" component={NotificationsList} />
       <Stack.Screen name="NotificationDetail" component={NotificationDetail} />
+      {/*Building Laundry Devices */}
+      <Stack.Screen
+        name="BuildingLaundryDevices"
+        component={BuildingLaundryDevicesScreen}
+      />
     </Stack.Navigator>
   );
 }

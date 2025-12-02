@@ -1,22 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { getMyInvoiceDetail } from "../../api/invoiceApi";
+import { useFocusEffect } from "@react-navigation/native";
+import Toast from "react-native-toast-message";
 
 const STATUS_COLORS = {
   draft: "#6b7280",
   sent: "#3b82f6",
+  transfer_pending: "#f59e0b",
   paid: "#10b981",
   overdue: "#ef4444",
   cancelled: "#9ca3af",
@@ -25,6 +28,7 @@ const STATUS_COLORS = {
 const STATUS_LABELS = {
   draft: "Bản nháp",
   sent: "Chờ thanh toán",
+  transfer_pending: "Chờ xác nhận",
   paid: "Đã thanh toán",
   overdue: "Quá hạn",
   cancelled: "Đã hủy",
@@ -35,29 +39,41 @@ export default function InvoiceDetailScreen({ route, navigation }) {
   const { user } = useAuth();
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadInvoiceDetail();
-  }, [invoiceId]);
+  useFocusEffect(
+    useCallback(() => {
+      loadInvoiceDetail();
+    }, [invoiceId])
+  );
 
-  const loadInvoiceDetail = async () => {
+  const loadInvoiceDetail = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isRefresh) setLoading(true);
       const data = await getMyInvoiceDetail(invoiceId);
       setInvoice(data);
     } catch (error) {
       console.error("Error loading invoice detail:", error);
-      Alert.alert("Lỗi", "Không thể tải thông tin hóa đơn");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể tải thông tin hóa đơn",
+      });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  // Hàm chuyển hướng sang màn hình thanh toán
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadInvoiceDetail(true);
+  };
+
   const handlePayPress = () => {
     navigation.navigate("PaymentScreen", {
       invoiceId: invoiceId,
-      invoiceCode: invoice.invoiceNumber, // Truyền thêm mã HĐ nếu cần hiển thị title
+      invoiceCode: invoice.invoiceNumber,
     });
   };
 
@@ -112,7 +128,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           <Text style={styles.errorText}>Không tìm thấy hóa đơn</Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={loadInvoiceDetail}
+            onPress={() => loadInvoiceDetail()}
           >
             <Ionicons name="refresh" size={18} color="#fff" />
             <Text style={styles.retryText}>Thử lại</Text>
@@ -123,11 +139,11 @@ export default function InvoiceDetailScreen({ route, navigation }) {
   }
 
   const canPay = invoice.status === "sent" || invoice.status === "overdue";
+  const isPending = invoice.status === "transfer_pending";
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Custom Header */}
         <View style={styles.customHeader}>
           <TouchableOpacity
             style={styles.backButton}
@@ -145,8 +161,10 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
-          {/* Status Card */}
           <View style={styles.statusCard}>
             <View style={styles.statusHeader}>
               <View style={styles.statusLeft}>
@@ -160,16 +178,26 @@ export default function InvoiceDetailScreen({ route, navigation }) {
               <View
                 style={[
                   styles.statusBadgeLarge,
-                  { backgroundColor: STATUS_COLORS[invoice.status] },
+                  {
+                    backgroundColor: STATUS_COLORS[invoice.status] || "#9ca3af",
+                  },
                 ]}
               >
                 <Text style={styles.statusTextLarge}>
-                  {STATUS_LABELS[invoice.status]}
+                  {STATUS_LABELS[invoice.status] || invoice.status}
                 </Text>
               </View>
             </View>
 
-            {/* Contract Info */}
+            {isPending && (
+              <View style={styles.pendingAlert}>
+                <Ionicons name="time-outline" size={20} color="#92400e" />
+                <Text style={styles.pendingText}>
+                  Bạn đã gửi minh chứng. Vui lòng chờ chủ trọ xác nhận.
+                </Text>
+              </View>
+            )}
+
             {invoice.contractId && (
               <View style={styles.contractInfo}>
                 <Ionicons
@@ -184,7 +212,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             )}
           </View>
 
-          {/* Property Info */}
           <View style={styles.section}>
             <View style={styles.propertyCard}>
               <View style={styles.propertyRow}>
@@ -213,7 +240,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Timeline */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="time" size={20} color="#3b82f6" />
@@ -278,7 +304,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Invoice Items */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="receipt" size={20} color="#3b82f6" />
@@ -317,7 +342,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Summary */}
           <View style={styles.summarySection}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tạm tính</Text>
@@ -369,7 +393,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             )}
           </View>
 
-          {/* Notes */}
           {invoice.note && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -385,7 +408,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           <View style={{ height: 40 }} />
         </ScrollView>
 
-        {/* Bottom Action Bar for Payment */}
         {canPay && (
           <View style={styles.bottomBar}>
             <View style={styles.bottomBarContent}>
@@ -414,7 +436,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
   );
 }
 
-// Styles giữ nguyên như cũ, chỉ bỏ các style liên quan đến modal
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
   container: { flex: 1, backgroundColor: "#f8fafc" },
@@ -601,7 +622,11 @@ const styles = StyleSheet.create({
   summaryValue: { fontWeight: "600", color: "#1e293b" },
   discountValue: { color: "#10b981" },
   lateFeeValue: { color: "#ef4444" },
-  summaryDivider: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 12 },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 12,
+  },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -642,4 +667,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   payButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+  pendingAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fffbeb",
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+  },
+  pendingText: {
+    color: "#92400e",
+    fontSize: 13,
+    flex: 1,
+    fontWeight: "500",
+  },
 });
