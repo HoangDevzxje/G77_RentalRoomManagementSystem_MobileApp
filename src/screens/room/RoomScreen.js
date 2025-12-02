@@ -254,6 +254,25 @@ export default function RoomScreen({ navigation }) {
     navigation.navigate("InvoiceList");
   };
 
+  // THÊM HÀM MỚI: Điều hướng đến trang thiết bị giặt/sấy
+  const goToLaundryDevices = () => {
+    const buildingId = room?.building?._id ?? room?.buildingId ?? null;
+    const buildingName = room?.building?.name ?? "Tòa nhà";
+
+    if (!buildingId) {
+      Toast.show({
+        type: "info",
+        text1: "Thông tin tòa nhà không sẵn sàng",
+      });
+      return;
+    }
+
+    navigation.navigate("BuildingLaundryDevices", {
+      buildingId,
+      buildingName,
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -432,6 +451,26 @@ export default function RoomScreen({ navigation }) {
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* Thiết bị giặt/sấy - THÊM MỚI */}
+          <TouchableOpacity
+            style={styles.actionItem}
+            onPress={goToLaundryDevices}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#f0f9ff" }]}>
+              <Ionicons name="shirt-outline" size={20} color="#3b82f6" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Thiết bị giặt/sấy</Text>
+              <Text style={styles.actionSubtitle}>
+                Xem máy giặt, máy sấy trong tòa
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </TouchableOpacity>
         </View>
 
         {/* Basic Info Card */}
@@ -480,7 +519,7 @@ export default function RoomScreen({ navigation }) {
                 <Ionicons name="play-forward" size={18} color="#0d9488" />
               </View>
               <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Chỉ số điện đầu</Text>
+                <Text style={styles.infoLabel}>Chỉ số điện</Text>
                 <Text style={styles.infoValue}>{eStart ?? 0}</Text>
               </View>
             </View>
@@ -490,7 +529,7 @@ export default function RoomScreen({ navigation }) {
                 <Ionicons name="play-forward" size={18} color="#0d9488" />
               </View>
               <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Chỉ số nước đầu</Text>
+                <Text style={styles.infoLabel}>Chỉ số nước</Text>
                 <Text style={styles.infoValue}>{wStart ?? 0}</Text>
               </View>
             </View>

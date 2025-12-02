@@ -2,12 +2,9 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { View, ScrollView } from "react-native";
-
-import RoomListScreen from "../screens/post/PostListScreen"; // Tìm phòng (danh sách)
-import RoomScreen from "../screens/room/RoomScreen"; // Chi tiết phòng (màn bạn vừa tạo)
+import RoomScreen from "../screens/room/RoomScreen";
 import ContractsListScreen from "../screens/contract/ContractsListScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
-
 import Footer from "../components/footer/Footer";
 import Header from "../components/header/Header";
 import { Home } from "lucide-react-native";

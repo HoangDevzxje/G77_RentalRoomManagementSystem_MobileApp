@@ -7,16 +7,17 @@ import {
   ScrollView,
   FlatList,
   RefreshControl,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { getMyInvoices } from "../../api/invoiceApi";
+import Toast from "react-native-toast-message";
 
 const STATUS_COLORS = {
   draft: "#6b7280",
   sent: "#3b82f6",
+  transfer_pending: "#f59e0b",
   paid: "#10b981",
   overdue: "#ef4444",
   cancelled: "#9ca3af",
@@ -24,7 +25,8 @@ const STATUS_COLORS = {
 
 const STATUS_LABELS = {
   draft: "Bản nháp",
-  sent: "Đã gửi",
+  sent: "Chờ thanh toán",
+  transfer_pending: "Chờ xác nhận",
   paid: "Đã thanh toán",
   overdue: "Quá hạn",
   cancelled: "Đã hủy",
@@ -46,6 +48,7 @@ export default function InvoiceListScreen({ navigation }) {
   const STATUS_OPTIONS = [
     { value: "", label: "Tất cả" },
     { value: "sent", label: "Chờ thanh toán" },
+    { value: "transfer_pending", label: "Chờ xác nhận" },
     { value: "paid", label: "Đã thanh toán" },
     { value: "overdue", label: "Quá hạn" },
     { value: "draft", label: "Bản nháp" },
@@ -59,7 +62,12 @@ export default function InvoiceListScreen({ navigation }) {
       setInvoices(data.items || []);
     } catch (error) {
       console.error("Error loading invoices:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách hóa đơn");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi kết nối",
+        text2: "Không thể tải danh sách hóa đơn",
+        position: "top",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -107,7 +115,6 @@ export default function InvoiceListScreen({ navigation }) {
       }
       activeOpacity={0.85}
     >
-      {/* Header với số hóa đơn và trạng thái */}
       <View style={styles.invoiceHeader}>
         <View style={styles.invoiceInfo}>
           <View style={styles.invoiceNumberContainer}>
@@ -124,7 +131,7 @@ export default function InvoiceListScreen({ navigation }) {
         <View
           style={[
             styles.statusBadge,
-            { backgroundColor: STATUS_COLORS[item.status] },
+            { backgroundColor: STATUS_COLORS[item.status] || "#9ca3af" },
           ]}
         >
           <Text style={styles.statusText}>
@@ -133,9 +140,7 @@ export default function InvoiceListScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Thông tin chi tiết */}
       <View style={styles.invoiceDetails}>
-        {/* Tòa nhà */}
         <View style={styles.detailRow}>
           <View style={styles.iconContainer}>
             <Ionicons name="business" size={18} color="#3b82f6" />
@@ -153,7 +158,6 @@ export default function InvoiceListScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Phòng */}
         <View style={styles.detailRow}>
           <View style={styles.iconContainer}>
             <Ionicons name="home" size={18} color="#10b981" />
@@ -166,42 +170,33 @@ export default function InvoiceListScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Ngày phát hành */}
-        <View style={styles.detailRow}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="create" size={18} color="#8b5cf6" />
-          </View>
-          <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Ngày phát hành</Text>
-            <Text style={styles.detailValue}>
-              {formatDateTime(item.issuedAt)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Hạn thanh toán */}
         <View style={styles.detailRow}>
           <View style={styles.iconContainer}>
             <Ionicons
-              name="alarm"
+              name={item.status === "transfer_pending" ? "time" : "alarm"}
               size={18}
               color={item.status === "overdue" ? "#ef4444" : "#f59e0b"}
             />
           </View>
           <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Hạn thanh toán</Text>
+            <Text style={styles.detailLabel}>
+              {item.status === "transfer_pending"
+                ? "Ngày gửi minh chứng"
+                : "Hạn thanh toán"}
+            </Text>
             <Text
               style={[
                 styles.detailValue,
                 item.status === "overdue" && styles.overdueDate,
               ]}
             >
-              {formatDate(item.dueDate)}
+              {item.status === "transfer_pending"
+                ? formatDateTime(item.transferRequestedAt || item.updatedAt)
+                : formatDate(item.dueDate)}
             </Text>
           </View>
         </View>
 
-        {/* Ngày thanh toán (nếu đã thanh toán) */}
         {item.status === "paid" && item.paidAt && (
           <View style={styles.detailRow}>
             <View style={styles.iconContainer}>
@@ -217,18 +212,15 @@ export default function InvoiceListScreen({ navigation }) {
         )}
       </View>
 
-      {/* Footer với tổng tiền */}
       <View style={styles.invoiceFooter}>
         <View style={styles.totalAmountContainer}>
           <Text style={styles.totalLabel}>Tổng tiền</Text>
           <Text style={styles.amount}>{formatCurrency(item.totalAmount)}</Text>
         </View>
 
-        {/* Nút "Xem chi tiết" có onPress riêng để tránh trường hợp touch bị parent chặn */}
         <TouchableOpacity
           style={styles.viewDetailButton}
           activeOpacity={0.75}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={() =>
             navigation.navigate("InvoiceDetail", { invoiceId: item._id })
           }
@@ -238,7 +230,6 @@ export default function InvoiceListScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Badge quá hạn */}
       {item.status === "overdue" && (
         <View style={styles.overdueBadge}>
           <Ionicons name="warning" size={14} color="#fff" />
@@ -252,6 +243,8 @@ export default function InvoiceListScreen({ navigation }) {
     switch (status) {
       case "sent":
         return "time-outline";
+      case "transfer_pending":
+        return "hourglass-outline";
       case "paid":
         return "checkmark-circle-outline";
       case "overdue":
@@ -273,7 +266,6 @@ export default function InvoiceListScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Custom Header */}
         <View style={styles.customHeader}>
           <TouchableOpacity
             style={styles.backButton}
@@ -290,7 +282,6 @@ export default function InvoiceListScreen({ navigation }) {
           <View style={styles.headerRight} />
         </View>
 
-        {/* Filter Section */}
         <View style={styles.filterContainer}>
           <TouchableOpacity
             style={styles.filterButton}
@@ -314,7 +305,6 @@ export default function InvoiceListScreen({ navigation }) {
             />
           </TouchableOpacity>
 
-          {/* Dropdown */}
           {showFilterDropdown && (
             <View style={styles.filterDropdown}>
               <ScrollView style={styles.filterDropdownScroll}>
@@ -365,7 +355,6 @@ export default function InvoiceListScreen({ navigation }) {
           )}
         </View>
 
-        {/* Invoice List */}
         <FlatList
           data={invoices}
           renderItem={renderInvoiceItem}
@@ -383,10 +372,8 @@ export default function InvoiceListScreen({ navigation }) {
                 <Text style={styles.emptyText}>Không có hóa đơn nào</Text>
                 <Text style={styles.emptySubtext}>
                   {filters.status
-                    ? `Không có hóa đơn ở trạng thái "${
-                        STATUS_LABELS[filters.status]
-                      }"`
-                    : "Bạn chưa có hóa đơn nào được tạo"}
+                    ? `Không có hóa đơn "${STATUS_LABELS[filters.status]}"`
+                    : "Bạn chưa có hóa đơn nào"}
                 </Text>
               </View>
             ) : null
@@ -398,14 +385,8 @@ export default function InvoiceListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  safeArea: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -420,32 +401,18 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1e293b",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#64748b",
-    marginTop: 2,
-  },
-  headerRight: {
-    width: 40,
-  },
+  backButton: { padding: 8, marginRight: 8 },
+  headerContent: { flex: 1 },
+  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#1e293b" },
+  headerSubtitle: { fontSize: 13, color: "#64748b", marginTop: 2 },
+  headerRight: { width: 40 },
   filterContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
+    zIndex: 10,
   },
   filterButton: {
     flexDirection: "row",
@@ -469,11 +436,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   filterDropdown: {
+    position: "absolute",
+    top: 60,
+    left: 16,
+    right: 16,
     backgroundColor: "#fff",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    marginTop: 8,
     maxHeight: 250,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -481,9 +451,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  filterDropdownScroll: {
-    maxHeight: 250,
-  },
+  filterDropdownScroll: { maxHeight: 250 },
   filterDropdownItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -493,9 +461,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
-  filterDropdownItemSelected: {
-    backgroundColor: "#eff6ff",
-  },
+  filterDropdownItemSelected: { backgroundColor: "#eff6ff" },
   filterDropdownItemContent: {
     flexDirection: "row",
     alignItems: "center",
@@ -510,10 +476,7 @@ const styles = StyleSheet.create({
     color: "#3b82f6",
     fontWeight: "700",
   },
-  listContainer: {
-    padding: 16,
-    paddingBottom: 32,
-  },
+  listContainer: { padding: 16, paddingBottom: 32 },
   invoiceCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -536,9 +499,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
-  invoiceInfo: {
-    flex: 1,
-  },
+  invoiceInfo: { flex: 1 },
   invoiceNumberContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -550,15 +511,8 @@ const styles = StyleSheet.create({
     color: "#1e293b",
     marginLeft: 8,
   },
-  periodContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  period: {
-    fontSize: 13,
-    color: "#64748b",
-    marginLeft: 6,
-  },
+  periodContainer: { flexDirection: "row", alignItems: "center" },
+  period: { fontSize: 13, color: "#64748b", marginLeft: 6 },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -570,9 +524,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.3,
   },
-  invoiceDetails: {
-    marginBottom: 16,
-  },
+  invoiceDetails: { marginBottom: 16 },
   detailRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -587,9 +539,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  detailContent: {
-    flex: 1,
-  },
+  detailContent: { flex: 1 },
   detailLabel: {
     fontSize: 12,
     color: "#94a3b8",
@@ -606,12 +556,8 @@ const styles = StyleSheet.create({
     color: "#64748b",
     marginTop: 2,
   },
-  overdueDate: {
-    color: "#ef4444",
-  },
-  paidDateText: {
-    color: "#10b981",
-  },
+  overdueDate: { color: "#ef4444" },
+  paidDateText: { color: "#10b981" },
   invoiceFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -620,20 +566,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
   },
-  totalAmountContainer: {
-    flex: 1,
-  },
+  totalAmountContainer: { flex: 1 },
   totalLabel: {
     fontSize: 12,
     color: "#64748b",
     marginBottom: 4,
     fontWeight: "500",
   },
-  amount: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1e293b",
-  },
+  amount: { fontSize: 20, fontWeight: "bold", color: "#1e293b" },
   viewDetailButton: {
     flexDirection: "row",
     alignItems: "center",
