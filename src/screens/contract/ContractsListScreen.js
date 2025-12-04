@@ -19,17 +19,17 @@ import {
   getMyContracts,
   downloadContractPdf,
   requestExtend,
+  requestTerminate,
 } from "../../api/contractApi";
 import SearchBar from "../../components/contracts/list/SearchBar";
 import StatusFilterDropdown from "../../components/contracts/list/StatusFilterDropdown";
 import ContractCard from "../../components/contracts/list/ContractCard";
 import ExtendModal from "../../components/contracts/list/ExtendModal";
+import TerminateModal from "../../components/contracts/list/TerminateModal";
 import { getAccessToken } from "../../utils/storage";
 import {
   computeDaysLeft,
   computeStatusFromDates,
-  getContractStatus,
-  getStatusInfo,
 } from "../../utils/contractHelpers";
 
 const STATUS_BAR_HEIGHT = 0;
@@ -57,11 +57,18 @@ const ContractsListScreen = ({ navigation }) => {
   const [downloading, setDownloading] = useState(null);
   const [showStatusFilter, setShowStatusFilter] = useState(false);
 
+  // --- State cho Gia hạn (Extend) ---
   const [extendModalVisible, setExtendModalVisible] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
   const [extendMonths, setExtendMonths] = useState("");
   const [extendNote, setExtendNote] = useState("");
   const [extendLoading, setExtendLoading] = useState(false);
+
+  // --- State cho Chấm dứt (Terminate) ---
+  const [terminateModalVisible, setTerminateModalVisible] = useState(false);
+  const [terminateReason, setTerminateReason] = useState("");
+  const [terminateNote, setTerminateNote] = useState("");
+  const [terminateLoading, setTerminateLoading] = useState(false);
 
   useEffect(() => {
     fetchContracts();
@@ -119,6 +126,7 @@ const ContractsListScreen = ({ navigation }) => {
     navigation.navigate("ContractDetail", { id });
   };
 
+  // --- Logic Gia hạn ---
   const openExtendModal = (contract) => {
     setSelectedContract(contract);
     setExtendMonths("");
@@ -157,6 +165,50 @@ const ContractsListScreen = ({ navigation }) => {
       });
     } finally {
       setExtendLoading(false);
+    }
+  };
+
+  const openTerminateModal = (contract) => {
+    setSelectedContract(contract);
+    setTerminateReason("");
+    setTerminateNote("");
+    setTerminateModalVisible(true);
+  };
+
+  const closeTerminateModal = () => {
+    if (!terminateLoading) {
+      setTerminateModalVisible(false);
+      setSelectedContract(null);
+    }
+  };
+
+  const submitTerminate = async () => {
+    if (!selectedContract) return;
+
+    if (!terminateReason.trim()) {
+      Toast.show({ type: "error", text1: "Vui lòng nhập lý do chấm dứt" });
+      return;
+    }
+
+    setTerminateLoading(true);
+    try {
+      await requestTerminate(
+        selectedContract._id,
+        terminateReason.trim(),
+        terminateNote.trim()
+      );
+      Toast.show({ type: "success", text1: "Đã gửi yêu cầu chấm dứt" });
+      setTerminateModalVisible(false);
+      setSelectedContract(null);
+      fetchContracts();
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Gửi thất bại",
+        text2: e?.response?.data?.message || e.message,
+      });
+    } finally {
+      setTerminateLoading(false);
     }
   };
 
@@ -203,11 +255,6 @@ const ContractsListScreen = ({ navigation }) => {
       const token = await getAccessToken();
 
       if (!token) {
-        Toast.show({
-          type: "error",
-          text1: "Thiếu token",
-          text2: "Không tìm thấy token. Hãy đăng nhập lại.",
-        });
         throw new Error("Missing auth token");
       }
 
@@ -219,19 +266,12 @@ const ContractsListScreen = ({ navigation }) => {
         },
       });
       const ct = headResp.headers.get("content-type") || "";
-      const statusCode = headResp.status;
 
       if (!headResp.ok) {
-        const txt = await headResp.text().catch(() => "<no-body>");
-        throw new Error(`Server trả ${statusCode}. Body: ${txt}`);
+        throw new Error(`Server error`);
       }
       if (!ct.toLowerCase().includes("pdf")) {
-        const bodyText = await headResp.text().catch(() => "<no-body>");
-        throw new Error(
-          `Server trả content-type="${ct}". Body snippet: ${String(
-            bodyText
-          ).slice(0, 300)}`
-        );
+        throw new Error(`Invalid content type`);
       }
 
       const fileName = `contract_${contract._id}.pdf`;
@@ -241,7 +281,7 @@ const ContractsListScreen = ({ navigation }) => {
       });
 
       if (!downloadResult || !downloadResult.uri) {
-        throw new Error("Download không trả về uri hợp lệ");
+        throw new Error("Download error");
       }
 
       let shared = false;
@@ -270,10 +310,7 @@ const ContractsListScreen = ({ navigation }) => {
       Toast.show({
         type: "error",
         text1: "Tải thất bại",
-        text2:
-          message.includes("404") || message.includes("Cannot GET")
-            ? "Server trả 404/Không tìm thấy. Kiểm tra đường dẫn hoặc token."
-            : message,
+        text2: message,
       });
     } finally {
       setDownloading(null);
@@ -347,6 +384,8 @@ const ContractsListScreen = ({ navigation }) => {
               onOpenDetail={openDetail}
               onDownload={handleDownloadPdf}
               downloading={downloading}
+              onExtend={openExtendModal}
+              onTerminate={openTerminateModal}
             />
           )}
           contentContainerStyle={styles.listContainer}
@@ -362,31 +401,10 @@ const ContractsListScreen = ({ navigation }) => {
                 color="#cbd5e1"
                 style={{ marginBottom: 16 }}
               />
-
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "700",
-                  color: "#334155",
-                  marginBottom: 8,
-                }}
-              >
-                Chưa có hợp đồng
-              </Text>
-
-              <Text
-                style={{
-                  fontSize: 15,
-                  color: "#64748b",
-                  textAlign: "center",
-                  marginBottom: 20,
-                  paddingHorizontal: 20,
-                  lineHeight: 22,
-                }}
-              >
+              <Text style={styles.emptyTitle}>Chưa có hợp đồng</Text>
+              <Text style={styles.emptySubtitle}>
                 Bạn vui lòng đến trang bài đăng để tạo hợp đồng thuê trọ
               </Text>
-
               <TouchableOpacity
                 onPress={() => navigation.navigate("PostList")}
                 style={{
@@ -406,6 +424,8 @@ const ContractsListScreen = ({ navigation }) => {
           }
         />
       )}
+
+      {/* Modal Gia hạn */}
       <ExtendModal
         visible={extendModalVisible}
         onClose={closeExtendModal}
@@ -417,6 +437,18 @@ const ContractsListScreen = ({ navigation }) => {
         setNote={setExtendNote}
         loading={extendLoading}
       />
+
+      <TerminateModal
+        visible={terminateModalVisible}
+        onClose={closeTerminateModal}
+        onSubmit={submitTerminate}
+        reason={terminateReason}
+        setReason={setTerminateReason}
+        note={terminateNote}
+        setNote={setTerminateNote}
+        loading={terminateLoading}
+      />
+
       <Toast />
     </SafeAreaView>
   );
@@ -428,7 +460,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f5f9",
     paddingTop: STATUS_BAR_HEIGHT,
   },
-
   searchSection: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
@@ -473,12 +504,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
   },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 80,
-    paddingHorizontal: 24,
-  },
-  emptyIcon: { marginBottom: 20, opacity: 0.8 },
   emptyTitle: {
     fontSize: 20,
     fontWeight: "700",

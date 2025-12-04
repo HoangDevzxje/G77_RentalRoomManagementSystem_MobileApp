@@ -6,7 +6,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native"; // Thêm import này
+import { useNavigation } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   getContractStatus,
@@ -23,8 +23,9 @@ const ContractCard = ({
   onOpenDetail,
   onDownload,
   downloading,
+  onTerminate,
 }) => {
-  const navigation = useNavigation(); // Thêm hook navigation
+  const navigation = useNavigation();
 
   const statusObj = getContractStatus(item);
   const statusInfo = getStatusInfo(statusObj);
@@ -34,11 +35,12 @@ const ContractCard = ({
   const urgency = getUrgencyLevel(daysLeft);
   const isDownloading = downloading === item._id;
 
-  // Thêm hàm xử lý khi ấn vào phần thời gian
+  const canTerminate = item.status === "completed";
+
   const handleTimePress = () => {
     navigation.navigate("UpcomingContracts", {
       fromFilter: true,
-      contracts: [item], // Truyền contract hiện tại
+      contracts: [item],
       focusedId: item._id,
     });
   };
@@ -87,7 +89,7 @@ const ContractCard = ({
       <View style={styles.propertySection}>
         <View style={styles.propertyRow}>
           <View style={styles.propertyItem}>
-            <Ionicons name="business" size={16} color="#64748b" />
+            <Ionicons name="business-outline" size={16} color="#64748b" />
             <Text style={styles.propertyValue} numberOfLines={1}>
               {item.buildingId?.name || "---"}
             </Text>
@@ -95,7 +97,7 @@ const ContractCard = ({
         </View>
         <View style={[styles.propertyRow, { marginTop: 8 }]}>
           <View style={styles.propertyItem}>
-            <Ionicons name="bed" size={16} color="#64748b" />
+            <Ionicons name="bed-outline" size={16} color="#64748b" />
             <Text style={styles.propertyLabel}>Phòng</Text>
             <Text style={styles.propertyValue} numberOfLines={1}>
               {item.roomId?.roomNumber || "---"}
@@ -104,10 +106,9 @@ const ContractCard = ({
         </View>
       </View>
 
-      {/* Sửa onPress từ () => {} thành handleTimePress */}
       <TouchableOpacity
         style={[styles.dateSection, { borderColor: urgency.color }]}
-        onPress={handleTimePress} // Đã sửa thành hàm mới
+        onPress={handleTimePress}
         activeOpacity={0.8}
       >
         <View style={styles.dateContainer}>
@@ -142,30 +143,43 @@ const ContractCard = ({
       </TouchableOpacity>
 
       <View style={styles.cardFooter}>
-        <TouchableOpacity
-          style={styles.detailButton}
-          onPress={() => onOpenDetail(item._id)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="eye" size={16} color="#0d9488" />
-          <Text style={styles.detailButtonText}>Chi tiết</Text>
-        </TouchableOpacity>
+        <View style={styles.leftActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => onOpenDetail(item._id)}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="eye-outline" size={18} color="#0d9488" />
+            <Text style={styles.actionTextMain}>Chi tiết</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.downloadButton}
-          onPress={() => onDownload(item)}
-          disabled={isDownloading}
-          activeOpacity={0.7}
-        >
-          {isDownloading ? (
-            <ActivityIndicator size="small" color="#059669" />
-          ) : (
-            <Ionicons name="download" size={16} color="#059669" />
-          )}
-          <Text style={styles.downloadButtonText}>
-            {isDownloading ? "Đang tải..." : "Tải PDF"}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => onDownload(item)}
+            disabled={isDownloading}
+            activeOpacity={0.6}
+          >
+            {isDownloading ? (
+              <ActivityIndicator size="small" color="#64748b" />
+            ) : (
+              <Ionicons name="download-outline" size={18} color="#64748b" />
+            )}
+            <Text style={styles.actionTextNormal}>
+              {isDownloading ? "Đang tải..." : "PDF"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {canTerminate && (
+          <TouchableOpacity
+            style={styles.terminateButton}
+            onPress={() => onTerminate(item)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.terminateText}>Chấm dứt hợp đồng</Text>
+            <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -270,28 +284,48 @@ const styles = StyleSheet.create({
   },
   dateHighlight: { color: "#0f172a", fontWeight: "700" },
   expiryTextSmall: { marginTop: 6, fontSize: 13, fontWeight: "600" },
+
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
     paddingTop: 12,
+    marginTop: 4,
   },
-  detailButton: {
+  leftActions: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
-    gap: 6,
+    gap: 24,
   },
-  detailButtonText: { fontSize: 14, color: "#0d9488", fontWeight: "600" },
-  downloadButton: {
+  actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
     gap: 6,
+    paddingVertical: 4,
   },
-  downloadButtonText: { fontSize: 14, color: "#059669", fontWeight: "600" },
+  actionTextMain: {
+    fontSize: 14,
+    color: "#0d9488",
+    fontWeight: "600",
+  },
+  actionTextNormal: {
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  terminateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+  },
+  terminateText: {
+    fontSize: 13,
+    color: "#ef4444",
+    fontWeight: "600",
+  },
 });
 
 export default ContractCard;

@@ -127,3 +127,14 @@ export const downloadContractPdf = async (id) => {
     throw new Error(msg);
   }
 };
+export const requestTerminate = async (id, reason, note = "") => {
+  try {
+    const res = await baseApi.patch(`/contracts/${id}/request-terminate`, {
+      reason,
+      note,
+    });
+    return res.data;
+  } catch (err) {
+    throw err;
+  }
+};
