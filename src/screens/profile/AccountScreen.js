@@ -9,33 +9,37 @@ import {
   ActivityIndicator,
   StatusBar,
   Platform,
+  Alert,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import { getProfile, updateProfile } from "../../api/userApi";
-import AddressManager from "../../components/address/AddressManager";
 import Toast from "react-native-toast-message";
 
 export default function AccountScreen() {
   const { user, logout } = useAuth();
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
+
   const [userData, setUserData] = useState({
     fullName: "",
     phoneNumber: "",
     dob: "",
     gender: "",
-    address: [],
+    address: "",
   });
+
   const [originalData, setOriginalData] = useState({
     fullName: "",
     phoneNumber: "",
     dob: "",
     gender: "",
-    address: [],
+    address: "",
   });
+
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempFullName, setTempFullName] = useState("");
 
@@ -44,7 +48,7 @@ export default function AccountScreen() {
     if (dateString.includes("/")) return dateString;
 
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    if (isNaN(date.getTime())) return "";
 
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -54,21 +58,14 @@ export default function AccountScreen() {
   };
 
   const formatDateToISO = (dateString) => {
-    if (!dateString) return "";
-
+    if (!dateString) return null;
     const parts = dateString.split("/");
-    if (parts.length !== 3) return dateString;
-
-    const day = parts[0].padStart(2, "0");
-    const month = parts[1].padStart(2, "0");
-    const year = parts[2];
-
-    return `${year}-${month}-${day}`;
+    if (parts.length !== 3) return null;
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
   };
 
   const isValidDate = (dateString) => {
     if (!dateString) return true;
-
     const regex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
     if (!regex.test(dateString)) return false;
 
@@ -90,10 +87,7 @@ export default function AccountScreen() {
 
   const formatDateInput = (text) => {
     let cleaned = text.replace(/[^0-9]/g, "");
-
-    if (cleaned.length > 8) {
-      cleaned = cleaned.substring(0, 8);
-    }
+    if (cleaned.length > 8) cleaned = cleaned.substring(0, 8);
 
     if (cleaned.length > 4) {
       return `${cleaned.substring(0, 2)}/${cleaned.substring(
@@ -103,7 +97,6 @@ export default function AccountScreen() {
     } else if (cleaned.length > 2) {
       return `${cleaned.substring(0, 2)}/${cleaned.substring(2)}`;
     }
-
     return cleaned;
   };
 
@@ -128,7 +121,7 @@ export default function AccountScreen() {
           phoneNumber: userInfo.phoneNumber || "",
           dob: formattedDob,
           gender: userInfo.gender || "",
-          address: userInfo.address || [],
+          address: userInfo.address || "",
         };
 
         setUserData(profileData);
@@ -137,8 +130,8 @@ export default function AccountScreen() {
     } catch (error) {
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: "Không thể tải thông tin profile",
+        text1: "Lỗi kết nối",
+        text2: "Không thể tải thông tin cá nhân.",
       });
     } finally {
       setLoading(false);
@@ -153,8 +146,18 @@ export default function AccountScreen() {
     if (!userData.fullName.trim()) {
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: "Vui lòng nhập họ và tên",
+        text1: "Thiếu thông tin",
+        text2: "Vui lòng nhập họ và tên.",
+      });
+      return;
+    }
+
+    const phoneRegex = /^[0-9]{10}$/;
+    if (userData.phoneNumber && !phoneRegex.test(userData.phoneNumber)) {
+      Toast.show({
+        type: "error",
+        text1: "Số điện thoại không hợp lệ",
+        text2: "Vui lòng nhập đúng 10 chữ số.",
       });
       return;
     }
@@ -162,9 +165,8 @@ export default function AccountScreen() {
     if (userData.dob && !isValidDate(userData.dob)) {
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2:
-          "Định dạng ngày sinh không hợp lệ. Vui lòng nhập theo định dạng DD/MM/YYYY",
+        text1: "Ngày sinh không hợp lệ",
+        text2: "Vui lòng nhập đúng định dạng DD/MM/YYYY.",
       });
       return;
     }
@@ -172,33 +174,38 @@ export default function AccountScreen() {
     try {
       setLoading(true);
 
-      const dobToSend = userData.dob
-        ? formatDateToISO(userData.dob)
-        : undefined;
+      let dobToSend = undefined;
+      if (userData.dob && isValidDate(userData.dob)) {
+        dobToSend = formatDateToISO(userData.dob);
+      }
 
       const dataToSend = {
-        fullName: userData.fullName,
-        phoneNumber: userData.phoneNumber,
-        dob: dobToSend,
-        gender: userData.gender || undefined,
-        address: userData.address,
+        fullName: userData.fullName.trim(),
+        phoneNumber: userData.phoneNumber ? userData.phoneNumber.trim() : "",
+        gender: userData.gender || "",
+        address: userData.address ? userData.address.trim() : "",
       };
+
+      if (dobToSend) {
+        dataToSend.dob = dobToSend;
+      }
 
       await updateProfile(dataToSend);
 
       Toast.show({
         type: "success",
         text1: "Thành công",
-        text2: "Cập nhật thông tin thành công!",
+        text2: "Cập nhật hồ sơ thành công!",
       });
 
-      setOriginalData(JSON.parse(JSON.stringify(userData)));
+      setOriginalData({ ...userData });
     } catch (error) {
-      console.log("Save error:", error);
+      const message =
+        error.response?.data?.message || "Cập nhật thất bại, vui lòng thử lại.";
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: error.response?.data?.message || "Cập nhật thất bại",
+        text1: "Lỗi hệ thống",
+        text2: message,
       });
     } finally {
       setLoading(false);
@@ -215,13 +222,12 @@ export default function AccountScreen() {
           await logout();
           Toast.show({
             type: "success",
-            text1: "Thành công",
-            text2: "Đăng xuất thành công!",
+            text1: "Đăng xuất",
+            text2: "Hẹn gặp lại bạn!",
           });
-
           setTimeout(() => {
             navigation.navigate("Login");
-          }, 1000);
+          }, 500);
         },
       },
     ]);
@@ -230,15 +236,12 @@ export default function AccountScreen() {
   const getInitials = (name) => {
     if (!name) return "??";
     return name
+      .trim()
       .split(" ")
       .map((word) => word[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  };
-
-  const handleAddressUpdate = (updatedAddresses) => {
-    setUserData((prev) => ({ ...prev, address: updatedAddresses }));
   };
 
   const headerPaddingTop =
@@ -247,13 +250,13 @@ export default function AccountScreen() {
   if (!user) {
     return (
       <View style={styles.container}>
-        <View style={[styles.simpleHeader, { paddingTop: headerPaddingTop }]}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Tài Khoản</Text>
-          </View>
+        <View
+          style={[styles.headerContainer, { paddingTop: headerPaddingTop }]}
+        >
+          <Text style={styles.headerTitle}>Tài Khoản</Text>
         </View>
         <View style={styles.centerContent}>
-          <Ionicons name="person-circle-outline" size={80} color="#14b8a6" />
+          <Ionicons name="person-circle-outline" size={80} color="#cbd5e1" />
           <Text style={styles.noUserText}>
             Vui lòng đăng nhập để xem thông tin
           </Text>
@@ -261,7 +264,7 @@ export default function AccountScreen() {
             style={styles.primaryBtn}
             onPress={() => navigation.navigate("Login")}
           >
-            <Text style={styles.primaryBtnText}>Đăng nhập</Text>
+            <Text style={styles.primaryBtnText}>Đăng nhập ngay</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -270,157 +273,181 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.simpleHeader, { paddingTop: headerPaddingTop }]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1e293b" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tài Khoản</Text>
-          <TouchableOpacity style={styles.backButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color="#ef4444" />
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.headerContainer, { paddingTop: headerPaddingTop }]}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#1e293b" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Hồ Sơ Của Tôi</Text>
+        <TouchableOpacity style={styles.iconButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={24} color="#ef4444" />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
-        <View style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            <LinearGradient
-              colors={["#14b8a6", "#06b6d4", "#3b82f6"]}
-              style={styles.avatar}
-            >
-              <Text style={styles.avatarText}>
-                {getInitials(userData.fullName)}
-              </Text>
-            </LinearGradient>
-            <View style={styles.profileInfo}>
-              {!isEditingName ? (
-                <View style={styles.nameRow}>
-                  <Text style={styles.userName}>
-                    {userData.fullName || "Chưa cập nhật"}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.editIconBtn}
-                    onPress={() => {
-                      setTempFullName(userData.fullName);
-                      setIsEditingName(true);
-                    }}
-                  >
-                    <Ionicons name="pencil" size={16} color="#64748b" />
-                  </TouchableOpacity>
-                  <View style={styles.badge}>
-                    <Ionicons
-                      name="shield-checkmark"
-                      size={12}
-                      color="#10b981"
-                    />
-                    <Text style={styles.badgeText}>Đã kích hoạt</Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.nameEditRow}>
-                  <TextInput
-                    style={styles.nameInput}
-                    value={tempFullName}
-                    onChangeText={setTempFullName}
-                    placeholder="Nhập họ và tên"
-                    autoFocus={true}
-                  />
-                  <TouchableOpacity
-                    style={styles.checkBtn}
-                    onPress={() => {
-                      setUserData((prev) => ({
-                        ...prev,
-                        fullName: tempFullName,
-                      }));
-                      setIsEditingName(false);
-                    }}
-                  >
-                    <Ionicons name="checkmark" size={20} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.closeBtn}
-                    onPress={() => {
-                      setTempFullName(userData.fullName);
-                      setIsEditingName(false);
-                    }}
-                  >
-                    <Ionicons name="close" size={20} color="#64748b" />
-                  </TouchableOpacity>
-                </View>
-              )}
-              <View style={styles.infoRow}>
-                <Ionicons name="mail" size={14} color="#64748b" />
-                <Text style={styles.infoText}>
-                  {user.email || user.user?.email}
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Avatar Section */}
+          <View style={styles.profileCard}>
+            <View style={styles.profileHeader}>
+              <LinearGradient
+                colors={["#2dd4bf", "#0ea5e9"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatar}
+              >
+                <Text style={styles.avatarText}>
+                  {getInitials(userData.fullName)}
                 </Text>
+              </LinearGradient>
+
+              <View style={styles.profileInfo}>
+                {!isEditingName ? (
+                  <View style={styles.nameRow}>
+                    <Text style={styles.userName}>
+                      {userData.fullName || "Chưa đặt tên"}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.editIconBtn}
+                      onPress={() => {
+                        setTempFullName(userData.fullName);
+                        setIsEditingName(true);
+                      }}
+                    >
+                      <Ionicons
+                        name="create-outline"
+                        size={20}
+                        color="#64748b"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.nameEditRow}>
+                    <TextInput
+                      style={styles.nameInput}
+                      value={tempFullName}
+                      onChangeText={setTempFullName}
+                      placeholder="Nhập họ và tên"
+                      autoFocus={true}
+                    />
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        setUserData((prev) => ({
+                          ...prev,
+                          fullName: tempFullName,
+                        }));
+                        setIsEditingName(false);
+                      }}
+                    >
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={28}
+                        color="#10b981"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        setTempFullName(userData.fullName);
+                        setIsEditingName(false);
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={28} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.emailRow}>
+                  <Ionicons name="mail-outline" size={14} color="#64748b" />
+                  <Text style={styles.emailText}>
+                    {user.email || user.user?.email}
+                  </Text>
+                </View>
+
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>Thành viên</Text>
+                </View>
               </View>
             </View>
-          </View>
-          {hasChanges() && (
-            <TouchableOpacity
-              style={[styles.saveTopBtn, loading && styles.saveBtnDisabled]}
-              onPress={handleSave}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <View style={styles.saveButtonContent}>
-                  <Ionicons name="save-outline" size={18} color="#fff" />
-                  <Text style={styles.saveTopBtnText}>Lưu thay đổi</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
 
-        <View style={styles.twoColumnContainer}>
-          <View style={styles.infoCard}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="person" size={20} color="#14b8a6" />
-              <Text style={styles.cardTitle}>Thông Tin Cá Nhân</Text>
-            </View>
-            <View style={styles.cardContent}>
-              <View style={styles.fieldGroup}>
-                <View style={styles.fieldIcon}>
-                  <Ionicons name="call" size={20} color="#14b8a6" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Số điện thoại</Text>
+            {hasChanges() && (
+              <TouchableOpacity
+                style={[styles.saveTopBtn, loading && styles.saveBtnDisabled]}
+                onPress={handleSave}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={20} color="#fff" />
+                    <Text style={styles.saveTopBtnText}>Lưu thay đổi</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Form Section */}
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Thông tin chi tiết</Text>
+
+            <View style={styles.formCard}>
+              {/* Phone Number */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Số điện thoại <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={20}
+                    color="#94a3b8"
+                    style={styles.inputIcon}
+                  />
                   <TextInput
-                    style={styles.fieldInput}
-                    placeholder="Nhập số điện thoại"
+                    style={styles.textInput}
+                    placeholder="Nhập 10 chữ số"
                     value={userData.phoneNumber}
                     onChangeText={(text) =>
-                      setUserData((prev) => ({ ...prev, phoneNumber: text }))
+                      setUserData((prev) => ({
+                        ...prev,
+                        phoneNumber: text.replace(/[^0-9]/g, ""),
+                      }))
                     }
-                    keyboardType="phone-pad"
+                    keyboardType="number-pad"
+                    maxLength={10}
                   />
                 </View>
               </View>
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.fieldIcon}>
-                  <Ionicons name="calendar" size={20} color="#14b8a6" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Ngày sinh (DD/MM/YYYY)</Text>
+              {/* DOB */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Ngày sinh</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="calendar-clear-outline"
+                    size={20}
+                    color="#94a3b8"
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={[
-                      styles.fieldInput,
+                      styles.textInput,
                       userData.dob &&
                         !isValidDate(userData.dob) &&
-                        styles.errorInput,
+                        styles.inputError,
                     ]}
-                    placeholder="01/01/2000"
+                    placeholder="DD/MM/YYYY"
                     value={userData.dob}
                     onChangeText={(text) => {
                       const formatted = formatDateInput(text);
@@ -429,87 +456,81 @@ export default function AccountScreen() {
                     keyboardType="numeric"
                     maxLength={10}
                   />
-                  {userData.dob && !isValidDate(userData.dob) && (
-                    <Text style={styles.errorText}>Định dạng không hợp lệ</Text>
-                  )}
                 </View>
               </View>
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.fieldIcon}>
-                  <Ionicons name="people" size={20} color="#14b8a6" />
+              {/* Gender */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Giới tính</Text>
+                <View style={styles.genderRow}>
+                  {["male", "female", "other"].map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.genderOption,
+                        userData.gender === type && styles.genderOptionActive,
+                      ]}
+                      onPress={() =>
+                        setUserData((prev) => ({ ...prev, gender: type }))
+                      }
+                    >
+                      <Ionicons
+                        name={
+                          type === "male"
+                            ? "male-outline"
+                            : type === "female"
+                            ? "female-outline"
+                            : "help-circle-outline"
+                        }
+                        size={18}
+                        color={userData.gender === type ? "#fff" : "#64748b"}
+                      />
+                      <Text
+                        style={[
+                          styles.genderLabel,
+                          userData.gender === type && styles.genderLabelActive,
+                        ]}
+                      >
+                        {type === "male"
+                          ? "Nam"
+                          : type === "female"
+                          ? "Nữ"
+                          : "Khác"}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Giới tính</Text>
-                  <View style={styles.genderContainer}>
-                    <TouchableOpacity
-                      style={[
-                        styles.genderBtn,
-                        userData.gender === "male" && styles.genderBtnActive,
-                      ]}
-                      onPress={() =>
-                        setUserData((prev) => ({ ...prev, gender: "male" }))
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.genderText,
-                          userData.gender === "male" && styles.genderTextActive,
-                        ]}
-                      >
-                        Nam
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.genderBtn,
-                        userData.gender === "female" && styles.genderBtnActive,
-                      ]}
-                      onPress={() =>
-                        setUserData((prev) => ({ ...prev, gender: "female" }))
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.genderText,
-                          userData.gender === "female" &&
-                            styles.genderTextActive,
-                        ]}
-                      >
-                        Nữ
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.genderBtn,
-                        userData.gender === "other" && styles.genderBtnActive,
-                      ]}
-                      onPress={() =>
-                        setUserData((prev) => ({ ...prev, gender: "other" }))
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.genderText,
-                          userData.gender === "other" &&
-                            styles.genderTextActive,
-                        ]}
-                      >
-                        Khác
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+              </View>
+
+              {/* Address (TextArea) */}
+              <View style={[styles.inputGroup, { borderBottomWidth: 0 }]}>
+                <View style={styles.labelRow}>
+                  <Ionicons
+                    name="location-outline"
+                    size={16}
+                    color="#64748b"
+                    style={styles.labelIcon}
+                  />
+                  <Text style={styles.label}>Địa chỉ</Text>
+                </View>
+                <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
+                  <TextInput
+                    style={styles.textArea}
+                    placeholder="Số nhà, tên đường, phường/xã..."
+                    value={userData.address}
+                    onChangeText={(text) =>
+                      setUserData((prev) => ({ ...prev, address: text }))
+                    }
+                    multiline={true}
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                  />
                 </View>
               </View>
             </View>
           </View>
-
-          <AddressManager
-            addresses={userData.address}
-            onAddressUpdate={handleAddressUpdate}
-          />
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
       <Toast />
     </View>
   );
@@ -518,108 +539,62 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f1f5f9",
   },
-  simpleHeader: {
+  headerContainer: {
     backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    zIndex: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    minHeight: 44,
-  },
-  backButton: {
-    padding: 4,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#1e293b",
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  iconButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#f8fafc",
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 16,
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    minHeight: 400,
-  },
-  noUserText: {
-    fontSize: 16,
-    color: "#64748b",
-    marginTop: 12,
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  primaryBtn: {
-    backgroundColor: "#14b8a6",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    padding: 16,
+    paddingBottom: 40,
   },
   profileCard: {
     backgroundColor: "#fff",
-    margin: 16,
-    marginBottom: 8,
     borderRadius: 16,
     padding: 20,
+    marginBottom: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   profileHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
-    borderWidth: 4,
-    borderColor: "rgba(255, 255, 255, 0.3)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   avatarText: {
     fontSize: 28,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#fff",
   },
   profileInfo: {
@@ -628,32 +603,16 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
-    flexWrap: "wrap",
+    marginBottom: 4,
   },
   userName: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#1e293b",
     marginRight: 8,
   },
   editIconBtn: {
     padding: 4,
-    marginRight: 8,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#d1fae5",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  badgeText: {
-    fontSize: 11,
-    color: "#10b981",
-    fontWeight: "600",
   },
   nameEditRow: {
     flexDirection: "row",
@@ -664,52 +623,43 @@ const styles = StyleSheet.create({
   nameInput: {
     flex: 1,
     fontSize: 16,
-    fontWeight: "400",
     color: "#1e293b",
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
+    borderBottomWidth: 2,
+    borderBottomColor: "#14b8a6",
+    paddingVertical: 4,
   },
-  checkBtn: {
-    backgroundColor: "#14b8a6",
-    padding: 8,
-    borderRadius: 8,
+  actionBtn: {
+    padding: 2,
   },
-  closeBtn: {
-    backgroundColor: "#f1f5f9",
-    padding: 8,
-    borderRadius: 8,
-  },
-  infoRow: {
+  emailRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  infoText: {
+  emailText: {
     fontSize: 14,
     color: "#64748b",
   },
+  badge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "600",
+  },
   saveTopBtn: {
-    backgroundColor: "#14b8a6",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: "#14b8a6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  saveButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: "#14b8a6",
+    paddingVertical: 12,
+    borderRadius: 10,
     gap: 8,
   },
   saveBtnDisabled: {
@@ -720,102 +670,131 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  twoColumnContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+
+  formSection: {
     gap: 12,
   },
-  infoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    overflow: "hidden",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 8,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  cardTitle: {
+  sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1e293b",
-    flex: 1,
-  },
-  cardContent: {
-    padding: 16,
-  },
-  fieldGroup: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 16,
-    gap: 12,
-  },
-  fieldIcon: {
-    marginTop: 2,
-  },
-  fieldContent: {
-    flex: 1,
-  },
-  fieldLabel: {
-    fontSize: 13,
     color: "#64748b",
-    marginBottom: 6,
-    fontWeight: "500",
+    marginLeft: 4,
   },
-  fieldInput: {
-    backgroundColor: "#f8fafc",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    fontSize: 15,
-    color: "#1e293b",
+  formCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
   },
-  errorInput: {
-    borderColor: "#ef4444",
+  inputGroup: {
+    marginBottom: 20,
   },
-  errorText: {
-    fontSize: 12,
-    color: "#ef4444",
-    marginTop: 4,
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#334155",
+    marginBottom: 8,
   },
-  genderContainer: {
+  labelRow: {
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    marginBottom: 8,
   },
-  genderBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+  labelIcon: {
+    marginRight: 6,
+  },
+  required: {
+    color: "#ef4444",
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
-    alignItems: "center",
+    borderRadius: 10,
+    height: 50,
+    paddingHorizontal: 12,
   },
-  genderBtnActive: {
+  inputIcon: {
+    marginRight: 10,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1e293b",
+    height: "100%",
+  },
+  inputError: {
+    color: "#ef4444",
+  },
+  genderRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  genderOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    gap: 6,
+  },
+  genderOptionActive: {
     backgroundColor: "#14b8a6",
     borderColor: "#14b8a6",
   },
-  genderText: {
-    fontSize: 13,
+  genderLabel: {
+    fontSize: 14,
     fontWeight: "500",
     color: "#64748b",
   },
-  genderTextActive: {
+  genderLabelActive: {
     color: "#fff",
+    fontWeight: "600",
+  },
+  textAreaWrapper: {
+    height: "auto",
+    minHeight: 100,
+    alignItems: "flex-start",
+    paddingVertical: 12,
+  },
+  textArea: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1e293b",
+    textAlignVertical: "top",
+    height: "100%",
+  },
+
+  centerContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  noUserText: {
+    fontSize: 16,
+    color: "#64748b",
+    marginVertical: 16,
+  },
+  primaryBtn: {
+    backgroundColor: "#14b8a6",
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  primaryBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

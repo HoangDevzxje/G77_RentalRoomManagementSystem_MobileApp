@@ -11,6 +11,7 @@ import {
   Alert,
   StatusBar,
   useWindowDimensions,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -34,6 +35,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
   const [saving, setSaving] = useState(false);
   const [contract, setContract] = useState(null);
   const [payload, setPayload] = useState({ B: {}, bikes: [], roommates: [] });
+  const [validationErrors, setValidationErrors] = useState({});
 
   // Signature
   const [sigModalVisible, setSigModalVisible] = useState(false);
@@ -67,6 +69,105 @@ const ContractDetailScreen = ({ navigation, route }) => {
     fetchDetail(routeId);
   }, [routeId]);
 
+  const formatDateForAPI = (dateStr) => {
+    if (!dateStr || !dateStr.trim()) return "";
+
+    const trimmed = dateStr.trim();
+
+    // Nếu đã là YYYY-MM-DD thì giữ nguyên
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    // Nếu là DD-MM-YYYY thì chuyển đổi
+    if (/^\d{2}-\d{2}-\d{4}$/.test(trimmed)) {
+      const [day, month, year] = trimmed.split("-");
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+
+    // Nếu có dấu / thì chuyển đổi từ DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+      const [day, month, year] = trimmed.split("/");
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+
+    try {
+      const date = new Date(trimmed);
+      if (!isNaN(date.getTime())) {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, "0");
+        const day = date.getDate().toString().padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+    } catch (e) {}
+
+    return trimmed;
+  };
+
+  const formatDateForDisplay = (dateStr) => {
+    if (!dateStr || !dateStr.toString().trim()) return "";
+
+    const trimmed = dateStr.toString().trim();
+
+    // Nếu là YYYY-MM-DD thì chuyển đổi
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [year, month, day] = trimmed.split("-");
+      return `${day.padStart(2, "0")}-${month.padStart(2, "0")}-${year}`;
+    }
+
+    // Nếu đã là DD-MM-YYYY thì giữ nguyên
+    if (/^\d{2}-\d{2}-\d{4}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    // Nếu là DD/MM/YYYY thì đổi thành DD-MM-YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+      return trimmed.replace(/\//g, "-");
+    }
+
+    // Try to parse Date object
+    try {
+      const date = new Date(trimmed);
+      if (!isNaN(date.getTime())) {
+        const day = date.getDate().toString().padStart(2, "0");
+        const month = (date.getMonth() + 1).toString().padStart(2, "0");
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      }
+    } catch (e) {}
+
+    return trimmed;
+  };
+
+  // Hàm format date cho hiển thị (DD/MM/YYYY)
+  const fmtDate = (d) => {
+    if (!d) return "--/--/----";
+
+    // Nếu là string DD-MM-YYYY
+    if (typeof d === "string" && /^\d{2}-\d{2}-\d{4}$/.test(d)) {
+      const [day, month, year] = d.split("-");
+      return `${day}/${month}/${year}`;
+    }
+
+    // Nếu là string YYYY-MM-DD
+    if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [year, month, day] = d.split("-");
+      return `${day}/${month}/${year}`;
+    }
+
+    try {
+      const date = new Date(d);
+      if (!isNaN(date.getTime())) {
+        const day = date.getDate().toString().padStart(2, "0");
+        const month = (date.getMonth() + 1).toString().padStart(2, "0");
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+    } catch (e) {}
+
+    return "--/--/----";
+  };
+
   const fetchDetail = async (id) => {
     setLoading(true);
     try {
@@ -76,12 +177,30 @@ const ContractDetailScreen = ({ navigation, route }) => {
       const bikes = Array.isArray(data.bikes) ? data.bikes : [];
       const roommates = Array.isArray(data.roommates) ? data.roommates : [];
       const B = data.B || {};
+
+      const formattedB = { ...B };
+      if (formattedB.dob) {
+        formattedB.dob = formatDateForDisplay(formattedB.dob);
+      }
+      if (formattedB.cccdIssuedDate) {
+        formattedB.cccdIssuedDate = formatDateForDisplay(
+          formattedB.cccdIssuedDate
+        );
+      }
+
+      const formattedRoommates = roommates.map((rm) => ({
+        ...rm,
+        dob: formatDateForDisplay(rm.dob),
+        cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate),
+      }));
+
       setContract(data);
       setPayload({
-        B: { ...(B || {}) },
+        B: formattedB,
         bikes: [...bikes],
-        roommates: [...roommates],
+        roommates: [...formattedRoommates],
       });
+      setValidationErrors({});
     } catch (e) {
       Toast.show({
         type: "error",
@@ -94,19 +213,205 @@ const ContractDetailScreen = ({ navigation, route }) => {
     }
   };
 
+  const validatePayload = () => {
+    const errors = {};
+    let isValid = true;
+
+    const requiredFields = [
+      "name",
+      "dob",
+      "cccd",
+      "cccdIssuedDate",
+      "cccdIssuedPlace",
+      "phone",
+      "permanentAddress",
+    ];
+
+    requiredFields.forEach((field) => {
+      if (!payload.B?.[field]?.toString().trim()) {
+        errors[`B.${field}`] = `Vui lòng điền ${getFieldLabel(field)}`;
+        isValid = false;
+      }
+    });
+
+    if (payload.B?.dob && payload.B.dob.trim()) {
+      const dateRegex = /^(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})$/;
+      if (!dateRegex.test(payload.B.dob.trim())) {
+        errors["B.dob"] =
+          "Định dạng ngày không hợp lệ (DD-MM-YYYY hoặc YYYY-MM-DD)";
+        isValid = false;
+      }
+    }
+
+    if (payload.B?.cccdIssuedDate && payload.B.cccdIssuedDate.trim()) {
+      const dateRegex = /^(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})$/;
+      if (!dateRegex.test(payload.B.cccdIssuedDate.trim())) {
+        errors["B.cccdIssuedDate"] =
+          "Định dạng ngày không hợp lệ (DD-MM-YYYY hoặc YYYY-MM-DD)";
+        isValid = false;
+      }
+    }
+
+    if (payload.B?.cccd && payload.B.cccd.trim()) {
+      const cccdValue = payload.B.cccd.trim();
+      if (!/^\d{12}$/.test(cccdValue)) {
+        errors["B.cccd"] = "CCCD phải có 12 số";
+        isValid = false;
+      }
+    }
+
+    if (payload.B?.phone && payload.B.phone.trim()) {
+      const phoneValue = payload.B.phone.trim();
+      if (!/^(0[3|5|7|8|9])[0-9]{8}$/.test(phoneValue)) {
+        errors["B.phone"] =
+          "Số điện thoại không hợp lệ (10 số, bắt đầu bằng 0)";
+        isValid = false;
+      }
+    }
+
+    // Validate từng xe trong danh sách
+    if (payload.bikes && payload.bikes.length > 0) {
+      payload.bikes.forEach((bike, index) => {
+        if (!bike.bikeNumber?.trim()) {
+          errors[`bikes[${index}].bikeNumber`] = "Vui lòng nhập biển số";
+          isValid = false;
+        }
+        if (!bike.brand?.trim()) {
+          errors[`bikes[${index}].brand`] = "Vui lòng nhập loại xe";
+          isValid = false;
+        }
+        if (!bike.color?.trim()) {
+          errors[`bikes[${index}].color`] = "Vui lòng nhập màu xe";
+          isValid = false;
+        }
+      });
+    }
+
+    // Validate từng người ở cùng
+    if (payload.roommates && payload.roommates.length > 0) {
+      payload.roommates.forEach((rm, index) => {
+        if (!rm.name?.trim()) {
+          errors[`roommates[${index}].name`] = "Vui lòng nhập họ tên";
+          isValid = false;
+        }
+        if (!rm.phone?.trim()) {
+          errors[`roommates[${index}].phone`] = "Vui lòng nhập số điện thoại";
+          isValid = false;
+        } else if (!/^(0[3|5|7|8|9])[0-9]{8}$/.test(rm.phone.trim())) {
+          errors[`roommates[${index}].phone`] =
+            "Số điện thoại không hợp lệ (10 số, bắt đầu bằng 0)";
+          isValid = false;
+        }
+        if (!rm.cccd?.trim()) {
+          errors[`roommates[${index}].cccd`] = "Vui lòng nhập CCCD";
+          isValid = false;
+        } else if (!/^\d{12}$/.test(rm.cccd.trim())) {
+          errors[`roommates[${index}].cccd`] = "CCCD phải có 12 số";
+          isValid = false;
+        }
+        if (rm.dob && rm.dob.trim()) {
+          const dateRegex =
+            /^(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})$/;
+          if (!dateRegex.test(rm.dob.trim())) {
+            errors[`roommates[${index}].dob`] =
+              "Định dạng ngày sinh không hợp lệ";
+            isValid = false;
+          }
+        }
+      });
+    }
+
+    setValidationErrors(errors);
+    return isValid;
+  };
+
+  // Helper để lấy label cho field
+  const getFieldLabel = (field) => {
+    const labels = {
+      name: "họ tên",
+      dob: "ngày sinh",
+      cccd: "số CCCD",
+      cccdIssuedDate: "ngày cấp CCCD",
+      cccdIssuedPlace: "nơi cấp CCCD",
+      phone: "số điện thoại",
+      permanentAddress: "địa chỉ thường trú",
+      email: "email",
+    };
+    return labels[field] || field;
+  };
+
+  const getFurnitureCondition = (condition) => {
+    const conditions = {
+      new: "Mới",
+      good: "Tốt",
+      normal: "Bình thường",
+      damaged: "Hư hỏng",
+      broken: "Hỏng nặng",
+    };
+    return conditions[condition] || condition;
+  };
+
   const handleSave = async () => {
     if (!contract) return;
+
+    if (!validatePayload()) {
+      Toast.show({
+        type: "error",
+        text1: "Vui lòng điền đầy đủ thông tin",
+        text2: "Có trường bắt buộc chưa được điền hoặc sai định dạng",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
-      const updated = await updateMyData(contract._id, payload);
+      const apiPayload = {
+        ...payload,
+        B: {
+          ...payload.B,
+          dob: formatDateForAPI(payload.B.dob),
+          cccdIssuedDate: formatDateForAPI(payload.B.cccdIssuedDate),
+          email: payload.B.email || contract.B?.email || "",
+        },
+        roommates: payload.roommates.map((rm) => ({
+          ...rm,
+          dob: formatDateForAPI(rm.dob),
+          cccdIssuedDate: formatDateForAPI(rm.cccdIssuedDate),
+        })),
+      };
+
+      const updated = await updateMyData(contract._id, apiPayload);
       const newDoc = updated?.data || updated || {};
-      setContract(newDoc);
+
+      const formattedB = { ...newDoc.B };
+      if (formattedB.dob) {
+        formattedB.dob = formatDateForDisplay(formattedB.dob);
+      }
+      if (formattedB.cccdIssuedDate) {
+        formattedB.cccdIssuedDate = formatDateForDisplay(
+          formattedB.cccdIssuedDate
+        );
+      }
+
+      const formattedRoommates = (newDoc.roommates || []).map((rm) => ({
+        ...rm,
+        dob: formatDateForDisplay(rm.dob),
+        cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate),
+      }));
+
+      setContract({ ...newDoc, B: formattedB, roommates: formattedRoommates });
+      setPayload((prev) => ({
+        ...prev,
+        B: formattedB,
+        roommates: formattedRoommates,
+      }));
+      setValidationErrors({});
       Toast.show({ type: "success", text1: "Đã lưu thông tin" });
     } catch (e) {
       Toast.show({
         type: "error",
         text1: "Lưu thất bại",
-        text2: e?.response?.data?.message || e.message,
+        text2: e?.response?.data?.message || e.message || "Đã xảy ra lỗi",
       });
     } finally {
       setSaving(false);
@@ -115,6 +420,64 @@ const ContractDetailScreen = ({ navigation, route }) => {
 
   const submitSignature = async (dataURL) => {
     if (!contract) return;
+
+    if (!validatePayload()) {
+      Toast.show({
+        type: "error",
+        text1: "Không thể ký",
+        text2: "Vui lòng điền đầy đủ thông tin bắt buộc trước khi ký",
+      });
+      return;
+    }
+    try {
+      const apiPayload = {
+        ...payload,
+        B: {
+          ...payload.B,
+          dob: formatDateForAPI(payload.B.dob),
+          cccdIssuedDate: formatDateForAPI(payload.B.cccdIssuedDate),
+          email: payload.B.email || contract.B?.email || "",
+        },
+        roommates: payload.roommates.map((rm) => ({
+          ...rm,
+          dob: formatDateForAPI(rm.dob),
+          cccdIssuedDate: formatDateForAPI(rm.cccdIssuedDate),
+        })),
+      };
+
+      await updateMyData(contract._id, apiPayload);
+      const newDoc = await getMyContract(contract._id);
+      const data = newDoc?.data || newDoc;
+
+      const formattedB = { ...data.B };
+      if (formattedB.dob) {
+        formattedB.dob = formatDateForDisplay(formattedB.dob);
+      }
+      if (formattedB.cccdIssuedDate) {
+        formattedB.cccdIssuedDate = formatDateForDisplay(
+          formattedB.cccdIssuedDate
+        );
+      }
+
+      const formattedRoommates = (data.roommates || []).map((rm) => ({
+        ...rm,
+        dob: formatDateForDisplay(rm.dob),
+        cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate),
+      }));
+
+      setContract({ ...data, B: formattedB, roommates: formattedRoommates });
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Lưu thông tin thất bại",
+        text2:
+          e?.response?.data?.message ||
+          e.message ||
+          "Không thể ký khi thông tin chưa được lưu",
+      });
+      return;
+    }
+
     setSigLoading(true);
     try {
       await signByTenant(contract._id, dataURL);
@@ -125,7 +488,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
       Toast.show({
         type: "error",
         text1: "Ký thất bại",
-        text2: e?.response?.data?.message || e.message,
+        text2: e?.response?.data?.message || e.message || "Đã xảy ra lỗi",
       });
     } finally {
       setSigLoading(false);
@@ -148,7 +511,9 @@ const ContractDetailScreen = ({ navigation, route }) => {
           if (!email?.trim()) return;
           await searchAndAddRoommate(email.trim());
         },
-        "plain-text"
+        "plain-text",
+        "",
+        "email-address"
       );
     } else {
       if (isWeb && typeof window !== "undefined" && window.prompt) {
@@ -179,9 +544,9 @@ const ContractDetailScreen = ({ navigation, route }) => {
                 phone: data.phoneNumber || "",
                 email: data.email || "",
                 permanentAddress: data.address || "",
-                dob: data.dob || null,
+                dob: data.dob ? formatDateForDisplay(data.dob) : "",
                 cccd: "",
-                cccdIssuedDate: null,
+                cccdIssuedDate: "",
                 cccdIssuedPlace: "",
               };
               setPayload((prev) => ({
@@ -209,19 +574,29 @@ const ContractDetailScreen = ({ navigation, route }) => {
     ["sent_to_tenant", "signed_by_landlord"].includes(contract.status) &&
     !contract.tenantSignatureUrl;
 
-  const fmtDate = (d) =>
-    d ? new Date(d).toLocaleDateString("vi-VN") : "--/--/----";
-
   if (loading)
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#0d9488" />
+        <Text style={{ marginTop: 12, color: "#64748b" }}>
+          Đang tải hợp đồng...
+        </Text>
       </View>
     );
+
   if (!contract)
     return (
       <View style={styles.center}>
-        <Text>Không tìm thấy hợp đồng</Text>
+        <Ionicons name="document-outline" size={48} color="#94a3b8" />
+        <Text style={{ marginTop: 12, color: "#64748b" }}>
+          Không tìm thấy hợp đồng
+        </Text>
+        <TouchableOpacity
+          style={[styles.btnSave, { marginTop: 20 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.btnText}>Quay lại</Text>
+        </TouchableOpacity>
       </View>
     );
 
@@ -230,7 +605,10 @@ const ContractDetailScreen = ({ navigation, route }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <ContractTopBar navigation={navigation} title="Chi tiết hợp đồng" />
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.card}>
           {/* header info */}
           <View style={styles.officialHeader}>
@@ -244,6 +622,16 @@ const ContractDetailScreen = ({ navigation, route }) => {
             </Text>
           </View>
 
+          {Object.keys(validationErrors).length > 0 && canEdit && (
+            <View style={styles.validationAlert}>
+              <Ionicons name="warning-outline" size={20} color="#dc2626" />
+              <Text style={styles.validationAlertText}>
+                Vui lòng điền đầy đủ tất cả thông tin bắt buộc trước khi lưu
+                hoặc ký
+              </Text>
+            </View>
+          )}
+
           {/* Sections split into components */}
           <ContractInfoSection
             contract={contract}
@@ -252,15 +640,82 @@ const ContractDetailScreen = ({ navigation, route }) => {
             canEdit={canEdit}
             fmtDate={fmtDate}
             onAddRoommate={handleSearchByEmail}
+            validationErrors={validationErrors}
           />
 
           <ContractTerms contract={contract} contentWidth={contentWidth} />
+
+          {contract.furnitures && contract.furnitures.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Đồ nội thất đi kèm</Text>
+              <View style={styles.furnitureContainer}>
+                {contract.furnitures.map((furniture, index) => (
+                  <View key={index} style={styles.furnitureItem}>
+                    <View style={styles.furnitureHeader}>
+                      <Text style={styles.furnitureName}>
+                        {furniture.name || "Nội thất không tên"}
+                      </Text>
+                      <View
+                        style={[
+                          styles.conditionBadge,
+                          furniture.condition === "new" && styles.conditionNew,
+                          furniture.condition === "good" &&
+                            styles.conditionGood,
+                          furniture.condition === "normal" &&
+                            styles.conditionNormal,
+                          furniture.condition === "damaged" &&
+                            styles.conditionDamaged,
+                          furniture.condition === "broken" &&
+                            styles.conditionBroken,
+                        ]}
+                      >
+                        <Text style={styles.conditionText}>
+                          {getFurnitureCondition(furniture.condition)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.furnitureDetails}>
+                      <Text style={styles.furnitureDetail}>
+                        <Text style={styles.detailLabel}>Số lượng: </Text>
+                        {furniture.quantity || 1}
+                      </Text>
+                      {furniture.damageCount > 0 && (
+                        <Text
+                          style={[styles.furnitureDetail, styles.damageText]}
+                        >
+                          <Text style={styles.detailLabel}>Số chỗ hư: </Text>
+                          {furniture.damageCount}
+                        </Text>
+                      )}
+                      {furniture.notes && (
+                        <Text style={styles.furnitureDetail}>
+                          <Text style={styles.detailLabel}>Ghi chú: </Text>
+                          {furniture.notes}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           <ContractSignatures
             contract={contract}
             payload={payload}
             canSign={canSign}
-            onOpenSign={() => setSigModalVisible(true)}
+            onOpenSign={() => {
+              if (!validatePayload()) {
+                Toast.show({
+                  type: "error",
+                  text1: "Không thể ký",
+                  text2: "Vui lòng điền đầy đủ thông tin bắt buộc trước",
+                });
+                return;
+              }
+              setSigModalVisible(true);
+            }}
             fmtDate={fmtDate}
           />
 
@@ -269,13 +724,18 @@ const ContractDetailScreen = ({ navigation, route }) => {
             {canEdit && (
               <>
                 <TouchableOpacity
-                  style={styles.btnSave}
+                  style={[styles.btnSave, saving && styles.btnDisabled]}
                   onPress={handleSave}
                   disabled={saving}
                 >
-                  <Text style={styles.btnText}>
-                    {saving ? "Đang lưu..." : "Lưu thông tin"}
-                  </Text>
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="save-outline" size={20} color="#fff" />
+                      <Text style={styles.btnText}>Lưu thông tin</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -291,10 +751,38 @@ const ContractDetailScreen = ({ navigation, route }) => {
             {canSign && (
               <TouchableOpacity
                 style={styles.btnSign}
-                onPress={() => setSigModalVisible(true)}
+                onPress={() => {
+                  if (!validatePayload()) {
+                    Toast.show({
+                      type: "error",
+                      text1: "Không thể ký",
+                      text2: "Vui lòng điền đầy đủ thông tin bắt buộc trước",
+                    });
+                    return;
+                  }
+                  setSigModalVisible(true);
+                }}
               >
                 <Ionicons name="create" size={20} color="#fff" />
                 <Text style={styles.btnText}>Ký hợp đồng</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Nút tải PDF nếu hợp đồng đã hoàn thành */}
+            {contract.status === "completed" && (
+              <TouchableOpacity
+                style={styles.btnDownload}
+                onPress={() => {
+                  // TODO: Thêm chức năng tải PDF
+                  Toast.show({
+                    type: "info",
+                    text1: "Tính năng đang phát triển",
+                    text2: "Chức năng tải PDF sẽ sớm có mặt",
+                  });
+                }}
+              >
+                <Ionicons name="download-outline" size={20} color="#fff" />
+                <Text style={styles.btnText}>Tải PDF</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -302,10 +790,17 @@ const ContractDetailScreen = ({ navigation, route }) => {
       </ScrollView>
 
       {/* Signature Modal */}
-      <Modal visible={sigModalVisible} animationType="slide">
+      <Modal
+        visible={sigModalVisible}
+        animationType="slide"
+        presentationStyle="formSheet"
+      >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSigModalVisible(false)}>
+            <TouchableOpacity
+              onPress={() => setSigModalVisible(false)}
+              style={styles.modalCloseBtn}
+            >
               <Ionicons name="close" size={28} color="#000" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Ký tên của bạn</Text>
@@ -321,41 +816,70 @@ const ContractDetailScreen = ({ navigation, route }) => {
                     require("react-signature-canvas")?.default;
                   return (
                     <>
-                      <WebSignature
-                        ref={webSigRef}
-                        canvasProps={{
-                          style: {
-                            width: "100%",
-                            height: 300,
-                            border: "1px solid #ddd",
-                            borderRadius: 8,
-                          },
-                        }}
-                      />
+                      <View style={styles.signatureContainer}>
+                        <WebSignature
+                          ref={webSigRef}
+                          canvasProps={{
+                            style: {
+                              width: "100%",
+                              height: 300,
+                              border: "1px solid #ddd",
+                              borderRadius: 8,
+                              backgroundColor: "#f9fafb",
+                            },
+                          }}
+                        />
+                      </View>
                       <View style={styles.modalActions}>
                         <TouchableOpacity
                           style={styles.modalBtnSecondary}
                           onPress={clearWebPad}
                         >
-                          <Text>Xóa</Text>
+                          <Ionicons
+                            name="trash-outline"
+                            size={18}
+                            color="#64748b"
+                          />
+                          <Text style={styles.modalBtnSecondaryText}>Xóa</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={styles.modalBtnPrimary}
+                          style={[
+                            styles.modalBtnPrimary,
+                            sigLoading && styles.btnDisabled,
+                          ]}
                           onPress={handleWebConfirm}
                           disabled={sigLoading}
                         >
-                          <Text style={{ color: "#fff" }}>
-                            {sigLoading ? "Đang gửi..." : "Xác nhận ký"}
-                          </Text>
+                          {sigLoading ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark"
+                                size={18}
+                                color="#fff"
+                              />
+                              <Text style={styles.modalBtnPrimaryText}>
+                                Xác nhận ký
+                              </Text>
+                            </>
+                          )}
                         </TouchableOpacity>
                       </View>
                     </>
                   );
                 } catch (err) {
                   return (
-                    <Text style={styles.notSupportedText}>
-                      Không hỗ trợ ký trên nền Web này
-                    </Text>
+                    <View style={styles.notSupportedContainer}>
+                      <Ionicons
+                        name="alert-circle-outline"
+                        size={48}
+                        color="#94a3b8"
+                      />
+                      <Text style={styles.notSupportedText}>
+                        Không hỗ trợ ký trên nền Web này
+                      </Text>
+                    </View>
                   );
                 }
               })()}
@@ -367,22 +891,43 @@ const ContractDetailScreen = ({ navigation, route }) => {
                   const NativeSignature =
                     require("react-native-signature-canvas")?.default;
                   return NativeSignature ? (
-                    <NativeSignature
-                      ref={nativeSigRef}
-                      onOK={submitSignature}
-                      onEmpty={() =>
-                        Toast.show({ type: "info", text1: "Vui lòng ký tên" })
-                      }
-                      clearText="Xóa"
-                      confirmText="Xác nhận"
-                      autoClear={false}
-                    />
+                    <View style={styles.nativeSignatureContainer}>
+                      <NativeSignature
+                        ref={nativeSigRef}
+                        onOK={submitSignature}
+                        onEmpty={() =>
+                          Toast.show({ type: "info", text1: "Vui lòng ký tên" })
+                        }
+                        clearText="Xóa"
+                        confirmText="Xác nhận ký"
+                        autoClear={false}
+                        descriptionText=""
+                        webStyle={`
+                          .m-signature-pad {
+                            box-shadow: none;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 8px;
+                            background-color: #f9fafb;
+                          }
+                          .m-signature-pad--body {
+                            border: none;
+                          }
+                        `}
+                      />
+                    </View>
                   ) : null;
                 } catch (err) {
                   return (
-                    <Text style={styles.notSupportedText}>
-                      Không hỗ trợ ký trên thiết bị này
-                    </Text>
+                    <View style={styles.notSupportedContainer}>
+                      <Ionicons
+                        name="alert-circle-outline"
+                        size={48}
+                        color="#94a3b8"
+                      />
+                      <Text style={styles.notSupportedText}>
+                        Không hỗ trợ ký trên thiết bị này
+                      </Text>
+                    </View>
                   );
                 }
               })()}
@@ -395,34 +940,15 @@ const ContractDetailScreen = ({ navigation, route }) => {
   );
 };
 
-const getStatusColor = (status) => {
-  switch (status) {
-    case "draft":
-      return { color: "#6b7280", text: "Bản nháp", bgColor: "#f3f4f6" };
-    case "sent_to_tenant":
-      return { color: "#f59e0b", text: "Chờ ký", bgColor: "#fef3c7" };
-    case "signed_by_tenant":
-      return { color: "#3b82f6", text: "Đã ký - Chờ chủ", bgColor: "#dbeafe" };
-    case "signed_by_landlord":
-      return { color: "#3b82f6", text: "Đã ký - Chờ bạn", bgColor: "#dbeafe" };
-    case "completed":
-      return { color: "#10b981", text: "Hoàn thành", bgColor: "#d1fae5" };
-    case "voided":
-      return { color: "#ef4444", text: "Đã huỷ", bgColor: "#fee2e2" };
-    case "terminated":
-      return { color: "#dc2626", text: "Đã chấm dứt", bgColor: "#fef2f2" };
-    default:
-      return {
-        color: "#6b7280",
-        text: status || "Không xác định",
-        bgColor: "#f3f4f6",
-      };
-  }
-};
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f8fafc" },
-  container: { padding: 16, paddingBottom: 32 },
+  screen: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
+  container: {
+    padding: 16,
+    paddingBottom: 32,
+  },
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -447,7 +973,12 @@ const styles = StyleSheet.create({
     color: "#000",
     marginBottom: 4,
   },
-  motto: { fontSize: 13, fontWeight: "600", marginBottom: 8, color: "#000" },
+  motto: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: "#000",
+  },
   contractTitle: {
     fontSize: 18,
     fontWeight: "900",
@@ -455,31 +986,50 @@ const styles = StyleSheet.create({
     color: "#000",
     textAlign: "center",
   },
-  contractNumber: { fontSize: 12, color: "#666", fontStyle: "italic" },
-  statusSection: {
-    marginBottom: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+  contractNumber: {
+    fontSize: 12,
+    color: "#666",
+    fontStyle: "italic",
   },
-  statusRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  statusLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#475569",
-    marginRight: 10,
+  statusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  statusText: { fontWeight: "700", fontSize: 13 },
-  dateRow: { flexDirection: "row", alignItems: "center" },
-  dateText: { marginLeft: 8, color: "#64748b", fontSize: 14 },
-  actionSection: { marginTop: 20, gap: 12 },
+  statusText: {
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  validationAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef2f2",
+    borderColor: "#fecaca",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  validationAlertText: {
+    flex: 1,
+    color: "#dc2626",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  actionSection: {
+    marginTop: 20,
+    gap: 12,
+  },
   btnSave: {
     backgroundColor: "#0d9488",
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 8,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   btnAddRoommate: {
     backgroundColor: "#7c2d12",
@@ -501,8 +1051,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  modalContainer: { flex: 1, backgroundColor: "#fff" },
+  btnDownload: {
+    backgroundColor: "#4f46e5",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  btnDisabled: {
+    opacity: 0.7,
+  },
+  btnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -511,36 +1081,166 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
-  modalContent: { flex: 1, padding: 16 },
-  modalActions: { flexDirection: "row", gap: 12, marginTop: 16 },
+  modalCloseBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  signatureContainer: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#f9fafb",
+  },
+  nativeSignatureContainer: {
+    flex: 1,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+  },
   modalBtnPrimary: {
     flex: 1,
     backgroundColor: "#0d9488",
     padding: 14,
     borderRadius: 8,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   modalBtnSecondary: {
     flex: 1,
     backgroundColor: "#f1f5f9",
     padding: 14,
     borderRadius: 8,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+  },
+  modalBtnPrimaryText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  modalBtnSecondaryText: {
+    color: "#64748b",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  notSupportedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   notSupportedText: {
     textAlign: "center",
     color: "#64748b",
     fontSize: 16,
-    marginTop: 40,
+    marginTop: 16,
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f8fafc",
+    padding: 20,
+  },
+
+  section: {
+    marginBottom: 24,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+    paddingBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 12,
+    color: "#0f172a",
+  },
+  furnitureContainer: {
+    marginTop: 8,
+  },
+  furnitureItem: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  furnitureHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  furnitureName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0f172a",
+    flex: 1,
+    marginRight: 8,
+  },
+  conditionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 70,
+    alignItems: "center",
+  },
+  conditionNew: {
+    backgroundColor: "#dcfce7",
+  },
+  conditionGood: {
+    backgroundColor: "#dbeafe",
+  },
+  conditionNormal: {
+    backgroundColor: "#fef3c7",
+  },
+  conditionDamaged: {
+    backgroundColor: "#fee2e2",
+  },
+  conditionBroken: {
+    backgroundColor: "#fca5a5",
+  },
+  conditionText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  furnitureDetails: {
+    marginTop: 4,
+  },
+  furnitureDetail: {
+    fontSize: 13,
+    color: "#475569",
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  damageText: {
+    color: "#dc2626",
   },
 });
 

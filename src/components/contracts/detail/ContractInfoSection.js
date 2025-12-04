@@ -14,7 +14,8 @@ const ContractInfoSection = ({
   setPayload,
   canEdit,
   fmtDate,
-  onAddRoommate, // Hàm thêm người ở cùng từ màn hình cha
+  onAddRoommate,
+  validationErrors,
 }) => {
   // Helper để update mảng (roommates hoặc bikes)
   const updateArrayItem = (key, index, field, value) => {
@@ -35,26 +36,82 @@ const ContractInfoSection = ({
     }));
   };
 
+  // Hàm helper để lấy error message
+  const getFieldError = (fieldName, index = null, subField = null) => {
+    if (!validationErrors) return null;
+
+    if (index !== null) {
+      const arrayKey = subField
+        ? `${fieldName}[${index}].${subField}`
+        : `${fieldName}[${index}]`;
+      return validationErrors[arrayKey];
+    }
+
+    return validationErrors[fieldName];
+  };
+
+  // Hàm lấy thông tin bên A đầy đủ từ contract
+  const getLandlordInfo = () => {
+    // Ưu tiên lấy từ contract.A
+    if (contract.A && (contract.A.name || contract.A.email)) {
+      return contract.A;
+    }
+
+    // Nếu không có thì lấy từ landlordId.userInfo
+    if (contract.landlordId?.userInfo) {
+      const ui = contract.landlordId.userInfo;
+      return {
+        name: ui.fullName || "",
+        phone: ui.phoneNumber || "",
+        permanentAddress: ui.address || "",
+        email: contract.landlordId.email || "",
+        dob: ui.dob || null,
+        cccd: contract.A?.cccd || "",
+        cccdIssuedDate: contract.A?.cccdIssuedDate || null,
+        cccdIssuedPlace: contract.A?.cccdIssuedPlace || "",
+      };
+    }
+
+    return {};
+  };
+
+  const landlordInfo = getLandlordInfo();
+
   return (
     <>
-      {/* --- BÊN A (CHỦ NHÀ) --- */}
+      {/* --- BÊN A (CHỦ NHÀ) - ĐẦY ĐỦ THÔNG TIN --- */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Bên cho thuê (Bên A)</Text>
         <View style={styles.infoGrid}>
           <Text style={styles.infoLabel}>Họ tên:</Text>
-          <Text style={styles.infoValue}>
-            {contract.A?.name || contract.landlordId?.userInfo?.fullName || "—"}
-          </Text>
+          <Text style={styles.infoValue}>{landlordInfo.name || "—"}</Text>
+
+          <Text style={styles.infoLabel}>Ngày sinh:</Text>
+          <Text style={styles.infoValue}>{fmtDate(landlordInfo.dob)}</Text>
 
           <Text style={styles.infoLabel}>CCCD:</Text>
-          <Text style={styles.infoValue}>{contract.A?.cccd || "—"}</Text>
+          <Text style={styles.infoValue}>{landlordInfo.cccd || "—"}</Text>
+
+          <Text style={styles.infoLabel}>Ngày cấp:</Text>
+          <Text style={styles.infoValue}>
+            {fmtDate(landlordInfo.cccdIssuedDate)}
+          </Text>
+
+          <Text style={styles.infoLabel}>Nơi cấp:</Text>
+          <Text style={styles.infoValue}>
+            {landlordInfo.cccdIssuedPlace || "—"}
+          </Text>
 
           <Text style={styles.infoLabel}>Điện thoại:</Text>
+          <Text style={styles.infoValue}>{landlordInfo.phone || "—"}</Text>
+
+          <Text style={styles.infoLabel}>Hộ khẩu:</Text>
           <Text style={styles.infoValue}>
-            {contract.A?.phone ||
-              contract.landlordId?.userInfo?.phoneNumber ||
-              "—"}
+            {landlordInfo.permanentAddress || "—"}
           </Text>
+
+          <Text style={styles.infoLabel}>Email:</Text>
+          <Text style={styles.infoValue}>{landlordInfo.email || "—"}</Text>
         </View>
       </View>
 
@@ -64,76 +121,107 @@ const ContractInfoSection = ({
           Bên thuê (Bên B) - Thông tin của bạn
         </Text>
         <View style={styles.infoGrid}>
-          {/* Họ tên */}
           <Text style={styles.infoLabel}>Họ tên:</Text>
           {canEdit ? (
-            <TextInput
-              style={styles.textInput}
-              value={payload.B?.name || ""}
-              onChangeText={(t) =>
-                setPayload((prev) => ({ ...prev, B: { ...prev.B, name: t } }))
-              }
-              placeholder="Nguyễn Văn A"
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  getFieldError("B.name") && styles.textInputError,
+                ]}
+                value={payload.B?.name || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({ ...prev, B: { ...prev.B, name: t } }))
+                }
+                placeholder="Nhập họ tên"
+                placeholderTextColor="#94a3b8"
+              />
+              {getFieldError("B.name") && (
+                <Text style={styles.errorText}>{getFieldError("B.name")}</Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.infoValue}>
               {payload.B?.name || contract.B?.name || "—"}
             </Text>
           )}
 
-          {/* Ngày sinh */}
           <Text style={styles.infoLabel}>Ngày sinh:</Text>
           {canEdit ? (
-            <TextInput
-              style={styles.textInput}
-              value={payload.B?.dob ? String(payload.B.dob).split("T")[0] : ""}
-              onChangeText={(t) =>
-                setPayload((prev) => ({ ...prev, B: { ...prev.B, dob: t } }))
-              }
-              placeholder="YYYY-MM-DD"
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  getFieldError("B.dob") && styles.textInputError,
+                ]}
+                value={payload.B?.dob || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({ ...prev, B: { ...prev.B, dob: t } }))
+                }
+                placeholder="DD-MM-YYYY"
+                placeholderTextColor="#94a3b8"
+              />
+              {getFieldError("B.dob") && (
+                <Text style={styles.errorText}>{getFieldError("B.dob")}</Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.infoValue}>
               {fmtDate(payload.B?.dob || contract.B?.dob)}
             </Text>
           )}
 
-          {/* CCCD */}
           <Text style={styles.infoLabel}>CCCD:</Text>
           {canEdit ? (
-            <TextInput
-              style={styles.textInput}
-              value={payload.B?.cccd || ""}
-              onChangeText={(t) =>
-                setPayload((prev) => ({ ...prev, B: { ...prev.B, cccd: t } }))
-              }
-              placeholder="Số CCCD"
-              keyboardType="numeric"
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  getFieldError("B.cccd") && styles.textInputError,
+                ]}
+                value={payload.B?.cccd || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({ ...prev, B: { ...prev.B, cccd: t } }))
+                }
+                placeholder="12 số CCCD"
+                placeholderTextColor="#94a3b8"
+                keyboardType="numeric"
+                maxLength={12}
+              />
+              {getFieldError("B.cccd") && (
+                <Text style={styles.errorText}>{getFieldError("B.cccd")}</Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.infoValue}>
               {payload.B?.cccd || contract.B?.cccd || "—"}
             </Text>
           )}
 
-          {/* Ngày cấp CCCD */}
           <Text style={styles.infoLabel}>Ngày cấp:</Text>
           {canEdit ? (
-            <TextInput
-              style={styles.textInput}
-              value={
-                payload.B?.cccdIssuedDate
-                  ? String(payload.B.cccdIssuedDate).split("T")[0]
-                  : ""
-              }
-              onChangeText={(t) =>
-                setPayload((prev) => ({
-                  ...prev,
-                  B: { ...prev.B, cccdIssuedDate: t },
-                }))
-              }
-              placeholder="YYYY-MM-DD"
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  getFieldError("B.cccdIssuedDate") && styles.textInputError,
+                ]}
+                value={payload.B?.cccdIssuedDate || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({
+                    ...prev,
+                    B: { ...prev.B, cccdIssuedDate: t },
+                  }))
+                }
+                placeholder="DD-MM-YYYY"
+                placeholderTextColor="#94a3b8"
+              />
+              {getFieldError("B.cccdIssuedDate") && (
+                <Text style={styles.errorText}>
+                  {getFieldError("B.cccdIssuedDate")}
+                </Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.infoValue}>
               {fmtDate(payload.B?.cccdIssuedDate || contract.B?.cccdIssuedDate)}
@@ -142,56 +230,90 @@ const ContractInfoSection = ({
 
           <Text style={styles.infoLabel}>Nơi cấp:</Text>
           {canEdit ? (
-            <TextInput
-              style={styles.textInput}
-              value={payload.B?.cccdIssuedPlace || ""}
-              onChangeText={(t) =>
-                setPayload((prev) => ({
-                  ...prev,
-                  B: { ...prev.B, cccdIssuedPlace: t },
-                }))
-              }
-              placeholder="Cục CS QLHC..."
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  getFieldError("B.cccdIssuedPlace") && styles.textInputError,
+                ]}
+                value={payload.B?.cccdIssuedPlace || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({
+                    ...prev,
+                    B: { ...prev.B, cccdIssuedPlace: t },
+                  }))
+                }
+                placeholder="Nhập nơi cấp"
+                placeholderTextColor="#94a3b8"
+              />
+              {getFieldError("B.cccdIssuedPlace") && (
+                <Text style={styles.errorText}>
+                  {getFieldError("B.cccdIssuedPlace")}
+                </Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.infoValue}>
               {payload.B?.cccdIssuedPlace || contract.B?.cccdIssuedPlace || "—"}
             </Text>
           )}
 
-          {/* Điện thoại */}
           <Text style={styles.infoLabel}>Điện thoại:</Text>
           {canEdit ? (
-            <TextInput
-              style={styles.textInput}
-              value={payload.B?.phone || ""}
-              onChangeText={(t) =>
-                setPayload((prev) => ({ ...prev, B: { ...prev.B, phone: t } }))
-              }
-              placeholder="SĐT liên hệ"
-              keyboardType="phone-pad"
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  getFieldError("B.phone") && styles.textInputError,
+                ]}
+                value={payload.B?.phone || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({
+                    ...prev,
+                    B: { ...prev.B, phone: t },
+                  }))
+                }
+                placeholder="Nhập số điện thoại"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+              {getFieldError("B.phone") && (
+                <Text style={styles.errorText}>{getFieldError("B.phone")}</Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.infoValue}>
               {payload.B?.phone || contract.B?.phone || "—"}
             </Text>
           )}
 
-          {/* Địa chỉ */}
           <Text style={styles.infoLabel}>Hộ khẩu:</Text>
           {canEdit ? (
-            <TextInput
-              style={[styles.textInput, { height: 50 }]}
-              value={payload.B?.permanentAddress || ""}
-              onChangeText={(t) =>
-                setPayload((prev) => ({
-                  ...prev,
-                  B: { ...prev.B, permanentAddress: t },
-                }))
-              }
-              placeholder="Địa chỉ thường trú"
-              multiline
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  { height: 50 },
+                  getFieldError("B.permanentAddress") && styles.textInputError,
+                ]}
+                value={payload.B?.permanentAddress || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({
+                    ...prev,
+                    B: { ...prev.B, permanentAddress: t },
+                  }))
+                }
+                placeholder="Nhập địa chỉ thường trú"
+                placeholderTextColor="#94a3b8"
+                multiline
+              />
+              {getFieldError("B.permanentAddress") && (
+                <Text style={styles.errorText}>
+                  {getFieldError("B.permanentAddress")}
+                </Text>
+              )}
+            </View>
           ) : (
             <Text style={styles.infoValue}>
               {payload.B?.permanentAddress ||
@@ -201,9 +323,34 @@ const ContractInfoSection = ({
           )}
 
           <Text style={styles.infoLabel}>Email:</Text>
-          <Text style={styles.infoValue}>
-            {payload.B?.email || contract.B?.email || "—"}
-          </Text>
+          {canEdit ? (
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  getFieldError("B.email") && styles.textInputError,
+                ]}
+                value={payload.B?.email || ""}
+                onChangeText={(t) =>
+                  setPayload((prev) => ({
+                    ...prev,
+                    B: { ...prev.B, email: t },
+                  }))
+                }
+                placeholder="Nhập email"
+                placeholderTextColor="#94a3b8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              {getFieldError("B.email") && (
+                <Text style={styles.errorText}>{getFieldError("B.email")}</Text>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.infoValue}>
+              {payload.B?.email || contract.B?.email || "—"}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -212,11 +359,15 @@ const ContractInfoSection = ({
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>Danh sách xe</Text>
           {canEdit && (
-            <TouchableOpacity onPress={addBike}>
+            <TouchableOpacity onPress={addBike} style={styles.addButton}>
               <Ionicons name="add-circle" size={24} color="#0d9488" />
             </TouchableOpacity>
           )}
         </View>
+
+        {payload.bikes?.length === 0 && contract.bikes?.length === 0 && (
+          <Text style={styles.emptyText}>Chưa đăng ký xe nào.</Text>
+        )}
 
         {(payload.bikes && payload.bikes.length > 0
           ? payload.bikes
@@ -228,6 +379,7 @@ const ContractInfoSection = ({
               {canEdit && (
                 <TouchableOpacity
                   onPress={() => removeArrayItem("bikes", index)}
+                  style={styles.deleteButton}
                 >
                   <Ionicons name="trash-outline" size={20} color="#ef4444" />
                 </TouchableOpacity>
@@ -237,56 +389,101 @@ const ContractInfoSection = ({
             <View style={styles.infoGrid}>
               <Text style={styles.infoLabel}>Biển số:</Text>
               {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={bike.bikeNumber || ""}
-                  onChangeText={(t) =>
-                    updateArrayItem("bikes", index, "bikeNumber", t)
-                  }
-                  placeholder="29A1-12345"
-                />
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("bikes", index, "bikeNumber") &&
+                        styles.textInputError,
+                    ]}
+                    value={bike.bikeNumber || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("bikes", index, "bikeNumber", t)
+                    }
+                    placeholder="Nhập biển số"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {getFieldError("bikes", index, "bikeNumber") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("bikes", index, "bikeNumber")}
+                    </Text>
+                  )}
+                </View>
               ) : (
                 <Text style={styles.infoValue}>{bike.bikeNumber || "—"}</Text>
               )}
 
               <Text style={styles.infoLabel}>Loại xe:</Text>
               {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={bike.brand || ""}
-                  onChangeText={(t) =>
-                    updateArrayItem("bikes", index, "brand", t)
-                  }
-                  placeholder="Vision, Wave..."
-                />
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("bikes", index, "brand") &&
+                        styles.textInputError,
+                    ]}
+                    value={bike.brand || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("bikes", index, "brand", t)
+                    }
+                    placeholder="Nhập loại xe"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {getFieldError("bikes", index, "brand") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("bikes", index, "brand")}
+                    </Text>
+                  )}
+                </View>
               ) : (
                 <Text style={styles.infoValue}>{bike.brand || "—"}</Text>
               )}
 
               <Text style={styles.infoLabel}>Màu xe:</Text>
               {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={bike.color || ""}
-                  onChangeText={(t) =>
-                    updateArrayItem("bikes", index, "color", t)
-                  }
-                  placeholder="Đỏ, Đen..."
-                />
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("bikes", index, "color") &&
+                        styles.textInputError,
+                    ]}
+                    value={bike.color || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("bikes", index, "color", t)
+                    }
+                    placeholder="Nhập màu xe"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {getFieldError("bikes", index, "color") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("bikes", index, "color")}
+                    </Text>
+                  )}
+                </View>
               ) : (
                 <Text style={styles.infoValue}>{bike.color || "—"}</Text>
               )}
             </View>
           </View>
         ))}
-        {payload.bikes?.length === 0 && (
-          <Text style={styles.emptyText}>Chưa đăng ký xe nào.</Text>
-        )}
       </View>
+
+      {/* --- NGƯỜI Ở CÙNG --- */}
       <View style={styles.section}>
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>Người ở cùng</Text>
+          {canEdit && (
+            <TouchableOpacity onPress={onAddRoommate} style={styles.addButton}>
+              <Ionicons name="add-circle" size={24} color="#0d9488" />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {payload.roommates?.length === 0 &&
+          contract.roommates?.length === 0 && (
+            <Text style={styles.emptyText}>Chưa có người ở cùng.</Text>
+          )}
 
         {(payload.roommates && payload.roommates.length > 0
           ? payload.roommates
@@ -298,6 +495,7 @@ const ContractInfoSection = ({
               {canEdit && (
                 <TouchableOpacity
                   onPress={() => removeArrayItem("roommates", index)}
+                  style={styles.deleteButton}
                 >
                   <Ionicons name="trash-outline" size={20} color="#ef4444" />
                 </TouchableOpacity>
@@ -307,53 +505,171 @@ const ContractInfoSection = ({
             <View style={styles.infoGrid}>
               <Text style={styles.infoLabel}>Họ tên:</Text>
               {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={rm.name || ""}
-                  onChangeText={(t) =>
-                    updateArrayItem("roommates", index, "name", t)
-                  }
-                  placeholder="Họ tên"
-                />
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("roommates", index, "name") &&
+                        styles.textInputError,
+                    ]}
+                    value={rm.name || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("roommates", index, "name", t)
+                    }
+                    placeholder="Nhập họ tên"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {getFieldError("roommates", index, "name") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("roommates", index, "name")}
+                    </Text>
+                  )}
+                </View>
               ) : (
                 <Text style={styles.infoValue}>{rm.name || "—"}</Text>
               )}
 
               <Text style={styles.infoLabel}>SĐT:</Text>
               {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={rm.phone || ""}
-                  onChangeText={(t) =>
-                    updateArrayItem("roommates", index, "phone", t)
-                  }
-                  keyboardType="phone-pad"
-                  placeholder="09..."
-                />
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("roommates", index, "phone") &&
+                        styles.textInputError,
+                    ]}
+                    value={rm.phone || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("roommates", index, "phone", t)
+                    }
+                    keyboardType="phone-pad"
+                    placeholder="Nhập số điện thoại"
+                    placeholderTextColor="#94a3b8"
+                    maxLength={10}
+                  />
+                  {getFieldError("roommates", index, "phone") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("roommates", index, "phone")}
+                    </Text>
+                  )}
+                </View>
               ) : (
                 <Text style={styles.infoValue}>{rm.phone || "—"}</Text>
               )}
 
               <Text style={styles.infoLabel}>CCCD:</Text>
               {canEdit ? (
-                <TextInput
-                  style={styles.textInput}
-                  value={rm.cccd || ""}
-                  onChangeText={(t) =>
-                    updateArrayItem("roommates", index, "cccd", t)
-                  }
-                  keyboardType="numeric"
-                  placeholder="Số CCCD"
-                />
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("roommates", index, "cccd") &&
+                        styles.textInputError,
+                    ]}
+                    value={rm.cccd || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("roommates", index, "cccd", t)
+                    }
+                    keyboardType="numeric"
+                    placeholder="12 số CCCD"
+                    placeholderTextColor="#94a3b8"
+                    maxLength={12}
+                  />
+                  {getFieldError("roommates", index, "cccd") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("roommates", index, "cccd")}
+                    </Text>
+                  )}
+                </View>
               ) : (
                 <Text style={styles.infoValue}>{rm.cccd || "—"}</Text>
+              )}
+
+              <Text style={styles.infoLabel}>Ngày sinh:</Text>
+              {canEdit ? (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("roommates", index, "dob") &&
+                        styles.textInputError,
+                    ]}
+                    value={rm.dob || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("roommates", index, "dob", t)
+                    }
+                    placeholder="DD-MM-YYYY"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {getFieldError("roommates", index, "dob") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("roommates", index, "dob")}
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.infoValue}>{fmtDate(rm.dob)}</Text>
+              )}
+
+              <Text style={styles.infoLabel}>Hộ khẩu:</Text>
+              {canEdit ? (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      { height: 40 },
+                      getFieldError("roommates", index, "permanentAddress") &&
+                        styles.textInputError,
+                    ]}
+                    value={rm.permanentAddress || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("roommates", index, "permanentAddress", t)
+                    }
+                    placeholder="Nhập địa chỉ"
+                    placeholderTextColor="#94a3b8"
+                  />
+                  {getFieldError("roommates", index, "permanentAddress") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("roommates", index, "permanentAddress")}
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.infoValue}>
+                  {rm.permanentAddress || "—"}
+                </Text>
+              )}
+
+              <Text style={styles.infoLabel}>Email:</Text>
+              {canEdit ? (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      getFieldError("roommates", index, "email") &&
+                        styles.textInputError,
+                    ]}
+                    value={rm.email || ""}
+                    onChangeText={(t) =>
+                      updateArrayItem("roommates", index, "email", t)
+                    }
+                    placeholder="Nhập email"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  {getFieldError("roommates", index, "email") && (
+                    <Text style={styles.errorText}>
+                      {getFieldError("roommates", index, "email")}
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.infoValue}>{rm.email || "—"}</Text>
               )}
             </View>
           </View>
         ))}
-        {payload.roommates?.length === 0 && (
-          <Text style={styles.emptyText}>Chưa có người ở cùng.</Text>
-        )}
       </View>
 
       {/* --- THÔNG TIN PHÒNG --- */}
@@ -368,7 +684,7 @@ const ContractInfoSection = ({
           <Text style={styles.infoLabel}>Phòng:</Text>
           <Text style={styles.infoValue}>
             {contract.roomId?.roomNumber
-              ? `P. ${contract.roomId.roomNumber}`
+              ? `Phòng ${contract.roomId.roomNumber}`
               : "—"}
           </Text>
 
@@ -376,16 +692,38 @@ const ContractInfoSection = ({
           <Text style={styles.infoValue}>
             {contract.contract?.price
               ? `${Number(contract.contract.price).toLocaleString(
-                  "vi"
-                )} đ/tháng`
+                  "vi-VN"
+                )} VNĐ/tháng`
               : "—"}
           </Text>
 
           <Text style={styles.infoLabel}>Tiền cọc:</Text>
           <Text style={styles.infoValue}>
             {contract.contract?.deposit
-              ? `${Number(contract.contract.deposit).toLocaleString("vi")} đ`
+              ? `${Number(contract.contract.deposit).toLocaleString(
+                  "vi-VN"
+                )} VNĐ`
               : "—"}
+          </Text>
+
+          <Text style={styles.infoLabel}>Ngày bắt đầu:</Text>
+          <Text style={styles.infoValue}>
+            {fmtDate(contract.contract?.startDate)}
+          </Text>
+
+          <Text style={styles.infoLabel}>Ngày kết thúc:</Text>
+          <Text style={styles.infoValue}>
+            {fmtDate(contract.contract?.endDate)}
+          </Text>
+
+          <Text style={styles.infoLabel}>Ngày ký:</Text>
+          <Text style={styles.infoValue}>
+            {fmtDate(contract.contract?.signDate)}
+          </Text>
+
+          <Text style={styles.infoLabel}>Số hợp đồng:</Text>
+          <Text style={styles.infoValue}>
+            {contract.contract?.no || contract._id || "—"}
           </Text>
         </View>
       </View>
@@ -413,10 +751,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
+  addButton: {
+    padding: 4,
+  },
+  deleteButton: {
+    padding: 4,
+  },
   infoGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   infoLabel: {
     width: "30%",
@@ -424,6 +768,7 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontWeight: "600",
     marginBottom: 12,
+    paddingRight: 8,
   },
   infoValue: {
     width: "70%",
@@ -432,17 +777,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontWeight: "500",
   },
-  textInput: {
+  inputContainer: {
     width: "70%",
+    marginBottom: 12,
+  },
+  textInput: {
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginBottom: 12,
     backgroundColor: "#f8fafc",
     fontSize: 14,
     color: "#0f172a",
+    minHeight: 40,
+  },
+  textInputError: {
+    borderColor: "#ef4444",
+    backgroundColor: "#fef2f2",
+  },
+  errorText: {
+    color: "#ef4444",
+    fontSize: 12,
+    marginTop: 4,
   },
   subItemContainer: {
     backgroundColor: "#f8fafc",
@@ -455,6 +812,7 @@ const styles = StyleSheet.create({
   subHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   subItemTitle: {
@@ -466,6 +824,8 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: "#94a3b8",
     fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 12,
   },
 });
 

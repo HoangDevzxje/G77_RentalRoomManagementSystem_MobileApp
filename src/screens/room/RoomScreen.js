@@ -10,7 +10,6 @@ import {
   FlatList,
   Image,
 } from "react-native";
-import Toast from "react-native-toast-message";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMyRoomDetail } from "../../api/roomApi";
 import { Ionicons } from "@expo/vector-icons";
@@ -141,15 +140,7 @@ export default function RoomScreen({ navigation }) {
         : [];
       setFurnitures(safeFurnitures);
     } catch (err) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2:
-          err?.response?.data?.message ||
-          err?.message ||
-          "Không thể tải thông tin phòng",
-        position: "top",
-      });
+      console.log("Error fetching room data:", err);
       setRoom(null);
       setFurnitures([]);
     } finally {
@@ -217,7 +208,6 @@ export default function RoomScreen({ navigation }) {
   const goToRoommates = () => {
     const roomId = room?.id ?? room?._id ?? null;
     if (!roomId) {
-      Toast.show({ type: "info", text1: "ID phòng không sẵn sàng" });
       return;
     }
     navigation.navigate("Roommates", { roomId });
@@ -231,7 +221,6 @@ export default function RoomScreen({ navigation }) {
   const openBuildingReviewList = () => {
     const buildingId = room?.building?._id ?? room?.buildingId ?? null;
     if (!buildingId) {
-      Toast.show({ type: "info", text1: "Thông tin tòa nhà không sẵn sàng" });
       return;
     }
     navigation.navigate("BuildingReviewList", { buildingId });
@@ -240,7 +229,6 @@ export default function RoomScreen({ navigation }) {
   const openCreateBuildingReview = () => {
     const buildingId = room?.building?._id ?? room?.buildingId ?? null;
     if (!buildingId) {
-      Toast.show({ type: "info", text1: "Thông tin tòa nhà không sẵn sàng" });
       return;
     }
     navigation.navigate("CreateBuildingReview", {
@@ -249,21 +237,15 @@ export default function RoomScreen({ navigation }) {
     });
   };
 
-  // THÊM HÀM MỚI: Điều hướng đến trang hóa đơn
   const goToInvoices = () => {
     navigation.navigate("InvoiceList");
   };
 
-  // THÊM HÀM MỚI: Điều hướng đến trang thiết bị giặt/sấy
   const goToLaundryDevices = () => {
     const buildingId = room?.building?._id ?? room?.buildingId ?? null;
     const buildingName = room?.building?.name ?? "Tòa nhà";
 
     if (!buildingId) {
-      Toast.show({
-        type: "info",
-        text1: "Thông tin tòa nhà không sẵn sàng",
-      });
       return;
     }
 
@@ -271,6 +253,10 @@ export default function RoomScreen({ navigation }) {
       buildingId,
       buildingName,
     });
+  };
+
+  const goToPostList = () => {
+    navigation.navigate("PostList");
   };
 
   if (loading) {
@@ -290,13 +276,29 @@ export default function RoomScreen({ navigation }) {
         </View>
         <Text style={styles.emptyTitle}>Chưa có phòng</Text>
         <Text style={styles.emptyText}>
-          Bạn chưa được gán vào phòng nào hoặc không có dữ liệu.
+          Bạn cần kí hợp đồng thuê phòng. Để xem thông tin phòng bạn cần vào
+          trang bài đăng.
         </Text>
+
+        {/* Nút Tải lại */}
         <TouchableOpacity
           style={styles.primaryButton}
           onPress={() => fetchData(true)}
         >
           <Text style={styles.primaryButtonText}>Tải lại</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.primaryButton, styles.postButton]}
+          onPress={goToPostList}
+        >
+          <Ionicons
+            name="newspaper-outline"
+            size={20}
+            color="#fff"
+            style={styles.buttonIcon}
+          />
+          <Text style={styles.primaryButtonText}>Xem bài đăng</Text>
         </TouchableOpacity>
       </View>
     );
@@ -307,11 +309,6 @@ export default function RoomScreen({ navigation }) {
     images,
     area,
     price,
-    currentContract,
-    tenants,
-    contractRoommates,
-    eStart,
-    wStart,
     electricity,
     water,
     building,
@@ -320,10 +317,6 @@ export default function RoomScreen({ navigation }) {
 
   const mainImageUri =
     Array.isArray(images) && images.length > 0 ? normalizeUri(images[0]) : null;
-
-  const totalRoommates =
-    (Array.isArray(tenants) ? tenants.length : 0) +
-    (Array.isArray(contractRoommates) ? contractRoommates.length : 0);
 
   return (
     <ScrollView
@@ -366,9 +359,7 @@ export default function RoomScreen({ navigation }) {
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Người ở cùng</Text>
               <Text style={styles.actionSubtitle}>
-                {totalRoommates > 0
-                  ? `${totalRoommates} thành viên`
-                  : "Chưa có ai"}
+                Xem thông tin người cùng phòng
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
@@ -376,7 +367,7 @@ export default function RoomScreen({ navigation }) {
 
           <View style={styles.divider} />
 
-          {/* Hóa đơn của tôi - THÊM MỚI */}
+          {/* Hóa đơn của tôi */}
           <TouchableOpacity
             style={styles.actionItem}
             onPress={goToInvoices}
@@ -454,7 +445,7 @@ export default function RoomScreen({ navigation }) {
 
           <View style={styles.divider} />
 
-          {/* Thiết bị giặt/sấy - THÊM MỚI */}
+          {/* Thiết bị giặt/sấy */}
           <TouchableOpacity
             style={styles.actionItem}
             onPress={goToLaundryDevices}
@@ -511,26 +502,6 @@ export default function RoomScreen({ navigation }) {
                 <Text style={styles.infoValue}>
                   {area ? `${area} m²` : "—"}
                 </Text>
-              </View>
-            </View>
-
-            <View style={styles.infoItem}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="play-forward" size={18} color="#0d9488" />
-              </View>
-              <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Chỉ số điện</Text>
-                <Text style={styles.infoValue}>{eStart ?? 0}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoItem}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="play-forward" size={18} color="#0d9488" />
-              </View>
-              <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Chỉ số nước</Text>
-                <Text style={styles.infoValue}>{wStart ?? 0}</Text>
               </View>
             </View>
           </View>
@@ -649,8 +620,6 @@ export default function RoomScreen({ navigation }) {
           )}
         </View>
       </View>
-
-      <Toast />
     </ScrollView>
   );
 }
@@ -791,18 +760,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#0f172a",
     fontWeight: "500",
-  },
-
-  descriptionSection: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  descriptionText: {
-    fontSize: 14,
-    color: "#475569",
-    lineHeight: 20,
   },
 
   contactSection: {
@@ -1014,10 +971,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    minWidth: 180,
   },
   primaryButtonText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 15,
+  },
+  postButton: {
+    backgroundColor: "#f59e0b",
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
 });
