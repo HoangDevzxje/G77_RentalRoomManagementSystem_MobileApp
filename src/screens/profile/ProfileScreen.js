@@ -120,18 +120,6 @@ export default function ProfileScreen() {
               <Text style={styles.menuText}>Cài đặt</Text>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
             </TouchableOpacity>
-
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name="help-circle-outline"
-                  size={22}
-                  color="#14b8a6"
-                />
-              </View>
-              <Text style={styles.menuText}>Hỗ trợ</Text>
-              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-            </TouchableOpacity>
           </View>
 
           <TouchableOpacity

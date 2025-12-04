@@ -89,8 +89,7 @@ export default function ContactDetailScreen({ route, navigation }) {
       Toast.show({
         type: "success",
         text1: "Thành công",
-        text2:
-          "Gửi yêu cầu hợp đồng thành công! Chủ trọ sẽ liên hệ với bạn sớm.",
+        text2: "Gửi yêu cầu hợp đồng thành công!",
         visibilityTime: 2500,
       });
 
