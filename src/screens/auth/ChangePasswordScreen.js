@@ -45,6 +45,21 @@ export default function ChangePasswordScreen() {
 
   const navigation = useNavigation();
 
+  // --- LOGIC QUAN TRỌNG ĐÃ SỬA ---
+  // Thêm !! để đảm bảo các biến này luôn là BOOLEAN (true/false), không bao giờ là string
+  const isSamePassword = !!(
+    oldPassword &&
+    newPassword &&
+    oldPassword === newPassword
+  );
+
+  const isPasswordMatch = !!(
+    confirmPassword &&
+    newPassword &&
+    newPassword === confirmPassword
+  );
+  // --------------------------------
+
   useEffect(() => {
     if (confirmPassword && touched.confirmPassword) {
       const error = validateConfirmPassword(newPassword, confirmPassword);
@@ -247,12 +262,6 @@ export default function ChangePasswordScreen() {
     return "Rất mạnh";
   };
 
-  const isSamePassword =
-    oldPassword && newPassword && oldPassword === newPassword;
-
-  const isPasswordMatch =
-    confirmPassword && newPassword && newPassword === confirmPassword;
-
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -304,9 +313,9 @@ export default function ChangePasswordScreen() {
                     secureTextEntry={!showOldPassword}
                     style={[
                       styles.input,
-                      errors.oldPassword &&
-                        touched.oldPassword &&
-                        styles.inputError,
+                      errors.oldPassword && touched.oldPassword
+                        ? styles.inputError
+                        : null,
                     ]}
                     placeholderTextColor="#9ca3af"
                     editable={!loading}
@@ -554,10 +563,10 @@ export default function ChangePasswordScreen() {
                 <View
                   style={[
                     styles.inputWrapper,
-                    errors.confirmPassword &&
-                      touched.confirmPassword &&
-                      styles.inputError,
-                    isPasswordMatch && styles.inputSuccess,
+                    errors.confirmPassword && touched.confirmPassword
+                      ? styles.inputError
+                      : null,
+                    isPasswordMatch ? styles.inputSuccess : null,
                   ]}
                 >
                   <Ionicons
@@ -617,7 +626,7 @@ export default function ChangePasswordScreen() {
                   (loading || isSamePassword) && styles.submitButtonDisabled,
                 ]}
                 onPress={handleChangePassword}
-                disabled={loading || isSamePassword}
+                disabled={loading || isSamePassword} // Ở đây, nếu isSamePassword là string "" nó sẽ gây lỗi. Sau khi fix thêm !! ở trên thì nó đã an toàn.
               >
                 {loading ? (
                   <View style={styles.loadingContainer}>

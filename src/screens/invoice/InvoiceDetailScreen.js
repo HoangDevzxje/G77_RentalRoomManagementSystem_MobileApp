@@ -147,7 +147,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
         <View style={styles.customHeader}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.navigate("InvoiceList")}
           >
             <Ionicons name="arrow-back" size={24} color="#1e293b" />
           </TouchableOpacity>
@@ -165,6 +165,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
+          {/* Status Card */}
           <View style={styles.statusCard}>
             <View style={styles.statusHeader}>
               <View style={styles.statusLeft}>
@@ -212,6 +213,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             )}
           </View>
 
+          {/* Property Info */}
           <View style={styles.section}>
             <View style={styles.propertyCard}>
               <View style={styles.propertyRow}>
@@ -240,6 +242,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </View>
           </View>
 
+          {/* Timeline */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="time" size={20} color="#3b82f6" />
@@ -304,6 +307,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </View>
           </View>
 
+          {/* Invoice Items */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="receipt" size={20} color="#3b82f6" />
@@ -342,6 +346,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </View>
           </View>
 
+          {/* Summary */}
           <View style={styles.summarySection}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tạm tính</Text>
@@ -393,6 +398,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             )}
           </View>
 
+          {/* Notes Section - ĐÃ CẬP NHẬT GIAO DIỆN */}
           {invoice.note && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -683,5 +689,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flex: 1,
     fontWeight: "500",
+  },
+  noteCard: {
+    backgroundColor: "#f8fafc",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderLeftWidth: 4,
+    borderLeftColor: "#3b82f6",
+  },
+  noteText: {
+    fontSize: 14,
+    color: "#334155",
+    lineHeight: 22,
   },
 });

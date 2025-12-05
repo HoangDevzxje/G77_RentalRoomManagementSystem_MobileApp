@@ -336,6 +336,7 @@ export default function AccountScreen() {
                       value={tempFullName}
                       onChangeText={setTempFullName}
                       placeholder="Nhập họ và tên"
+                      placeholderTextColor="#94a3b8"
                       autoFocus={true}
                     />
                     <TouchableOpacity
@@ -417,6 +418,7 @@ export default function AccountScreen() {
                   <TextInput
                     style={styles.textInput}
                     placeholder="Nhập 10 chữ số"
+                    placeholderTextColor="#94a3b8"
                     value={userData.phoneNumber}
                     onChangeText={(text) =>
                       setUserData((prev) => ({
@@ -448,6 +450,7 @@ export default function AccountScreen() {
                         styles.inputError,
                     ]}
                     placeholder="DD/MM/YYYY"
+                    placeholderTextColor="#94a3b8"
                     value={userData.dob}
                     onChangeText={(text) => {
                       const formatted = formatDateInput(text);
@@ -517,6 +520,7 @@ export default function AccountScreen() {
                   <TextInput
                     style={styles.textArea}
                     placeholder="Số nhà, tên đường, phường/xã..."
+                    placeholderTextColor="#94a3b8"
                     value={userData.address}
                     onChangeText={(text) =>
                       setUserData((prev) => ({ ...prev, address: text }))
@@ -726,7 +730,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: "#1e293b",
+    color: "#0f172a", // Sửa màu chữ đậm hơn (thay vì #1e293b)
     height: "100%",
   },
   inputError: {
@@ -770,7 +774,7 @@ const styles = StyleSheet.create({
   textArea: {
     flex: 1,
     fontSize: 16,
-    color: "#1e293b",
+    color: "#0f172a", // Sửa màu chữ đậm hơn (thay vì #1e293b)
     textAlignVertical: "top",
     height: "100%",
   },

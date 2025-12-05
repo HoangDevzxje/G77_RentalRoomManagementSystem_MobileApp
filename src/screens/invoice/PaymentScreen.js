@@ -39,6 +39,8 @@ export default function PaymentScreen({ route, navigation }) {
         type: "error",
         text1: "Lỗi",
         text2: "Không thể lấy thông tin thanh toán",
+        visibilityTime: 3000,
+        position: "top",
       });
       setTimeout(() => navigation.goBack(), 1500);
     } finally {
@@ -54,6 +56,7 @@ export default function PaymentScreen({ route, navigation }) {
       text1: "Đã sao chép",
       text2: `${label} đã được lưu vào bộ nhớ tạm`,
       visibilityTime: 2000,
+      position: "top",
     });
   };
 
@@ -64,6 +67,8 @@ export default function PaymentScreen({ route, navigation }) {
         type: "info",
         text1: "Cần quyền truy cập",
         text2: "Vui lòng cấp quyền thư viện ảnh để tải lên biên lai.",
+        visibilityTime: 3000,
+        position: "top",
       });
       return;
     }
@@ -77,6 +82,13 @@ export default function PaymentScreen({ route, navigation }) {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setProofImage(result.assets[0]);
+      Toast.show({
+        type: "success",
+        text1: "Đã chọn ảnh",
+        text2: "Ảnh minh chứng đã được chọn",
+        visibilityTime: 1500,
+        position: "top",
+      });
     }
   };
 
@@ -86,6 +98,8 @@ export default function PaymentScreen({ route, navigation }) {
         type: "error",
         text1: "Thiếu ảnh",
         text2: "Vui lòng tải minh chứng chuyển khoản.",
+        visibilityTime: 3000,
+        position: "top",
       });
       return;
     }
@@ -115,21 +129,30 @@ export default function PaymentScreen({ route, navigation }) {
         type: "success",
         text1: "Thành công",
         text2: "Đã gửi xác nhận chuyển khoản!",
-        visibilityTime: 2000,
+        visibilityTime: 2500,
+        position: "top",
         onHide: () => {
-          navigation.navigate("InvoiceDetailScreen", { invoiceId });
+          navigation.navigate("InvoiceDetail", { invoiceId });
+        },
+        onPress: () => {
+          // Nếu người dùng nhấn vào Toast, điều hướng ngay
+          Toast.hide();
+          navigation.navigate("InvoiceDetail", { invoiceId });
         },
       });
 
+      // Cũng có thể sử dụng timeout dự phòng
       setTimeout(() => {
-        navigation.navigate("InvoiceDetailScreen", { invoiceId });
-      }, 1000);
+        navigation.navigate("InvoiceDetail", { invoiceId });
+      }, 2500);
     } catch (error) {
       console.error("Confirm error:", error);
       Toast.show({
         type: "error",
         text1: "Thất bại",
         text2: error.response?.data?.message || "Không gửi được xác nhận",
+        visibilityTime: 3000,
+        position: "top",
       });
     } finally {
       setSubmitting(false);
@@ -297,6 +320,9 @@ export default function PaymentScreen({ route, navigation }) {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* THÊM COMPONENT TOAST VÀO ĐÂY */}
+        <Toast />
       </View>
     </SafeAreaView>
   );

@@ -12,11 +12,20 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Keyboard,
+  Alert,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { getRequest, commentRequest } from "../../api/maintenanceApi";
+// Import API
+import {
+  getRequest,
+  addComment as commentRequest, // Alias cho khớp logic cũ
+  updateComment,
+  deleteComment,
+} from "../../api/maintenanceApi";
+import { useAuth } from "../../context/AuthContext";
 
 // Map danh mục sang tiếng Việt
 const CATEGORY_LABELS = {
@@ -65,8 +74,8 @@ const STATUS_MAP = {
 };
 
 export default function MaintenanceDetail({ route, navigation }) {
+  const { user } = useAuth(); // Lấy user từ AuthContext
   const params = route.params || {};
-  // Ưu tiên lấy ID từ params
   const requestId =
     params.requestId || params.id || params.request?._id || params.request?.id;
 
@@ -75,20 +84,16 @@ export default function MaintenanceDetail({ route, navigation }) {
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
 
-  // --- HÀM CHUẨN HÓA DỮ LIỆU TỪ API ---
+  // State cho việc sửa bình luận
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingContent, setEditingContent] = useState("");
+
   const normalizeDoc = (res) => {
     if (!res) return null;
-
-    // Trường hợp 1: API trả về { data: { _id: "..." } } (Đúng với JSON bạn đưa)
     if (res.data && (res.data._id || res.data.id)) return res.data;
-
-    // Trường hợp 2: API trả về { data: { data: { _id: "..." } } } (Axios wrapper)
-    if (res.data && res.data.data && (res.data.data._id || res.data.data.id))
-      return res.data.data;
-
-    // Trường hợp 3: API trả thẳng object
+    if (res.data && res.data.data) return res.data.data;
     if (res._id || res.id) return res;
-
     return res;
   };
 
@@ -97,7 +102,6 @@ export default function MaintenanceDetail({ route, navigation }) {
       setLoading(false);
       return;
     }
-
     if (!requestId) {
       Toast.show({
         type: "error",
@@ -107,21 +111,17 @@ export default function MaintenanceDetail({ route, navigation }) {
       setLoading(false);
       return;
     }
-
     try {
       setLoading(true);
       const res = await getRequest(requestId);
       const doc = normalizeDoc(res);
-
-      if (doc) {
-        setRequest(doc);
-      } else {
+      if (doc) setRequest(doc);
+      else
         Toast.show({
           type: "error",
           text1: "Lỗi",
           text2: "Không tìm thấy dữ liệu",
         });
-      }
     } catch (err) {
       console.error("Load Detail Error:", err);
       Toast.show({
@@ -138,12 +138,33 @@ export default function MaintenanceDetail({ route, navigation }) {
     load(true);
   }, [requestId]);
 
+  // --- HÀM CHECK QUYỀN SỞ HỮU (ĐÃ SỬA CHO KHỚP AUTHCONTEXT) ---
+  const checkPermission = (item) => {
+    if (!item || !user) return false;
+
+    // 1. Lấy ID người viết comment
+    // item.by có thể là object (nếu populate) hoặc string ID
+    const authorId = item.by?._id || item.by?.id || item.by;
+
+    // 2. Lấy ID của chính mình
+    // Cấu trúc AuthContext: { user: { _id: "...", ... }, accessToken: "..." }
+    // Nên phải lấy user.user._id
+    const myInfo = user.user || user;
+    const myId = myInfo?._id || myInfo?.id;
+
+    // Debug nếu cần:
+    // console.log(`Author: ${authorId} | Me: ${myId}`);
+
+    if (!authorId || !myId) return false;
+    return String(authorId) === String(myId);
+  };
+
+  // --- ACTIONS ---
   const submitComment = async () => {
     if (!comment || comment.trim().length === 0) {
       Toast.show({ type: "info", text1: "Vui lòng nhập nội dung" });
       return;
     }
-
     try {
       setSending(true);
       await commentRequest(requestId, comment.trim());
@@ -155,23 +176,72 @@ export default function MaintenanceDetail({ route, navigation }) {
       Toast.show({
         type: "error",
         text1: "Gửi thất bại",
-        text2: err?.response?.data?.message || "Lỗi kết nối",
+        text2: err?.response?.data?.message,
       });
     } finally {
       setSending(false);
     }
   };
 
-  // Helper: Lấy tên người dùng từ object UserInfo
+  const handleDeleteComment = (commentId) => {
+    Alert.alert("Xác nhận", "Bạn có chắc muốn xóa bình luận này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setLoading(true);
+            await deleteComment(requestId, commentId);
+            Toast.show({ type: "success", text1: "Đã xóa bình luận" });
+            await load(true);
+          } catch (err) {
+            Toast.show({
+              type: "error",
+              text1: "Lỗi",
+              text2: err?.response?.data?.message || "Không thể xóa",
+            });
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const openEditModal = (item) => {
+    setEditingCommentId(item._id);
+    setEditingContent(item.note);
+    setEditModalVisible(true);
+  };
+
+  const handleUpdateComment = async () => {
+    if (!editingContent.trim()) {
+      Toast.show({ type: "info", text1: "Nội dung không được để trống" });
+      return;
+    }
+    try {
+      setLoading(true);
+      await updateComment(requestId, editingCommentId, editingContent.trim());
+      setEditModalVisible(false);
+      Toast.show({ type: "success", text1: "Đã cập nhật bình luận" });
+      await load(true);
+    } catch (err) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: err?.response?.data?.message || "Cập nhật thất bại",
+      });
+      setLoading(false);
+    }
+  };
+
   const getDisplayName = (userAccount) => {
     if (!userAccount) return "Hệ thống";
-    // Check userInfo từ data mẫu: userInfo: { fullName: "Chiến Nguyễn Xuân" }
+    if (typeof userAccount === "string") return "Người dùng";
     return userAccount.userInfo?.fullName || userAccount.email || "Cư dân";
   };
 
-  // Helper: Hiển thị tên (Furniture nếu có, không thì lấy Category)
   const getDisplayItemName = (req) => {
-    // Check null an toàn cho furnitureId
     if (
       req.furnitureId &&
       typeof req.furnitureId === "object" &&
@@ -179,11 +249,9 @@ export default function MaintenanceDetail({ route, navigation }) {
     ) {
       return req.furnitureId.name;
     }
-    // Fallback sang category (Ví dụ: "electrical" -> "Điện")
     return CATEGORY_LABELS[req.category] || req.category || "Bảo trì chung";
   };
 
-  // Helper: Format ngày giờ
   const formatDate = (dateString) => {
     if (!dateString) return "";
     return new Date(dateString).toLocaleString("vi-VN", {
@@ -195,18 +263,14 @@ export default function MaintenanceDetail({ route, navigation }) {
     });
   };
 
-  const getStatusInfo = (status) => {
-    return (
-      STATUS_MAP[status] || {
-        text: status || "Không xác định",
-        color: "#f1f5f9",
-        textColor: "#64748b",
-        icon: "help-circle-outline",
-      }
-    );
-  };
+  const getStatusInfo = (status) =>
+    STATUS_MAP[status] || {
+      text: status || "Không xác định",
+      color: "#f1f5f9",
+      textColor: "#64748b",
+      icon: "help-circle-outline",
+    };
 
-  // --- RENDER ---
   if (loading && !request) {
     return (
       <View style={styles.center}>
@@ -243,7 +307,6 @@ export default function MaintenanceDetail({ route, navigation }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="chevron-back" size={24} color="#0f766e" />
           </TouchableOpacity>
@@ -268,6 +331,7 @@ export default function MaintenanceDetail({ route, navigation }) {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
+          {/* INFO CARD */}
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <View
@@ -292,11 +356,8 @@ export default function MaintenanceDetail({ route, navigation }) {
                 {formatDate(request.createdAt)}
               </Text>
             </View>
-
             <Text style={styles.title}>{request.title}</Text>
-
             <View style={styles.divider} />
-
             <View style={styles.metaGrid}>
               <View style={styles.metaItem}>
                 <Text style={styles.metaLabel}>Đối tượng</Text>
@@ -322,12 +383,12 @@ export default function MaintenanceDetail({ route, navigation }) {
             </View>
           </View>
 
+          {/* DESCRIPTION */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Mô tả chi tiết</Text>
             <Text style={styles.description}>
               {request.description || "Không có mô tả thêm."}
             </Text>
-
             {photos.length > 0 && (
               <View style={styles.photosSection}>
                 <Text style={styles.subSectionTitle}>
@@ -351,9 +412,9 @@ export default function MaintenanceDetail({ route, navigation }) {
             )}
           </View>
 
+          {/* REPORTER INFO */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Thông tin xử lý</Text>
-
             <View style={styles.infoRow}>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <Ionicons
@@ -367,7 +428,6 @@ export default function MaintenanceDetail({ route, navigation }) {
                 {getDisplayName(request.reporterAccountId)}
               </Text>
             </View>
-
             {request.scheduledAt && (
               <View style={styles.infoRow}>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -381,9 +441,9 @@ export default function MaintenanceDetail({ route, navigation }) {
             )}
           </View>
 
+          {/* TIMELINE */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Hoạt động & Bình luận</Text>
-
             <View style={styles.timelineContainer}>
               {timeline.length === 0 ? (
                 <Text style={styles.emptyTimeline}>Chưa có hoạt động nào</Text>
@@ -392,11 +452,9 @@ export default function MaintenanceDetail({ route, navigation }) {
                   const isComment = item.action === "comment";
                   return (
                     <View key={item._id || index} style={styles.timelineItem}>
-                      {/* Line connector */}
                       {index !== timeline.length - 1 && (
                         <View style={styles.timelineLine} />
                       )}
-
                       <View
                         style={[
                           styles.timelineDot,
@@ -405,18 +463,15 @@ export default function MaintenanceDetail({ route, navigation }) {
                             : { backgroundColor: "#0d9488" },
                         ]}
                       />
-
                       <View style={styles.timelineContent}>
                         <View style={styles.timelineHeader}>
                           <Text style={styles.timelineActor}>
                             {getDisplayName(item.by)}
                           </Text>
-                          {/* Data mẫu dùng 'at' cho thời gian trong timeline */}
                           <Text style={styles.timelineTime}>
                             {formatDate(item.at || item.createdAt)}
                           </Text>
                         </View>
-
                         <Text style={styles.timelineAction}>
                           {item.action === "created"
                             ? "Đã tạo yêu cầu"
@@ -426,10 +481,28 @@ export default function MaintenanceDetail({ route, navigation }) {
                             ? "Đã cập nhật trạng thái"
                             : item.action}
                         </Text>
-
                         {item.note ? (
                           <View style={styles.noteBubble}>
                             <Text style={styles.noteText}>{item.note}</Text>
+
+                            {/* --- NÚT SỬA / XÓA --- */}
+                            {isComment && checkPermission(item) && (
+                              <View style={styles.commentActions}>
+                                <TouchableOpacity
+                                  onPress={() => openEditModal(item)}
+                                  style={styles.actionBtn}
+                                >
+                                  <Text style={styles.editBtnText}>Sửa</Text>
+                                </TouchableOpacity>
+                                <View style={styles.dividerVertical} />
+                                <TouchableOpacity
+                                  onPress={() => handleDeleteComment(item._id)}
+                                  style={styles.actionBtn}
+                                >
+                                  <Text style={styles.deleteBtnText}>Xóa</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
                           </View>
                         ) : null}
                       </View>
@@ -439,7 +512,7 @@ export default function MaintenanceDetail({ route, navigation }) {
               )}
             </View>
 
-            {/* Input Bình luận */}
+            {/* INPUT COMMENT */}
             <View style={styles.commentSection}>
               <Text style={styles.subSectionTitle}>Thêm bình luận</Text>
               <TextInput
@@ -472,6 +545,40 @@ export default function MaintenanceDetail({ route, navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* EDIT MODAL */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Chỉnh sửa bình luận</Text>
+            <TextInput
+              style={[styles.textArea, { minHeight: 100 }]}
+              value={editingContent}
+              onChangeText={setEditingContent}
+              multiline
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalCancelBtn]}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalSaveBtn]}
+                onPress={handleUpdateComment}
+              >
+                <Text style={styles.modalSaveText}>Lưu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <Toast />
     </SafeAreaView>
   );
@@ -503,7 +610,6 @@ const styles = StyleSheet.create({
   headerTitleContainer: { flex: 1 },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
   headerSubtitle: { fontSize: 13, color: "#64748b", marginTop: 2 },
-
   container: { flex: 1 },
   contentContainer: { padding: 16, paddingBottom: 40 },
   center: {
@@ -520,7 +626,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   backButtonCenter: { marginTop: 20, padding: 10 },
-
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -534,7 +639,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-
   cardHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -572,7 +676,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 6,
   },
-
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
@@ -595,7 +698,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
     backgroundColor: "#f1f5f9",
   },
-
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -651,6 +753,27 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   noteText: { color: "#334155", fontSize: 14 },
+
+  // Style cho nút Sửa/Xóa
+  commentActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+    gap: 8,
+    alignItems: "center",
+  },
+  actionBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  dividerVertical: {
+    width: 1,
+    height: 12,
+    backgroundColor: "#cbd5e1",
+  },
+  editBtnText: { color: "#3b82f6", fontSize: 12, fontWeight: "600" },
+  deleteBtnText: { color: "#ef4444", fontSize: 12, fontWeight: "600" },
+
   commentSection: {
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
@@ -684,4 +807,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 6,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 12,
+    color: "#1e293b",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 16,
+    gap: 12,
+  },
+  modalBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
+  modalCancelBtn: { backgroundColor: "#f1f5f9" },
+  modalSaveBtn: { backgroundColor: "#0d9488" },
+  modalCancelText: { color: "#64748b", fontWeight: "600" },
+  modalSaveText: { color: "#fff", fontWeight: "600" },
 });

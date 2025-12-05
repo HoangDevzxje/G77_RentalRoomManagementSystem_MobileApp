@@ -38,7 +38,9 @@ const Header = ({ title, onBack }) => {
 };
 
 export default function BuildingReviewCreateScreen({ route, navigation }) {
-  const { buildingId, buildingName, existingReview } = route.params || {};
+  const { buildingId, buildingName, existingReview, roomId } =
+    route.params || {};
+
   const [rating, setRating] = useState(existingReview?.rating || 5);
   const [comment, setComment] = useState(existingReview?.comment || "");
   const [isAnonymous, setIsAnonymous] = useState(
@@ -51,6 +53,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
       typeof it === "string" ? { uri: it, name: it.split("/").pop() } : it
     );
   };
+
   const [images, setImages] = useState(normalizeImages(existingReview?.images));
   const [loading, setLoading] = useState(false);
 
@@ -59,10 +62,18 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
       type: "info",
       text1: "Mở Cài đặt",
       text2: "Bật quyền Photos nếu bạn đã từ chối",
+      visibilityTime: 2000,
+      position: "top",
     });
+
     setTimeout(() => {
       Linking.openSettings().catch(() => {
-        Toast.show({ type: "error", text1: "Không thể mở Settings" });
+        Toast.show({
+          type: "error",
+          text1: "Không thể mở Settings",
+          visibilityTime: 2000,
+          position: "top",
+        });
       });
     }, 300);
   };
@@ -71,7 +82,12 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
     try {
       const remaining = 5 - images.length;
       if (remaining <= 0) {
-        Toast.show({ type: "info", text1: "Đã đạt giới hạn 5 ảnh" });
+        Toast.show({
+          type: "info",
+          text1: "Đã đạt giới hạn 5 ảnh",
+          visibilityTime: 1500,
+          position: "top",
+        });
         return;
       }
 
@@ -82,23 +98,31 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
           type: "error",
           text1: "Quyền bị từ chối",
           text2: "Ứng dụng cần quyền truy cập ảnh để bạn có thể chọn hình",
+          visibilityTime: 2500,
+          position: "top",
         });
         return openSettingsPrompt();
       }
 
-      // Build options — single-select recommended for Expo Go
+      // Build options
       let options = {
         quality: 0.8,
         mediaTypes:
           (ImagePicker.MediaType && ImagePicker.MediaType.Images) ||
           ImagePicker.MediaTypeOptions?.Images ||
           undefined,
+        allowsMultipleSelection: true,
       };
 
       const result = await ImagePicker.launchImageLibraryAsync(options);
 
       if (!result) {
-        Toast.show({ type: "error", text1: "Không có phản hồi từ picker" });
+        Toast.show({
+          type: "error",
+          text1: "Không có phản hồi từ picker",
+          visibilityTime: 1500,
+          position: "top",
+        });
         return;
       }
 
@@ -122,12 +146,19 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
         Toast.show({
           type: "info",
           text1: "Không có ảnh được chọn (no assets)",
+          visibilityTime: 1500,
+          position: "top",
         });
         return;
       }
 
       if (!assets || assets.length === 0) {
-        Toast.show({ type: "info", text1: "Không có ảnh được chọn" });
+        Toast.show({
+          type: "info",
+          text1: "Không có ảnh được chọn",
+          visibilityTime: 1500,
+          position: "top",
+        });
         return;
       }
 
@@ -150,29 +181,58 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
         return merged.slice(0, 5);
       });
 
-      Toast.show({ type: "success", text1: `Đã thêm ${items.length} ảnh` });
+      Toast.show({
+        type: "success",
+        text1: `Đã thêm ${items.length} ảnh`,
+        visibilityTime: 1500,
+        position: "top",
+      });
     } catch (err) {
-      Toast.show({ type: "error", text1: "Lỗi chọn ảnh", text2: String(err) });
+      Toast.show({
+        type: "error",
+        text1: "Lỗi chọn ảnh",
+        text2: String(err),
+        visibilityTime: 2500,
+        position: "top",
+      });
     }
   };
 
   const removeImageAt = (index) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
+    Toast.show({
+      type: "info",
+      text1: "Đã xóa ảnh",
+      visibilityTime: 1000,
+      position: "top",
+    });
   };
 
   const validateForm = () => {
     if (!buildingId) {
-      Toast.show({ type: "error", text1: "Thiếu thông tin tòa nhà" });
+      Toast.show({
+        type: "error",
+        text1: "Thiếu thông tin tòa nhà",
+        visibilityTime: 2000,
+        position: "top",
+      });
       return false;
     }
     if (!rating || rating < 1 || rating > 5) {
-      Toast.show({ type: "error", text1: "Vui lòng chọn đánh giá từ 1-5 sao" });
+      Toast.show({
+        type: "error",
+        text1: "Vui lòng chọn đánh giá từ 1-5 sao",
+        visibilityTime: 2000,
+        position: "top",
+      });
       return false;
     }
     if (comment.trim().length > 500) {
       Toast.show({
         type: "error",
         text1: "Bình luận không được quá 500 ký tự",
+        visibilityTime: 2000,
+        position: "top",
       });
       return false;
     }
@@ -197,21 +257,34 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
       Toast.show({
         type: "success",
         text1: result?.message || "Đánh giá đã được gửi thành công!",
+        visibilityTime: 2000,
+        position: "top",
+        onHide: () => {
+          // --- SỬA Ở ĐÂY: Điều hướng về BuildingReviewList ---
+          // Thay thế màn hình hiện tại bằng BuildingReviewList để khi user back sẽ ko quay lại form tạo
+          navigation.replace("BuildingReviewList", { buildingId });
+        },
+        onPress: () => {
+          Toast.hide();
+          navigation.replace("BuildingReviewList", { buildingId });
+        },
       });
-
-      navigation.navigate("BuildingReviewList", { refresh: true });
     } catch (err) {
       const serverMessage =
         err?.response?.data?.message ||
-        err?.response?.data ||
+        err?.response?.data?.error ||
         err?.message ||
         String(err);
+
+      // HIỂN THỊ LỖI
       Toast.show({
         type: "error",
         text1: "Gửi thất bại",
         text2: serverMessage,
+        visibilityTime: 3000,
+        position: "top",
       });
-    } finally {
+
       setLoading(false);
     }
   };
@@ -236,6 +309,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
                 key={star}
                 onPress={() => setRating(star)}
                 style={styles.starButton}
+                disabled={loading}
               >
                 <Ionicons
                   name={star <= rating ? "star" : "star-outline"}
@@ -268,6 +342,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
             multiline
             style={styles.commentInput}
             maxLength={500}
+            editable={!loading}
           />
           <Text style={styles.charCount}>{comment.length}/500 ký tự</Text>
         </View>
@@ -285,6 +360,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
               onValueChange={setIsAnonymous}
               trackColor={{ false: "#cbd5e1", true: "#0d9488" }}
               thumbColor={isAnonymous ? "#fff" : "#fff"}
+              disabled={loading}
             />
           </View>
         </View>
@@ -297,7 +373,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
 
           <View style={styles.imagesContainer}>
             {images.map((image, index) => (
-              <View key={index} style={styles.imageWrapper}>
+              <View key={`image-${index}`} style={styles.imageWrapper}>
                 <Image
                   source={{ uri: image.uri }}
                   style={styles.imageThumbnail}
@@ -306,6 +382,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
                 <TouchableOpacity
                   style={styles.removeImageButton}
                   onPress={() => removeImageAt(index)}
+                  disabled={loading}
                 >
                   <Ionicons name="close-circle" size={22} color="#ef4444" />
                 </TouchableOpacity>
@@ -314,8 +391,12 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
 
             {images.length < 5 && (
               <TouchableOpacity
-                style={styles.addImageButton}
+                style={[
+                  styles.addImageButton,
+                  loading && styles.disabledButton,
+                ]}
                 onPress={pickImages}
+                disabled={loading}
               >
                 <Ionicons name="camera-outline" size={28} color="#64748b" />
                 <Text style={styles.addImageText}>Thêm ảnh</Text>
@@ -328,6 +409,7 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
           style={[styles.submitButton, loading && styles.submitButtonDisabled]}
           onPress={onSubmit}
           disabled={loading}
+          activeOpacity={0.8}
         >
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
@@ -340,15 +422,19 @@ export default function BuildingReviewCreateScreen({ route, navigation }) {
 
         <View style={styles.spacer} />
       </ScrollView>
-
       <Toast />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  headerSafe: { backgroundColor: "#fff" },
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  headerSafe: {
+    backgroundColor: "#fff",
+  },
   header: {
     height: 56,
     flexDirection: "row",
@@ -372,22 +458,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginHorizontal: 8,
   },
-  scrollView: { flex: 1 },
-  scrollContent: { padding: 16 },
-  section: { marginBottom: 24 },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  section: {
+    marginBottom: 24,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#0f172a",
     marginBottom: 8,
   },
-  sectionSubtitle: { fontSize: 14, color: "#64748b", marginBottom: 12 },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: "#64748b",
+    marginBottom: 12,
+  },
   starsContainer: {
     flexDirection: "row",
     justifyContent: "center",
     marginVertical: 8,
   },
-  starButton: { padding: 4 },
+  starButton: {
+    padding: 4,
+  },
   ratingText: {
     fontSize: 16,
     color: "#475569",
@@ -416,10 +514,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  anonymousText: { flex: 1 },
-  anonymousSubtitle: { fontSize: 14, color: "#64748b", marginTop: 2 },
-  imagesContainer: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  imageWrapper: { position: "relative", marginRight: 12, marginBottom: 12 },
+  anonymousText: {
+    flex: 1,
+  },
+  anonymousSubtitle: {
+    fontSize: 14,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  imagesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  imageWrapper: {
+    position: "relative",
+    marginRight: 12,
+    marginBottom: 12,
+  },
   imageThumbnail: {
     width: 80,
     height: 80,
@@ -449,7 +561,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#f8fafc",
   },
-  addImageText: { fontSize: 12, color: "#64748b", marginTop: 4 },
+  disabledButton: {
+    opacity: 0.5,
+  },
   submitButton: {
     backgroundColor: "#0d9488",
     paddingVertical: 16,
@@ -467,6 +581,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
-  submitButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  spacer: { height: 20 },
+  submitButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  spacer: {
+    height: 20,
+  },
 });

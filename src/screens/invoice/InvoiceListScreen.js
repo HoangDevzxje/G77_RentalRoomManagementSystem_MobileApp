@@ -269,10 +269,13 @@ export default function InvoiceListScreen({ navigation }) {
         <View style={styles.customHeader}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() =>
+              navigation.navigate("BottomTabs", { screen: "Chi tiết phòng" })
+            }
           >
             <Ionicons name="arrow-back" size={24} color="#1e293b" />
           </TouchableOpacity>
+
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Hóa đơn của tôi</Text>
             <Text style={styles.headerSubtitle}>

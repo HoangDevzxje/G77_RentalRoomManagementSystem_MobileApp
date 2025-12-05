@@ -66,7 +66,7 @@ export default function BuildingReviewListScreen({ route, navigation }) {
   const [starFilter, setStarFilter] = useState("all");
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
 
   const fetchRatings = async () => {
     if (!buildingId) return;
@@ -79,15 +79,40 @@ export default function BuildingReviewListScreen({ route, navigation }) {
 
       const ratingsData = res.ratings ?? res.data?.ratings ?? [];
 
-      const ratingsWithDeleteFlag = ratingsData.map((rating) => ({
-        ...rating,
-        canDelete: user && rating.userId === user.id,
-      }));
+      // --- FIX LOGIC SO SÁNH ID ĐỂ HIỂN THỊ NÚT XÓA ---
+      const ratingsWithDeleteFlag = ratingsData.map((rating) => {
+        // 1. Lấy ID người dùng hiện tại (xử lý nhiều trường hợp cấu trúc object user)
+        const currentUserId =
+          authUser?.user?.id || authUser?.user?._id || authUser?.id;
+
+        // 2. Lấy ID tác giả bài review
+        // API có thể trả về rating.userId hoặc populate vào rating.user._id
+        const reviewUserId =
+          rating.userId ||
+          (typeof rating.user === "object" ? rating.user?._id : rating.user);
+
+        // 3. So sánh dưới dạng String để tránh lỗi khác kiểu (ObjectId vs String)
+        const canDelete =
+          currentUserId &&
+          reviewUserId &&
+          String(currentUserId) === String(reviewUserId);
+
+        return {
+          ...rating,
+          canDelete,
+        };
+      });
+      // --------------------------------------------------
 
       setSummary(res.summary ?? res.data?.summary ?? null);
       setRatings(ratingsWithDeleteFlag);
     } catch (err) {
-      Toast.show({ type: "error", text1: "Lỗi tải đánh giá" });
+      Toast.show({
+        type: "error",
+        text1: "Lỗi tải đánh giá",
+        visibilityTime: 2000,
+        position: "top",
+      });
       setRatings([]);
       setSummary(null);
     } finally {
@@ -103,7 +128,7 @@ export default function BuildingReviewListScreen({ route, navigation }) {
   useFocusEffect(
     useCallback(() => {
       fetchRatings();
-    }, [])
+    }, [authUser])
   );
 
   const onRefresh = () => {
@@ -123,8 +148,6 @@ export default function BuildingReviewListScreen({ route, navigation }) {
             setDeletingId(ratingId);
 
             deletedItem = ratings.find((r) => r._id === ratingId);
-
-            // optimistic UI update
             setRatings((prev) => prev.filter((r) => r._id !== ratingId));
 
             setSummary((prev) => {
@@ -142,9 +165,10 @@ export default function BuildingReviewListScreen({ route, navigation }) {
               type: "success",
               text1: "Đã xóa đánh giá",
               text2: "Đánh giá của bạn đã được xóa thành công",
+              visibilityTime: 2000,
+              position: "top",
             });
           } catch (err) {
-            // rollback optimistic update on failure
             if (deletedItem) {
               setRatings((prev) =>
                 [...prev, deletedItem].sort(
@@ -162,6 +186,8 @@ export default function BuildingReviewListScreen({ route, navigation }) {
               type: "error",
               text1: "Xóa thất bại",
               text2: err.message || "Vui lòng thử lại sau",
+              visibilityTime: 3000,
+              position: "top",
             });
           } finally {
             setDeletingId(null);
@@ -186,14 +212,18 @@ export default function BuildingReviewListScreen({ route, navigation }) {
         type: "info",
         text1: "Không thể xóa",
         text2: "Bạn chỉ có thể xóa đánh giá của chính mình",
+        visibilityTime: 2000,
+        position: "top",
       });
     }
   };
 
   const renderItem = ({ item }) => {
-    const user = item.user ?? null;
-    const avatar = user?.avatar ?? null;
-    const name = item.isAnonymous ? "Ẩn danh" : user?.fullName ?? "Người dùng";
+    const userInfo = item.user ?? null;
+    const avatar = userInfo?.avatar ?? null;
+    const name = item.isAnonymous
+      ? "Ẩn danh"
+      : userInfo?.fullName ?? "Người dùng";
     const isDeleting = deletingId === item._id;
 
     return (
@@ -235,6 +265,7 @@ export default function BuildingReviewListScreen({ route, navigation }) {
               </View>
             </View>
 
+            {/* CHỈ hiển thị nút xóa nếu canDelete = true */}
             {item.canDelete && (
               <TouchableOpacity
                 onPress={() => onDelete(item._id)}
@@ -300,7 +331,13 @@ export default function BuildingReviewListScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <Header title="Danh sách đánh giá" onBack={() => navigation.goBack()} />
+      <Header
+        title="Danh sách đánh giá"
+        // Navigate về BottomTabs > Chi tiết phòng như yêu cầu
+        onBack={() =>
+          navigation.navigate("BottomTabs", { screen: "Chi tiết phòng" })
+        }
+      />
 
       {/* Summary + filter row */}
       <View style={styles.summary}>
