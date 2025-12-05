@@ -1,47 +1,10 @@
-import axios from "axios";
+import baseApi from "./baseApi";
+import { setTokens, removeTokens } from "../utils/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import API_URL from "../config/api";
-import { getAccessToken, setTokens, removeTokens } from "../utils/storage";
-
-const api = axios.create({
-  baseURL: `${API_URL}/auth`,
-  timeout: 15000,
-});
-
-api.interceptors.request.use(async (config) => {
-  const token = await getAccessToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-api.interceptors.response.use(
-  (res) => res,
-  async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        const res = await api.post("/refresh-token");
-        const { accessToken, access_token } = res.data;
-        const newAccessToken = accessToken || access_token;
-
-        if (newAccessToken) {
-          await setTokens(newAccessToken);
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          return api(originalRequest);
-        }
-      } catch (err) {
-        await removeTokens();
-        return Promise.reject(err);
-      }
-    }
-    return Promise.reject(error);
-  }
-);
 
 export const loginApi = async (email, password) => {
   try {
-    const res = await api.post("/login", { email, password });
+    const res = await baseApi.post("/auth/login", { email, password });
     const { accessToken, access_token, role, user } = res.data;
     const finalAccessToken = accessToken || access_token;
 
@@ -55,39 +18,32 @@ export const loginApi = async (email, password) => {
     };
 
     await setTokens(finalAccessToken, userInfo, role);
-    return {
-      accessToken: finalAccessToken,
-      role,
-      user: userInfo,
-    };
+    return { accessToken: finalAccessToken, role, user: userInfo };
   } catch (error) {
-    // Xử lý lỗi từ API
-    if (error.response) {
-      // Lỗi từ server (4xx, 5xx)
-      const message =
-        error.response.data?.message || error.response.data?.error;
-      throw new Error(message || "Đăng nhập thất bại");
-    } else if (error.request) {
-      // Không nhận được phản hồi từ server
-      throw new Error("Không thể kết nối đến server");
-    } else {
-      // Lỗi khác
-      throw error;
-    }
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      "Đăng nhập thất bại";
+    throw new Error(message);
   }
 };
 
-export const registerApi = (payload) =>
-  api.post("/register", payload).then((res) => res.data);
+export const registerApi = async (payload) => {
+  const res = await baseApi.post("/auth/register", payload);
+  return res.data;
+};
 
-export const sendOtpApi = (email, type) =>
-  api.post("/send-otp", { email, type }).then((res) => res.data);
+export const sendOtpApi = async (email, type) => {
+  const res = await baseApi.post("/auth/send-otp", { email, type });
+  return res.data;
+};
 
 export const verifyOtpApi = async (email, type, otp) => {
   try {
-    const res = await api.post("/verify-otp", { email, type, otp });
-    if (res.data.token || res.data.verificationToken) {
-      const token = res.data.token || res.data.verificationToken;
+    const res = await baseApi.post("/auth/verify-otp", { email, type, otp });
+    const token = res.data.token || res.data.verificationToken;
+
+    if (token) {
       await AsyncStorage.setItem(
         `otpVerificationToken_${email}_${type}`,
         token
@@ -117,24 +73,17 @@ export const resetPasswordApi = async (
     );
 
     if (!isVerified || isVerified !== "true") {
-      throw new Error("OTP chưa được xác thực. Vui lòng xác thực OTP trước.");
+      throw new Error("OTP chưa được xác thực.");
     }
 
-    const payload = {
-      email,
-      newPassword,
-    };
-
-    if (confirmNewPassword) {
-      payload.confirmNewPassword = confirmNewPassword;
-    }
-
+    const payload = { email, newPassword };
+    if (confirmNewPassword) payload.confirmNewPassword = confirmNewPassword;
     if (verificationToken) {
       payload.token = verificationToken;
       payload.verificationToken = verificationToken;
     }
 
-    const res = await api.post("/reset-password", payload);
+    const res = await baseApi.post("/auth/reset-password", payload);
 
     await AsyncStorage.removeItem(
       `otpVerificationToken_${email}_reset-password`
@@ -143,18 +92,20 @@ export const resetPasswordApi = async (
 
     return res.data;
   } catch (error) {
-    console.log("Reset password error:", error.response?.data || error.message);
     throw error;
   }
 };
 
-export const changePasswordApi = (oldPassword, newPassword) =>
-  api
-    .post("/change-password", { oldPassword, newPassword })
-    .then((res) => res.data);
+export const changePasswordApi = async (oldPassword, newPassword) => {
+  const res = await baseApi.post("/auth/change-password", {
+    oldPassword,
+    newPassword,
+  });
+  return res.data;
+};
 
 export const refreshTokenApi = async () => {
-  const res = await api.post("/refresh-token");
+  const res = await baseApi.post("/auth/refresh-token");
   const { accessToken, access_token } = res.data;
   const newAccessToken = accessToken || access_token;
   await setTokens(newAccessToken);
@@ -163,10 +114,9 @@ export const refreshTokenApi = async () => {
 
 export const logoutApi = async () => {
   try {
-    await api.post("/logout");
-  } catch {}
+    await baseApi.post("/auth/logout");
+  } catch (e) {}
   await removeTokens();
-
   const keys = await AsyncStorage.getAllKeys();
   const otpKeys = keys.filter(
     (key) =>
@@ -175,6 +125,5 @@ export const logoutApi = async () => {
   if (otpKeys.length > 0) {
     await AsyncStorage.multiRemove(otpKeys);
   }
-
   return true;
 };

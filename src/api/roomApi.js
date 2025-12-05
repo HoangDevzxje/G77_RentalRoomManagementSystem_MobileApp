@@ -10,8 +10,8 @@ export const getMyRoomDetail = async () => {
   try {
     const res = await baseApi.get("/rooms/my-room");
     const payload = unwrap(res);
-
     const data = payload?.data ?? payload;
+
     if (data && (data.room !== undefined || data.furnitures !== undefined)) {
       const room = data.room ?? null;
       const furnitures = Array.isArray(data.furnitures)
@@ -33,7 +33,6 @@ export const getMyRoomDetail = async () => {
         return { room: data, furnitures: [] };
       }
     }
-
     return { room: null, furnitures: [] };
   } catch (err) {
     throw err;

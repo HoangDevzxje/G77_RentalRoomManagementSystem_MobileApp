@@ -3,13 +3,12 @@ import baseApi from "./baseApi";
 export const createContact = async (contactData) => {
   const {
     buildingId,
-    postId = null,
+    postId,
     roomId,
     contactName,
     contactPhone,
     tenantNote = "",
   } = contactData;
-
   const finalBuildingId =
     typeof buildingId === "object" ? buildingId._id : buildingId;
 
@@ -29,16 +28,12 @@ export const createContact = async (contactData) => {
 export const getMyContacts = async ({ status, page = 1, limit = 10 } = {}) => {
   const params = { page, limit };
   if (status) params.status = status;
+
   const res = await baseApi.get("/contacts", { params });
   return res.data;
 };
 
 export const cancelContact = async (contactId) => {
-  try {
-    const res = await baseApi.patch(`/contacts/${contactId}/status`);
-    return res.data;
-  } catch (error) {
-    if (error.response) throw error;
-    else throw new Error("Lỗi kết nối mạng");
-  }
+  const res = await baseApi.patch(`/contacts/${contactId}/status`);
+  return res.data;
 };

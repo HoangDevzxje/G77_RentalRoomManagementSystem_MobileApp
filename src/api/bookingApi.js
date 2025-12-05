@@ -8,7 +8,6 @@ export const getAvailableSlots = async (buildingId, startDate, endDate) => {
   const res = await baseApi.get(`/bookings/available-slots/${buildingId}`, {
     params,
   });
-
   const days = res.data.availableDays || [];
 
   const slots = days.flatMap((day) =>
@@ -33,7 +32,6 @@ export const createBooking = async (bookingData) => {
     contactName,
     contactPhone,
   } = bookingData;
-
   const finalBuildingId =
     typeof buildingId === "object" ? buildingId._id : buildingId;
 
@@ -57,14 +55,6 @@ export const getMyBookings = async () => {
 };
 
 export const cancelBooking = async (bookingId) => {
-  try {
-    const res = await baseApi.patch(`/bookings/${bookingId}/cancel`);
-    return res.data;
-  } catch (error) {
-    if (error.response) {
-      throw error;
-    } else {
-      throw new Error("Lỗi kết nối mạng");
-    }
-  }
+  const res = await baseApi.patch(`/bookings/${bookingId}/cancel`);
+  return res.data;
 };

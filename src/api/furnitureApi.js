@@ -1,9 +1,7 @@
 import baseApi from "./baseApi";
 
 export const getRoomFurnitures = async (roomId) => {
-  const res = await baseApi.get("/furnitures/room", {
-    params: { roomId },
-  });
+  const res = await baseApi.get("/furnitures/room", { params: { roomId } });
   return res.data.data || res.data;
 };
 

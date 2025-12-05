@@ -435,6 +435,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
             <TextInput
               style={[styles.textInput, errors.title && styles.inputError]}
               placeholder="Vd: Vòi nước bị rò, Điều hòa không mát..."
+              placeholderTextColor="#94a3b8"
               value={title}
               onChangeText={(v) => handleInputChange("title", v)}
             />
@@ -467,6 +468,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
           <TextInput
             style={[styles.textInput, styles.textArea]}
             placeholder="Mô tả chi tiết tình trạng..."
+            placeholderTextColor="#94a3b8"
             multiline
             numberOfLines={4}
             value={description}
