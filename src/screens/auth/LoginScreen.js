@@ -5,9 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Image,
+  Keyboard, // Import Keyboard
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -24,6 +24,7 @@ export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
 
   const handleLogin = async () => {
+    Keyboard.dismiss(); // Ẩn bàn phím để Toast dễ nhìn hơn
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
 
@@ -32,6 +33,7 @@ export default function LoginScreen({ navigation }) {
         type: "error",
         text1: "Lỗi",
         text2: "Vui lòng nhập email hoặc tên đăng nhập",
+        position: "top", // Đảm bảo vị trí
       });
       return;
     }
@@ -42,6 +44,7 @@ export default function LoginScreen({ navigation }) {
         type: "error",
         text1: "Lỗi",
         text2: "Email không hợp lệ",
+        position: "top",
       });
       return;
     }
@@ -51,6 +54,7 @@ export default function LoginScreen({ navigation }) {
         type: "error",
         text1: "Lỗi",
         text2: "Vui lòng nhập mật khẩu",
+        position: "top",
       });
       return;
     }
@@ -67,16 +71,19 @@ export default function LoginScreen({ navigation }) {
         await AsyncStorage.removeItem("rememberedPassword");
       }
 
+      // Hiển thị Toast thành công
       Toast.show({
         type: "success",
         text1: "Thành công",
         text2: "Đăng nhập thành công!",
+        visibilityTime: 2000, // Thời gian hiển thị
+        position: "top",
       });
 
-      // Điều hướng sau khi hiển thị toast
+      // Đợi Toast hiển thị một chút rồi mới chuyển trang
       setTimeout(() => {
         navigation.navigate("BottomTabs");
-      }, 1000);
+      }, 1500); // Tăng lên 1.5s để người dùng kịp đọc
     } catch (error) {
       console.log("Login error:", error.message);
 
@@ -117,6 +124,7 @@ export default function LoginScreen({ navigation }) {
         type: "error",
         text1: "Lỗi đăng nhập",
         text2: displayMessage,
+        position: "top",
       });
     } finally {
       setLoading(false);
@@ -129,6 +137,11 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Đặt zIndex cao để Toast luôn hiển thị trên cùng nếu cần */}
+      <View style={{ zIndex: 9999 }}>
+        <Toast />
+      </View>
+
       <View style={styles.card}>
         {/* Sử dụng component Logo */}
         <Logo isScrolled={false} onPress={handleLogoPress} size={55} />
@@ -231,6 +244,7 @@ export default function LoginScreen({ navigation }) {
               type: "info",
               text1: "Thông báo",
               text2: "Tính năng đăng nhập Google đang phát triển",
+              position: "top",
             });
           }}
         >
@@ -254,7 +268,6 @@ export default function LoginScreen({ navigation }) {
           </Text>
         </View>
       </View>
-      <Toast />
     </View>
   );
 }

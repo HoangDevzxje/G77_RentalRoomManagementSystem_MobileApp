@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -34,8 +34,11 @@ export default function ContactDetailScreen({ route, navigation }) {
 
     if (!formData.contactPhone.trim()) {
       newErrors.contactPhone = "Vui lòng nhập số điện thoại";
-    } else if (!/^(0[3|5|7|8|9])+([0-9]{8})$/.test(formData.contactPhone)) {
-      newErrors.contactPhone = "Số điện thoại không hợp lệ";
+    } else {
+      const cleanedPhone = formData.contactPhone.replace(/\D/g, "");
+      if (!/^(03|05|07|08|09|01[2|6|8|9])+([0-9]{8})\b/.test(cleanedPhone)) {
+        newErrors.contactPhone = "Số điện thoại không hợp lệ (10 số)";
+      }
     }
 
     setErrors(newErrors);
@@ -43,17 +46,42 @@ export default function ContactDetailScreen({ route, navigation }) {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    // Kiểm tra form có đầy đủ thông tin không
+    if (!formData.contactName.trim() || !formData.contactPhone.trim()) {
+      Toast.show({
+        type: "error",
+        text1: "Thiếu thông tin",
+        text2: "Vui lòng điền đầy đủ thông tin bắt buộc",
+        visibilityTime: 3000,
+      });
+      return;
+    }
+
+    // Validate form
+    if (!validateForm()) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2:
+          errors.contactPhone ||
+          errors.contactName ||
+          "Vui lòng kiểm tra lại thông tin",
+        visibilityTime: 3000,
+      });
+      return;
+    }
 
     setLoading(true);
     try {
+      const cleanedPhone = formData.contactPhone.replace(/\D/g, "");
+
       const contactData = {
         buildingId,
         postId,
         roomId,
-        contactName: formData.contactName,
-        contactPhone: formData.contactPhone,
-        tenantNote: formData.tenantNote,
+        contactName: formData.contactName.trim(),
+        contactPhone: cleanedPhone,
+        tenantNote: formData.tenantNote.trim(),
       };
 
       const response = await createContact(contactData);
@@ -61,9 +89,7 @@ export default function ContactDetailScreen({ route, navigation }) {
       Toast.show({
         type: "success",
         text1: "Thành công",
-        text2:
-          response?.message ||
-          "Gửi yêu cầu hợp đồng thành công! Chủ trọ sẽ liên hệ với bạn sớm.",
+        text2: "Gửi yêu cầu hợp đồng thành công!",
         visibilityTime: 2500,
       });
 
@@ -73,7 +99,7 @@ export default function ContactDetailScreen({ route, navigation }) {
     } catch (error) {
       console.error("Lỗi tạo hợp đồng:", error);
 
-      let errorMessage = "Có lỗi xảy ra khi gửi yêu cầu hợp đồng";
+      let errorMessage = "Không thể gửi yêu cầu hợp đồng";
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
@@ -82,7 +108,7 @@ export default function ContactDetailScreen({ route, navigation }) {
 
       Toast.show({
         type: "error",
-        text1: "Thất bại",
+        text1: "Lỗi",
         text2: errorMessage,
         visibilityTime: 3000,
       });
@@ -97,6 +123,7 @@ export default function ContactDetailScreen({ route, navigation }) {
       [field]: value,
     }));
 
+    // Clear error khi user nhập lại
     if (errors[field]) {
       setErrors((prev) => ({
         ...prev,
@@ -117,7 +144,7 @@ export default function ContactDetailScreen({ route, navigation }) {
         >
           <Ionicons name="arrow-back" size={26} color="#1e293b" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo hợp đồng</Text>
+        <Text style={styles.headerTitle}>Tạo yêu cầu hợp đồng</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -140,14 +167,14 @@ export default function ContactDetailScreen({ route, navigation }) {
                   : "Liên hệ"}
               </Text>
             </View>
-            {roomInfo?.area && (
+            {roomInfo?.area ? (
               <Text style={styles.roomArea}>Diện tích: {roomInfo.area}m²</Text>
-            )}
-            {landlord?.fullName && (
+            ) : null}
+            {landlord?.fullName ? (
               <Text style={styles.landlordInfo}>
                 Chủ trọ: {landlord.fullName}
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
 
@@ -163,7 +190,7 @@ export default function ContactDetailScreen({ route, navigation }) {
               <TextInput
                 style={[
                   styles.textInput,
-                  errors.contactName && styles.inputError,
+                  errors.contactName ? styles.inputError : null,
                 ]}
                 placeholder="Nhập họ và tên của bạn"
                 placeholderTextColor="#9ca3af"
@@ -173,9 +200,9 @@ export default function ContactDetailScreen({ route, navigation }) {
                 }
                 editable={!loading}
               />
-              {errors.contactName && (
+              {errors.contactName ? (
                 <Text style={styles.errorText}>{errors.contactName}</Text>
-              )}
+              ) : null}
             </View>
 
             {/* Số điện thoại */}
@@ -186,7 +213,7 @@ export default function ContactDetailScreen({ route, navigation }) {
               <TextInput
                 style={[
                   styles.textInput,
-                  errors.contactPhone && styles.inputError,
+                  errors.contactPhone ? styles.inputError : null,
                 ]}
                 placeholder="Nhập số điện thoại của bạn"
                 placeholderTextColor="#9ca3af"
@@ -197,9 +224,9 @@ export default function ContactDetailScreen({ route, navigation }) {
                 keyboardType="phone-pad"
                 editable={!loading}
               />
-              {errors.contactPhone && (
+              {errors.contactPhone ? (
                 <Text style={styles.errorText}>{errors.contactPhone}</Text>
-              )}
+              ) : null}
             </View>
 
             {/* Ghi chú */}
@@ -237,7 +264,7 @@ export default function ContactDetailScreen({ route, navigation }) {
       {/* Action Bar */}
       <View style={styles.actionBar}>
         <TouchableOpacity
-          style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+          style={[styles.submitBtn, loading ? styles.submitBtnDisabled : null]}
           onPress={handleSubmit}
           disabled={loading}
         >
@@ -246,7 +273,7 @@ export default function ContactDetailScreen({ route, navigation }) {
           ) : (
             <>
               <Ionicons name="document-text-outline" size={20} color="#fff" />
-              <Text style={styles.submitBtnText}>Gửi yêu cầu hợp đồng</Text>
+              <Text style={styles.submitBtnText}>Gửi yêu cầu tạo hợp đồng</Text>
             </>
           )}
         </TouchableOpacity>

@@ -92,7 +92,7 @@ export default function ProfileScreen() {
               <View style={styles.iconWrapper}>
                 <Ionicons name="calendar-outline" size={22} color="#3b82f6" />
               </View>
-              <Text style={styles.menuText}>Lịch đặt xem phòng</Text>
+              <Text style={styles.menuText}>Danh sách lịch xem phòng</Text>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
             </TouchableOpacity>
 
@@ -107,7 +107,9 @@ export default function ProfileScreen() {
                   color="#14b8a6"
                 />
               </View>
-              <Text style={styles.menuText}>Yêu cầu thuê phòng</Text>
+              <Text style={styles.menuText}>
+                Danh sách yêu cầu tạo hợp đồng
+              </Text>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
             </TouchableOpacity>
 
@@ -116,18 +118,6 @@ export default function ProfileScreen() {
                 <Ionicons name="settings-outline" size={22} color="#3b82f6" />
               </View>
               <Text style={styles.menuText}>Cài đặt</Text>
-              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name="help-circle-outline"
-                  size={22}
-                  color="#14b8a6"
-                />
-              </View>
-              <Text style={styles.menuText}>Hỗ trợ</Text>
               <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
             </TouchableOpacity>
           </View>

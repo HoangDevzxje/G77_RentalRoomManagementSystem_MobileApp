@@ -18,7 +18,23 @@ import BookingScreen from "../screens/booking/BookingScreen";
 import BookingFormScreen from "../screens/booking/BookingFormScreen";
 import ContactScreen from "../screens/contact/ContactScreen";
 import ContactDetailScreen from "../screens/contact/ContactDetailScreen";
-import MessagesScreen from "../screens/messages/MessagesScreen";
+import ContractsListScreen from "../screens/contract/ContractsListScreen";
+import ContractDetailScreen from "../screens/contract/ContractDetailScreen";
+import RoomScreen from "../screens/room/RoomScreen";
+import RoommatesScreen from "../screens/room/RoommatesScreen";
+import RoommateDetail from "../screens/room/RoommateDetail";
+import MaintenanceRequestsScreen from "../screens/maintenance/MaintenanceRequestsScreen";
+import CreateMaintenanceRequest from "../screens/maintenance/CreateMaintenanceRequest";
+import MaintenanceDetail from "../screens/maintenance/MaintenanceDetail";
+import BuildingReviewCreateScreen from "../screens/buildingReview/BuildingReviewCreateScreen";
+import BuildingReviewListScreen from "../screens/buildingReview/BuildingReviewListScreen";
+import UpcomingContractsScreen from "../screens/contract/UpcomingContractsScreen";
+import InvoiceListScreen from "../screens/invoice/InvoiceListScreen";
+import InvoiceDetailScreen from "../screens/invoice/InvoiceDetailScreen";
+import NotificationsList from "../screens/notification/NotificationsList";
+import NotificationDetail from "../screens/notification/NotificationDetail";
+import PaymentScreen from "../screens/invoice/PaymentScreen";
+import BuildingLaundryDevicesScreen from "../screens/building/BuildingLaundryDevicesScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -49,9 +65,6 @@ export default function AppNavigator() {
       {/* Home */}
       <Stack.Screen name="Home" component={HomeScreen} />
 
-      {/* Messages */}
-      <Stack.Screen name="Messages" component={MessagesScreen} />
-
       {/* Post */}
       <Stack.Screen name="PostList" component={PostListScreen} />
       <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
@@ -67,6 +80,48 @@ export default function AppNavigator() {
       {/* Profile */}
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      {/* Contracts */}
+      <Stack.Screen name="Contracts" component={ContractsListScreen} />
+      <Stack.Screen name="ContractDetail" component={ContractDetailScreen} />
+      <Stack.Screen
+        name="UpcomingContracts"
+        component={UpcomingContractsScreen}
+      />
+      {/*Room*/}
+      <Stack.Screen name="Room" component={RoomScreen} />
+      <Stack.Screen name="Roommates" component={RoommatesScreen} />
+      <Stack.Screen name="RoommateDetail" component={RoommateDetail} />
+      {/* Maintenance */}
+      <Stack.Screen
+        name="MaintenanceRequests"
+        component={MaintenanceRequestsScreen}
+      />
+      <Stack.Screen name="MaintenanceDetail" component={MaintenanceDetail} />
+      <Stack.Screen
+        name="CreateMaintenanceRequest"
+        component={CreateMaintenanceRequest}
+      />
+      {/* Building Reviews */}
+      <Stack.Screen
+        name="CreateBuildingReview"
+        component={BuildingReviewCreateScreen}
+      />
+      <Stack.Screen
+        name="BuildingReviewList"
+        component={BuildingReviewListScreen}
+      />
+      {/* Invoice */}
+      <Stack.Screen name="InvoiceList" component={InvoiceListScreen} />
+      <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
+      <Stack.Screen name="PaymentScreen" component={PaymentScreen} />
+      {/* Notifications */}
+      <Stack.Screen name="NotificationsList" component={NotificationsList} />
+      <Stack.Screen name="NotificationDetail" component={NotificationDetail} />
+      {/*Building Laundry Devices */}
+      <Stack.Screen
+        name="BuildingLaundryDevices"
+        component={BuildingLaundryDevicesScreen}
+      />
     </Stack.Navigator>
   );
 }

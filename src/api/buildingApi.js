@@ -1,11 +1,18 @@
 import baseApi from "./baseApi";
 
-export const getBuildings = async () => {
-  const res = await baseApi.get("/buildings");
-  return res.data.data;
-};
+export const getBuildingLaundryDevices = async (buildingId, filters = {}) => {
+  if (!buildingId) throw new Error("Missing building id");
 
-export const getBuildingById = async (id) => {
-  const res = await baseApi.get(`/buildings/${id}`);
-  return res.data;
+  const params = { ...filters };
+  const res = await baseApi.get(
+    `/landlords/buildings/${buildingId}/laundry-devices`,
+    { params }
+  );
+  const data = res.data || {};
+
+  return {
+    buildingId: data.buildingId || buildingId,
+    total: data.total || 0,
+    data: data.data || [],
+  };
 };

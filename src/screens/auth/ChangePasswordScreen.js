@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -23,22 +23,171 @@ export default function ChangePasswordScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const [errors, setErrors] = useState({
+    oldPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  const [touched, setTouched] = useState({
+    oldPassword: false,
+    newPassword: false,
+    confirmPassword: false,
+  });
+
+  const [passwordStrength, setPasswordStrength] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    specialChar: false,
+  });
+
   const navigation = useNavigation();
 
-  const validatePassword = (password) => {
-    const minLength = 8;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  // --- LOGIC QUAN TRỌNG ĐÃ SỬA ---
+  // Thêm !! để đảm bảo các biến này luôn là BOOLEAN (true/false), không bao giờ là string
+  const isSamePassword = !!(
+    oldPassword &&
+    newPassword &&
+    oldPassword === newPassword
+  );
 
-    return (
-      password.length >= minLength &&
-      hasUpperCase &&
-      hasLowerCase &&
-      hasNumber &&
-      hasSpecialChar
-    );
+  const isPasswordMatch = !!(
+    confirmPassword &&
+    newPassword &&
+    newPassword === confirmPassword
+  );
+  // --------------------------------
+
+  useEffect(() => {
+    if (confirmPassword && touched.confirmPassword) {
+      const error = validateConfirmPassword(newPassword, confirmPassword);
+      setErrors((prev) => ({ ...prev, confirmPassword: error }));
+    }
+  }, [newPassword]);
+
+  const checkPasswordStrength = (password) => {
+    const strength = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      specialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
+    setPasswordStrength(strength);
+    return Object.values(strength).every((item) => item === true);
+  };
+
+  const checkSamePassword = (oldPass, newPass) => {
+    if (oldPass && newPass && oldPass === newPass) {
+      return true;
+    }
+    return false;
+  };
+
+  const validateConfirmPassword = (password, confirmPassword) => {
+    if (!confirmPassword.trim()) return "Vui lòng xác nhận mật khẩu";
+    if (password !== confirmPassword) return "Mật khẩu xác nhận không khớp";
+    return "";
+  };
+
+  const validateAll = () => {
+    const newErrors = {
+      oldPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    };
+    let isValid = true;
+
+    if (!oldPassword.trim()) {
+      newErrors.oldPassword = "Vui lòng nhập mật khẩu hiện tại";
+      isValid = false;
+    }
+
+    if (!newPassword.trim()) {
+      newErrors.newPassword = "Vui lòng nhập mật khẩu mới";
+      isValid = false;
+    } else {
+      if (checkSamePassword(oldPassword, newPassword)) {
+        newErrors.newPassword = "Mật khẩu mới không được trùng với mật khẩu cũ";
+        isValid = false;
+      } else if (!checkPasswordStrength(newPassword)) {
+        newErrors.newPassword = "Mật khẩu không đủ mạnh";
+        isValid = false;
+      }
+    }
+
+    const confirmError = validateConfirmPassword(newPassword, confirmPassword);
+    if (confirmError) {
+      newErrors.confirmPassword = confirmError;
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    setTouched({
+      oldPassword: true,
+      newPassword: true,
+      confirmPassword: true,
+    });
+    return isValid;
+  };
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const handleNewPasswordChange = (text) => {
+    setNewPassword(text);
+    checkPasswordStrength(text);
+
+    if (text.trim()) {
+      setErrors((prev) => ({ ...prev, newPassword: "" }));
+    }
+
+    if (oldPassword && text && oldPassword === text) {
+      setErrors((prev) => ({
+        ...prev,
+        newPassword: "Mật khẩu mới không được trùng với mật khẩu cũ",
+      }));
+    } else if (
+      errors.newPassword === "Mật khẩu mới không được trùng với mật khẩu cũ"
+    ) {
+      setErrors((prev) => ({ ...prev, newPassword: "" }));
+    }
+  };
+
+  const handleConfirmPasswordChange = (text) => {
+    setConfirmPassword(text);
+
+    if (text.trim()) {
+      setErrors((prev) => ({ ...prev, confirmPassword: "" }));
+    }
+
+    const error = validateConfirmPassword(newPassword, text);
+    if (error) {
+      setErrors((prev) => ({ ...prev, confirmPassword: error }));
+    }
+  };
+
+  const handleOldPasswordChange = (text) => {
+    setOldPassword(text);
+    if (text.trim()) {
+      setErrors((prev) => ({ ...prev, oldPassword: "" }));
+    }
+
+    if (newPassword && text && newPassword === text) {
+      setErrors((prev) => ({
+        ...prev,
+        newPassword: "Mật khẩu mới không được trùng với mật khẩu cũ",
+      }));
+    } else if (newPassword && text && newPassword !== text) {
+      if (
+        errors.newPassword === "Mật khẩu mới không được trùng với mật khẩu cũ"
+      ) {
+        setErrors((prev) => ({ ...prev, newPassword: "" }));
+      }
+    }
   };
 
   const handleChangePassword = async () => {
@@ -52,30 +201,11 @@ export default function ChangePasswordScreen() {
       return;
     }
 
-    if (!oldPassword || !newPassword || !confirmPassword) {
+    if (!validateAll()) {
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2: "Vui lòng nhập đầy đủ thông tin",
-      });
-      return;
-    }
-
-    if (!validatePassword(newPassword)) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2:
-          "Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt",
-      });
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Mật khẩu xác nhận không khớp",
+        text2: "Vui lòng kiểm tra lại thông tin!",
       });
       return;
     }
@@ -112,6 +242,26 @@ export default function ChangePasswordScreen() {
     }
   };
 
+  const getStrengthScore = () => {
+    return Object.values(passwordStrength).filter(Boolean).length;
+  };
+
+  const getStrengthColor = () => {
+    const score = getStrengthScore();
+    if (score <= 2) return "#ef4444";
+    if (score === 3) return "#f59e0b";
+    if (score === 4) return "#3b82f6";
+    return "#10b981";
+  };
+
+  const getStrengthText = () => {
+    const score = getStrengthScore();
+    if (score <= 2) return "Yếu";
+    if (score === 3) return "Trung bình";
+    if (score === 4) return "Mạnh";
+    return "Rất mạnh";
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -135,8 +285,8 @@ export default function ChangePasswordScreen() {
               <View style={styles.cardHeaderText}>
                 <Text style={styles.cardTitle}>Đổi mật khẩu</Text>
                 <Text style={styles.cardDescription}>
-                  Để bảo mật tài khoản, hãy sử dụng mật khẩu mạnh và thay đổi
-                  thường xuyên
+                  Để bảo mật tài khoản, hãy sử dụng mật khẩu mới khác với mật
+                  khẩu cũ và đủ mạnh
                 </Text>
               </View>
             </View>
@@ -158,14 +308,22 @@ export default function ChangePasswordScreen() {
                   <TextInput
                     placeholder="Nhập mật khẩu hiện tại"
                     value={oldPassword}
-                    onChangeText={setOldPassword}
+                    onChangeText={handleOldPasswordChange}
+                    onBlur={() => handleBlur("oldPassword")}
                     secureTextEntry={!showOldPassword}
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      errors.oldPassword && touched.oldPassword
+                        ? styles.inputError
+                        : null,
+                    ]}
                     placeholderTextColor="#9ca3af"
+                    editable={!loading}
                   />
                   <TouchableOpacity
                     style={styles.eyeIcon}
                     onPress={() => setShowOldPassword(!showOldPassword)}
+                    disabled={loading}
                   >
                     <Ionicons
                       name={showOldPassword ? "eye-off-outline" : "eye-outline"}
@@ -174,6 +332,9 @@ export default function ChangePasswordScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+                {errors.oldPassword && touched.oldPassword ? (
+                  <Text style={styles.errorText}>{errors.oldPassword}</Text>
+                ) : null}
               </View>
 
               {/* Mật khẩu mới */}
@@ -191,14 +352,23 @@ export default function ChangePasswordScreen() {
                   <TextInput
                     placeholder="Nhập mật khẩu mới"
                     value={newPassword}
-                    onChangeText={setNewPassword}
+                    onChangeText={handleNewPasswordChange}
+                    onBlur={() => handleBlur("newPassword")}
                     secureTextEntry={!showNewPassword}
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      (errors.newPassword && touched.newPassword) ||
+                      isSamePassword
+                        ? styles.inputError
+                        : null,
+                    ]}
                     placeholderTextColor="#9ca3af"
+                    editable={!loading}
                   />
                   <TouchableOpacity
                     style={styles.eyeIcon}
                     onPress={() => setShowNewPassword(!showNewPassword)}
+                    disabled={loading}
                   >
                     <Ionicons
                       name={showNewPassword ? "eye-off-outline" : "eye-outline"}
@@ -207,10 +377,182 @@ export default function ChangePasswordScreen() {
                     />
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.hint}>
-                  Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường,
-                  số và ký tự đặc biệt
-                </Text>
+
+                {/* Thông báo mật khẩu trùng nhau */}
+                {isSamePassword && (
+                  <View style={styles.samePasswordWarning}>
+                    <Ionicons
+                      name="warning-outline"
+                      size={14}
+                      color="#f59e0b"
+                    />
+                    <Text style={styles.samePasswordText}>
+                      Mật khẩu mới không được trùng với mật khẩu cũ
+                    </Text>
+                  </View>
+                )}
+
+                {/* Password Strength Indicator */}
+                {newPassword && !isSamePassword ? (
+                  <View style={styles.strengthContainer}>
+                    <View style={styles.strengthHeader}>
+                      <Text style={styles.strengthLabel}>
+                        Độ mạnh mật khẩu:
+                      </Text>
+                      <Text
+                        style={[
+                          styles.strengthText,
+                          { color: getStrengthColor() },
+                        ]}
+                      >
+                        {getStrengthText()}
+                      </Text>
+                    </View>
+
+                    {/* Strength bar */}
+                    <View style={styles.strengthBar}>
+                      <View
+                        style={[
+                          styles.strengthFill,
+                          {
+                            width: `${(getStrengthScore() / 5) * 100}%`,
+                            backgroundColor: getStrengthColor(),
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    {/* Requirements list */}
+                    <View style={styles.requirementsList}>
+                      <View style={styles.requirementItem}>
+                        <Ionicons
+                          name={
+                            passwordStrength.length
+                              ? "checkmark-circle"
+                              : "close-circle"
+                          }
+                          size={16}
+                          color={
+                            passwordStrength.length ? "#10b981" : "#9ca3af"
+                          }
+                          style={styles.requirementIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.requirementText,
+                            passwordStrength.length && styles.requirementMet,
+                          ]}
+                        >
+                          Ít nhất 8 ký tự
+                        </Text>
+                      </View>
+
+                      <View style={styles.requirementItem}>
+                        <Ionicons
+                          name={
+                            passwordStrength.uppercase
+                              ? "checkmark-circle"
+                              : "close-circle"
+                          }
+                          size={16}
+                          color={
+                            passwordStrength.uppercase ? "#10b981" : "#9ca3af"
+                          }
+                          style={styles.requirementIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.requirementText,
+                            passwordStrength.uppercase && styles.requirementMet,
+                          ]}
+                        >
+                          Chữ hoa (A-Z)
+                        </Text>
+                      </View>
+
+                      <View style={styles.requirementItem}>
+                        <Ionicons
+                          name={
+                            passwordStrength.lowercase
+                              ? "checkmark-circle"
+                              : "close-circle"
+                          }
+                          size={16}
+                          color={
+                            passwordStrength.lowercase ? "#10b981" : "#9ca3af"
+                          }
+                          style={styles.requirementIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.requirementText,
+                            passwordStrength.lowercase && styles.requirementMet,
+                          ]}
+                        >
+                          Chữ thường (a-z)
+                        </Text>
+                      </View>
+
+                      <View style={styles.requirementItem}>
+                        <Ionicons
+                          name={
+                            passwordStrength.number
+                              ? "checkmark-circle"
+                              : "close-circle"
+                          }
+                          size={16}
+                          color={
+                            passwordStrength.number ? "#10b981" : "#9ca3af"
+                          }
+                          style={styles.requirementIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.requirementText,
+                            passwordStrength.number && styles.requirementMet,
+                          ]}
+                        >
+                          Số (0-9)
+                        </Text>
+                      </View>
+
+                      <View style={styles.requirementItem}>
+                        <Ionicons
+                          name={
+                            passwordStrength.specialChar
+                              ? "checkmark-circle"
+                              : "close-circle"
+                          }
+                          size={16}
+                          color={
+                            passwordStrength.specialChar ? "#10b981" : "#9ca3af"
+                          }
+                          style={styles.requirementIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.requirementText,
+                            passwordStrength.specialChar &&
+                              styles.requirementMet,
+                          ]}
+                        >
+                          Ký tự đặc biệt (!@#$...)
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : !isSamePassword ? (
+                  <Text style={styles.hint}>
+                    Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ
+                    thường, số và ký tự đặc biệt
+                  </Text>
+                ) : null}
+
+                {errors.newPassword &&
+                touched.newPassword &&
+                !isSamePassword ? (
+                  <Text style={styles.errorText}>{errors.newPassword}</Text>
+                ) : null}
               </View>
 
               {/* Xác nhận mật khẩu mới */}
@@ -218,7 +560,15 @@ export default function ChangePasswordScreen() {
                 <Text style={styles.label}>
                   Xác nhận mật khẩu mới <Text style={styles.required}>*</Text>
                 </Text>
-                <View style={styles.inputWrapper}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    errors.confirmPassword && touched.confirmPassword
+                      ? styles.inputError
+                      : null,
+                    isPasswordMatch ? styles.inputSuccess : null,
+                  ]}
+                >
                   <Ionicons
                     name="lock-closed-outline"
                     size={18}
@@ -228,14 +578,17 @@ export default function ChangePasswordScreen() {
                   <TextInput
                     placeholder="Nhập lại mật khẩu mới"
                     value={confirmPassword}
-                    onChangeText={setConfirmPassword}
+                    onChangeText={handleConfirmPasswordChange}
+                    onBlur={() => handleBlur("confirmPassword")}
                     secureTextEntry={!showConfirmPassword}
                     style={styles.input}
                     placeholderTextColor="#9ca3af"
+                    editable={!loading}
                   />
                   <TouchableOpacity
                     style={styles.eyeIcon}
                     onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    disabled={loading}
                   >
                     <Ionicons
                       name={
@@ -246,16 +599,34 @@ export default function ChangePasswordScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+
+                {/* Match indicator */}
+                {isPasswordMatch && (
+                  <View style={styles.matchIndicator}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color="#10b981"
+                    />
+                    <Text style={styles.matchText}>Mật khẩu khớp</Text>
+                  </View>
+                )}
+
+                {errors.confirmPassword &&
+                touched.confirmPassword &&
+                !isPasswordMatch ? (
+                  <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                ) : null}
               </View>
 
               {/* Submit Button */}
               <TouchableOpacity
                 style={[
                   styles.submitButton,
-                  loading && styles.submitButtonDisabled,
+                  (loading || isSamePassword) && styles.submitButtonDisabled,
                 ]}
                 onPress={handleChangePassword}
-                disabled={loading}
+                disabled={loading || isSamePassword} // Ở đây, nếu isSamePassword là string "" nó sẽ gây lỗi. Sau khi fix thêm !! ở trên thì nó đã an toàn.
               >
                 {loading ? (
                   <View style={styles.loadingContainer}>
@@ -263,7 +634,9 @@ export default function ChangePasswordScreen() {
                     <Text style={styles.submitButtonText}>Đang xử lý...</Text>
                   </View>
                 ) : (
-                  <Text style={styles.submitButtonText}>Đổi mật khẩu</Text>
+                  <Text style={styles.submitButtonText}>
+                    {isSamePassword ? "Mật khẩu không hợp lệ" : "Đổi mật khẩu"}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -273,6 +646,12 @@ export default function ChangePasswordScreen() {
           <View style={styles.card}>
             <Text style={styles.securityTitle}>Lưu ý bảo mật</Text>
             <View style={styles.securityList}>
+              <View style={styles.securityItem}>
+                <View style={styles.bullet} />
+                <Text style={styles.securityText}>
+                  Mật khẩu mới phải khác với mật khẩu cũ
+                </Text>
+              </View>
               <View style={styles.securityItem}>
                 <View style={styles.bullet} />
                 <Text style={styles.securityText}>
@@ -337,11 +716,6 @@ const styles = StyleSheet.create({
     maxWidth: 768,
     alignSelf: "center",
     width: "100%",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginBottom: 24,
   },
   card: {
     backgroundColor: "#fff",
@@ -419,6 +793,14 @@ const styles = StyleSheet.create({
     color: "#111827",
     backgroundColor: "#fff",
   },
+  inputError: {
+    borderColor: "#ef4444",
+    backgroundColor: "#fef2f2",
+  },
+  inputSuccess: {
+    borderColor: "#10b981",
+    backgroundColor: "#f0fdf4",
+  },
   eyeIcon: {
     position: "absolute",
     right: 12,
@@ -429,6 +811,96 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     marginTop: 6,
     lineHeight: 16,
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#ef4444",
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  samePasswordWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    marginLeft: 4,
+    padding: 8,
+    backgroundColor: "#fef3c7",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+  },
+  samePasswordText: {
+    fontSize: 12,
+    color: "#92400e",
+    fontWeight: "500",
+    flex: 1,
+  },
+  strengthContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: "#f9fafb",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  strengthHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  strengthLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#6b7280",
+  },
+  strengthText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  strengthBar: {
+    height: 4,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 2,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  strengthFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  requirementsList: {
+    gap: 8,
+  },
+  requirementItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  requirementIcon: {
+    width: 16,
+  },
+  requirementText: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  requirementMet: {
+    color: "#10b981",
+    fontWeight: "500",
+  },
+  // Match Indicator
+  matchIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  matchText: {
+    fontSize: 12,
+    color: "#10b981",
+    fontWeight: "500",
   },
   submitButton: {
     backgroundColor: "#2563eb",

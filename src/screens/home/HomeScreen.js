@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,295 +6,431 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  Animated,
+  Easing,
+  ActivityIndicator,
+  RefreshControl,
   Image,
 } from "react-native";
 import {
-  Building2,
-  Users,
-  FileText,
-  DollarSign,
-  CheckCircle,
   ArrowRight,
-  BarChart3,
-  Globe,
-  ShieldCheck,
-  Car,
-  Wallet,
-  UserCog,
+  Building2,
+  Home,
+  Search,
+  Shield,
+  Clock,
+  Users,
+  CheckCircle,
+  Check,
+  Sparkles,
 } from "lucide-react-native";
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import HeroSection from "../../components/Homepage/HeroSection";
-import StatsSection from "../../components/Homepage/StatsSection";
-import WhyChoose from "../../components/Homepage/WhyChoose";
-import Testimonials from "../../components/Homepage/Testimonials";
+import { useAuth } from "../../context/AuthContext";
+import { getPosts } from "../../api/postApi";
+import { useFocusEffect } from "@react-navigation/native";
+import Toast from "react-native-toast-message";
 
 const { width } = Dimensions.get("window");
 
-const HomeScreen = ({ navigation, route }) => {
-  const scrollViewRef = useRef(null);
+export default function HomeCombinedScreen({ navigation, route }) {
+  const { isAuthenticated } = useAuth();
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.95));
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    checkLoginSuccess();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  // Kiểm tra xem có phải vừa đăng nhập thành công không
+  useEffect(() => {
+    if (route?.params?.fromLogin) {
+      setShowSuccessAlert(true);
+      const t = setTimeout(() => setShowSuccessAlert(false), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [route?.params]);
+
   const checkLoginSuccess = async () => {
     try {
       const justLoggedIn = await AsyncStorage.getItem("justLoggedIn");
-
       if (justLoggedIn === "true") {
-        // Hiển thị thông báo thành công
         setShowSuccessAlert(true);
-
-        // Xóa flag sau khi hiển thị
         await AsyncStorage.removeItem("justLoggedIn");
-
-        // Tự động ẩn thông báo sau 2 giây
-        const timer = setTimeout(() => {
-          setShowSuccessAlert(false);
-        }, 2000);
-
-        return () => clearTimeout(timer);
+        const t = setTimeout(() => setShowSuccessAlert(false), 2000);
+        return () => clearTimeout(t);
       }
-    } catch (error) {
-      console.log("Error checking login status:", error);
+    } catch (err) {
+      console.log("checkLoginSuccess err", err);
     }
   };
 
-  // Kiểm tra nếu có param từ navigation
-  useEffect(() => {
-    if (route.params?.fromLogin) {
-      setShowSuccessAlert(true);
-      const timer = setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 2000);
-
-      return () => clearTimeout(timer);
+  const fetchPosts = async () => {
+    try {
+      setPostsLoading(true);
+      const res = await getPosts({ page: 1, limit: 4 });
+      setPosts(res.data || res || []);
+    } catch (err) {
+      console.error("fetchPosts err", err);
+    } finally {
+      setPostsLoading(false);
     }
-  }, [route.params]);
+  };
 
-  const features = [
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchPosts();
+    } else {
+      setPostsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isAuthenticated) {
+        fetchPosts();
+      }
+    }, [isAuthenticated])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    if (isAuthenticated) {
+      fetchPosts();
+    }
+    setRefreshing(false);
+  };
+
+  const WhyChooseCard = ({ icon: Icon, title, desc, index }) => {
+    const [anim] = useState(new Animated.Value(0));
+
+    useEffect(() => {
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 600,
+        delay: index * 100,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }, []);
+
+    return (
+      <Animated.View
+        style={[
+          styles.whyChooseCard,
+          {
+            opacity: anim,
+            transform: [
+              {
+                translateY: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <Icon size={32} color="#3b82f6" style={styles.whyChooseIcon} />
+        <Text style={styles.whyChooseTitle}>{title}</Text>
+        <Text style={styles.whyChooseDesc}>{desc}</Text>
+      </Animated.View>
+    );
+  };
+
+  const FeatureCard = ({
+    title,
+    description,
+    icon: Icon,
+    color,
+    features,
+    buttonText,
+    buttonIcon: ButtonIcon,
+    onPress,
+    index,
+  }) => {
+    const [cardAnim] = useState(new Animated.Value(0));
+
+    useEffect(() => {
+      Animated.timing(cardAnim, {
+        toValue: 1,
+        duration: 800,
+        delay: 400 + index * 100,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }, []);
+
+    const scale = cardAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.95, 1],
+    });
+
+    const translateY = cardAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [20, 0],
+    });
+
+    return (
+      <Animated.View
+        style={[
+          styles.featureCard,
+          {
+            opacity: cardAnim,
+            transform: [{ scale }, { translateY }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={onPress}
+          style={styles.cardTouchable}
+        >
+          {/* Decorative Elements */}
+          <View style={[styles.cardBlob, { backgroundColor: `${color}10` }]} />
+          <View style={[styles.cardBlob2, { backgroundColor: `${color}05` }]} />
+
+          {/* Sparkle Icon */}
+          <View style={styles.sparkleIcon}>
+            <Sparkles size={20} color={color} />
+          </View>
+
+          <View style={styles.cardHeader}>
+            <View style={styles.cardIconContainer}>
+              <View
+                style={[
+                  styles.iconWrapper,
+                  {
+                    backgroundColor: color,
+                  },
+                ]}
+              >
+                <Icon size={24} color="white" />
+              </View>
+              <View style={styles.cardTitleContainer}>
+                <Text style={styles.cardTitle}>{title}</Text>
+                <View
+                  style={[styles.titleUnderline, { backgroundColor: color }]}
+                />
+              </View>
+            </View>
+            <Text style={styles.cardDescription}>{description}</Text>
+          </View>
+
+          <View style={styles.cardContent}>
+            {features.map((feature, idx) => (
+              <View key={idx} style={styles.featureItem}>
+                <View style={[styles.checkIcon, { backgroundColor: color }]}>
+                  <Check size={16} color="white" />
+                </View>
+                <Text style={styles.featureText}>{feature}</Text>
+              </View>
+            ))}
+            <View style={[styles.highlightBox, { borderColor: `${color}20` }]}>
+              <Sparkles size={16} color={color} />
+              <Text style={[styles.highlightText, { color }]}>
+                {index === 0
+                  ? "Nhiều gói dịch vụ phù hợp mọi quy mô"
+                  : "Hoàn toàn miễn phí cho người thuê"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.cardFooter}>
+            <TouchableOpacity
+              style={[
+                styles.cardButton,
+                {
+                  backgroundColor: color,
+                },
+              ]}
+              activeOpacity={0.8}
+              onPress={onPress}
+            >
+              {ButtonIcon && <ButtonIcon size={20} color="white" />}
+              <Text style={styles.cardButtonText}>{buttonText}</Text>
+              <ArrowRight size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const featureCards = [
     {
-      icon: Building2,
-      title: "Quản lý nhiều nhà trọ - chung cư - ktx, sleepbox, homestay",
+      title: "Bạn là Chủ trọ?",
       description:
-        "Có thể cùng một lúc quản lý nhiều nhà trọ - tòa nhà chung cư - ktx, đồng thời cũng có thể theo dõi tổng quan, chi tiết thông tin nhà cho thuê của mình với tính năng này.",
-      gradient: ["#60a5fa", "#2563eb"],
+        "Quản lý toàn bộ hoạt động nhà trọ chỉ trên một nền tảng chuyên nghiệp",
+      icon: Building2,
+      color: "#3b82f6",
+      features: [
+        "Quản lý phòng, người thuê, hợp đồng một cách hệ thống",
+        "Tự động tạo hóa đơn & nhắc hạn thanh toán thông minh",
+        "Đăng tin cho thuê dễ dàng với giao diện trực quan",
+      ],
+      buttonText: "Xem các gói dịch vụ",
+      onPress: () => navigation.navigate("AboutUs"),
+    },
+    {
+      title: "Bạn đang tìm phòng trọ?",
+      description:
+        "Tìm kiếm và lựa chọn phòng trọ phù hợp với nhu cầu của bạn một cách nhanh chóng",
+      icon: Home,
+      color: "#10b981",
+      features: [
+        "Thông tin rõ ràng, hình ảnh thật từ chủ trọ",
+        "Liên hệ trực tiếp chủ trọ không qua trung gian",
+        "Đặt lịch xem phòng, ký hợp đồng online tiện lợi",
+      ],
+      buttonText: "Tìm phòng trọ ngay bây giờ",
+      buttonIcon: Search,
+      onPress: () => navigation.navigate("PostList"),
+    },
+  ];
+
+  const whyChooseData = [
+    {
+      icon: Shield,
+      title: "Minh bạch 100%",
+      desc: "Chỉ chủ trọ thật mới được đăng tin",
+    },
+    {
+      icon: Clock,
+      title: "Tiết kiệm thời gian",
+      desc: "Quản lý tự động – Tìm phòng chỉ 5 phút",
     },
     {
       icon: Users,
-      title: "Quản lý phòng trọ, căn hộ, giường - sleepbox",
-      description:
-        "Các thông tin về phòng trọ như khách thuê phòng, số điện thoại, trạng thái phòng,... sẽ được cung cấp bởi tính năng này. Việc quản lý phòng trọ sẽ đơn giản hơn nhiều.",
-      gradient: ["#38bdf8", "#3b82f6"],
+      title: "Không trung gian",
+      desc: "Liên hệ trực tiếp, không mất phí môi giới",
     },
     {
-      icon: DollarSign,
-      title: "Hóa đơn tiền phòng, thu tiền",
-      description:
-        "Chúng tôi giúp bạn theo dõi và tính toán tiền điện, nước, dịch vụ,... chốt tiền phòng hàng tháng một cách tự động, in hóa đơn cho khách thuê. Theo dõi thu tiền phòng hàng tháng cho bạn.",
-      gradient: ["#22d3ee", "#2563eb"],
-    },
-    {
-      icon: FileText,
-      title: "Quản lý cọc giữ chỗ và hợp đồng thuê nhà",
-      description:
-        "Lưu giữ tất cả thông tin khách thuê, tiền cọc, ngày cọc,... với chức năng này bạn sẽ không cần phải ghi nhớ bất cứ thông tin đặt cọc nào.",
-      gradient: ["#3b82f6", "#4f46e5"],
-    },
-    {
-      icon: ShieldCheck,
-      title: "Quản lý khách thuê",
-      description:
-        "Quản lý các thông tin về khách thuê phòng, tình trạng giấy tờ tùy thân, tình trạng đăng ký tạm trú. Ngoài ra phần mềm còn hỗ trợ đăng ký tạm trú online trên dịch vụ công.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
-    },
-    {
-      icon: BarChart3,
-      title: "Thống kê báo cáo",
-      description:
-        "Bạn sẽ theo dõi tổng quan hoạt động của nhà trọ, phòng trọ để sắp xếp công việc hợp lý, đồng thời nắm bắt nhanh doanh thu, chi phí và tỉ lệ phòng trống.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
-    },
-    {
-      icon: Car,
-      title: "Quản lý xe, tài sản",
-      description:
-        "Quản lý thông tin xe của khách & tài sản khách sử dụng trong quá trình thuê nhà, kiểm kệ tình trạng của tài sản.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
-    },
-    {
-      icon: Wallet,
-      title: "Quản lý tài chính",
-      description:
-        "Mọi thu, chi tổng kết kinh doanh sẽ được lưu trữ và tính toán tự động bạn sẽ không còn đau đầu với những con số.",
-      gradient: ["#2563eb", "#4338ca"],
-    },
-    {
-      icon: UserCog,
-      title: "Quản lý nhân viên",
-      description:
-        "Phần mềm cung cấp tính năng phân quyền để bạn có thể tổ chức công ty hoặc đội nhóm cùng tham gia quản lý.",
-      gradient: ["#0ea5e9", "#1d4ed8"],
+      icon: CheckCircle,
+      title: "Hợp đồng online",
+      desc: "Ký điện tử an toàn, hợp pháp",
     },
   ];
 
-  const platforms = [
-    {
-      image: "https://quanlytro.me/images/banner_ipad_flatform.webp",
-      title: "Quản lý trên điện thoại",
-      description:
-        "Quản lý ngay trên chiếc điện thoại. Nhẹ nhàng, thuận tiện, linh hoạt với đầy đủ tính năng và được đồng bộ với các nền tảng khác.",
-      gradient: ["#a78bfa", "#6366f1"],
-    },
-    {
-      image: "https://quanlytro.me/images/banner_mobile_flatform.webp",
-      title: "Quản lý trên máy tính bảng",
-      description:
-        "Nếu bạn đang có chiếc máy tính bảng là một lợi thế. Bạn có thể kết hợp được sự linh hoạt giữa điện thoại và máy tính.",
-      gradient: ["#34d399", "#059669"],
-    },
-    {
-      image: "https://quanlytro.me/images/banner_desktop_flatform.webp",
-      title: "Quản lý trên máy tính",
-      description:
-        "Quản lý ngay trên website mà không cần cài đặt app. Tất cả các tính năng sẽ rất chi tiết, sẽ giúp bạn quản lý thuận tiện đầy đủ.",
-      gradient: ["#38bdf8", "#3b82f6"],
-    },
-  ];
+  const AnimatedText = ({ text, delay = 0 }) => {
+    const [animatedText] = useState(new Animated.Value(0));
 
-  const handleRegister = () => {
-    navigation.navigate("Register");
+    useEffect(() => {
+      Animated.timing(animatedText, {
+        toValue: 1,
+        duration: 600,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }, []);
+
+    const translateY = animatedText.interpolate({
+      inputRange: [0, 1],
+      outputRange: [40, 0],
+    });
+
+    return (
+      <Animated.Text
+        style={[
+          styles.heroTitlePart,
+          {
+            opacity: animatedText,
+            transform: [{ translateY }],
+          },
+        ]}
+      >
+        {text}
+      </Animated.Text>
+    );
+  };
+
+  const GradientText = ({ text }) => {
+    return <Text style={styles.gradientText}>{text}</Text>;
   };
 
   return (
-    <View style={styles.container}>
-      {/* Thông báo thành công khi đăng nhập - CHỈ HIỆN KHI VỪA ĐĂNG NHẬP */}
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
       {showSuccessAlert && (
         <View style={[styles.topAlert, styles.successAlert]}>
-          <Ionicons
-            name="checkmark-circle"
-            size={20}
-            color="white"
-            style={styles.alertIcon}
-          />
+          <CheckCircle size={20} color="white" style={styles.alertIcon} />
           <Text style={styles.alertMessage}>Đăng nhập thành công</Text>
         </View>
       )}
 
-      <ScrollView style={styles.scrollView} ref={scrollViewRef}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Hero Section */}
-        <HeroSection navigation={navigation} />
+        <View style={styles.heroSection}>
+          <View style={styles.heroBackground}></View>
 
-        {/* Stats Section */}
-        <StatsSection />
+          <View style={styles.heroContent}>
+            <View style={styles.heroTitleContainer}>
+              <AnimatedText text="Hệ Thống" delay={50} />
+              <GradientText text="Quản Lý & Tìm kiếm" />
+              <AnimatedText text="Phòng Trọ" delay={110} />
+            </View>
 
-        {/* Multi-Platform Section */}
-        <View style={styles.platformSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>QUẢN LÝ TRÊN ĐA NỀN TẢNG</Text>
-            <Text style={styles.sectionSubtitle}>
-              ĐIỆN THOẠI - IPAD - MÁY TÍNH - WEBSITE
-            </Text>
-            <Text style={styles.sectionDescription}>
-              Với sự đa dạng về nền tảng sẽ giúp bạn quản lý nhà trọ linh động
-              hơn, thay vì mẫu excel phức tạp hay sổ sách rờm rà. Thật tuyệt vời
-              khi nay bạn đã có thể quản lý nhà trọ của mình trên mọi thiết bị
-              bạn có.
+            <Text style={styles.heroDescription}>
+              Một nền tảng giúp chủ trọ quản lý nhà trọ chuyên nghiệp và người
+              thuê tìm phòng minh bạch, an toàn
             </Text>
           </View>
+        </View>
 
-          <View style={styles.platformGrid}>
-            {platforms.map((platform, index) => (
-              <View key={index} style={styles.platformCard}>
-                <Image
-                  source={{ uri: platform.image }}
-                  style={styles.platformImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.platformContent}>
-                  <View
-                    style={[
-                      styles.platformButton,
-                      { backgroundColor: platform.gradient[0] },
-                    ]}
-                  >
-                    <Text style={styles.platformButtonText}>
-                      {platform.title}
-                    </Text>
-                  </View>
-                  <Text style={styles.platformDescription}>
-                    {platform.description}
-                  </Text>
-                </View>
-              </View>
+        {/* Cards Section */}
+        <View style={styles.cardsSection}>
+          {featureCards.map((card, index) => (
+            <FeatureCard key={index} index={index} {...card} />
+          ))}
+        </View>
+
+        {/* Why Choose Us Section */}
+        <View style={styles.whyChooseSection}>
+          <Text style={styles.sectionTitle}>
+            Tại sao nên chọn chúng tôi làm sự lựa chọn hàng đầu?
+          </Text>
+
+          <View style={styles.whyChooseGrid}>
+            {whyChooseData.map((item, index) => (
+              <WhyChooseCard key={index} index={index} {...item} />
             ))}
           </View>
         </View>
-
-        {/* Features Section */}
-        <View style={styles.featuresSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.featureTitle}>Tính Năng Nổi Bật</Text>
-            <Text style={styles.sectionDescription}>
-              Giải pháp toàn diện từ A-Z cho việc quản lý phòng trọ hiện đại
-            </Text>
-          </View>
-
-          <View style={styles.featuresGrid}>
-            {features.map((feature, index) => {
-              const IconComponent = feature.icon;
-              return (
-                <View key={index} style={styles.featureCard}>
-                  <View
-                    style={[
-                      styles.featureIcon,
-                      { backgroundColor: feature.gradient[0] },
-                    ]}
-                  >
-                    <IconComponent size={32} color="#fff" strokeWidth={2} />
-                  </View>
-                  <Text style={styles.featureCardTitle}>{feature.title}</Text>
-                  <Text style={styles.featureCardDescription}>
-                    {feature.description}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Why Choose Section */}
-        <WhyChoose />
-
-        {/* Testimonials Section */}
-        <Testimonials />
-
-        {/* CTA Section */}
-        <View style={styles.ctaSection}>
-          <View style={styles.ctaCard}>
-            <Globe size={64} color="#2563eb" strokeWidth={2} />
-            <Text style={styles.ctaTitle}>Sẵn Sàng Bắt Đầu?</Text>
-            <Text style={styles.ctaDescription}>
-              Đăng ký ngay để trải nghiệm 30 ngày miễn phí và nhận hỗ trợ setup
-              từ đội ngũ chuyên gia
-            </Text>
-            <TouchableOpacity style={styles.ctaButton} onPress={handleRegister}>
-              <Text style={styles.ctaButtonText}>Đăng Ký Ngay</Text>
-              <ArrowRight size={20} color="#fff" strokeWidth={2} />
-            </TouchableOpacity>
-            <View style={styles.ctaNote}>
-              <CheckCircle size={20} color="#10b981" strokeWidth={2} />
-              <Text style={styles.ctaNoteText}>Không cần thẻ tín dụng</Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
-    </View>
+
+      <Toast />
+    </Animated.View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -304,25 +440,21 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  // Top Alert Styles
   topAlert: {
     position: "absolute",
-    top: 10,
+    top: 50,
     left: 20,
     right: 20,
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     zIndex: 1000,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 5,
   },
   successAlert: {
@@ -334,209 +466,384 @@ const styles = StyleSheet.create({
   alertMessage: {
     color: "white",
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     flex: 1,
   },
-  platformSection: {
-    paddingVertical: 48,
+
+  // Hero Section
+  heroSection: {
     paddingHorizontal: 20,
-    backgroundColor: "#ffffff",
+    paddingTop: 40,
+    paddingBottom: 30,
+    backgroundColor: "#f0f9ff",
+    position: "relative",
   },
-  sectionHeader: {
+  heroBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  backgroundBlob: {
+    position: "absolute",
+    borderRadius: 999,
+    opacity: 0.2,
+  },
+  blob1: {
+    width: 200,
+    height: 200,
+    top: -100,
+    left: -50,
+    backgroundColor: "#3b82f6",
+  },
+  blob2: {
+    width: 150,
+    height: 150,
+    bottom: -50,
+    right: -30,
+    backgroundColor: "#10b981",
+  },
+  heroContent: {
+    zIndex: 1,
+  },
+  heroTitleContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 36,
+    marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  sectionSubtitle: {
-    fontSize: 20,
+  heroTitlePart: {
+    fontSize: 24,
     fontWeight: "700",
-    color: "#0891b2",
-    textAlign: "center",
-    marginBottom: 16,
-    letterSpacing: 0.3,
+    color: "#0f172a",
+    marginHorizontal: 4,
   },
-  sectionDescription: {
-    fontSize: 15,
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 22,
-    paddingHorizontal: 8,
+  gradientText: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#3b82f6",
+    marginHorizontal: 4,
   },
-  platformGrid: {
-    gap: 20,
-  },
-  platformCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    overflow: "hidden",
-    marginBottom: 20,
-    shadowColor: "#0891b2",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  platformImage: {
-    width: "100%",
-    height: 220,
-  },
-  platformContent: {
-    padding: 20,
-    alignItems: "center",
-  },
-  platformButton: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 30,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  platformButtonText: {
-    color: "#fff",
+  heroDescription: {
     fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-  platformDescription: {
-    fontSize: 14,
-    color: "#64748b",
+    color: "#374151",
     textAlign: "center",
-    lineHeight: 21,
+    lineHeight: 24,
+    fontWeight: "600",
   },
-  featuresSection: {
-    paddingVertical: 48,
+
+  // Cards Section
+  cardsSection: {
     paddingHorizontal: 20,
-    backgroundColor: "#f8fafc",
-  },
-  featureTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 12,
-    letterSpacing: 0.5,
-  },
-  featuresGrid: {
-    gap: 16,
+    marginBottom: 40,
   },
   featureCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "white",
     borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#e0f2fe",
-    alignItems: "center",
-    shadowColor: "#3b82f6",
+    marginBottom: 20,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    position: "relative",
+    overflow: "hidden",
+  },
+  cardTouchable: {
+    padding: 20,
+  },
+  cardBlob: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    top: -80,
+    right: -80,
+    opacity: 0.1,
+  },
+  cardBlob2: {
+    position: "absolute",
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    bottom: -64,
+    left: -64,
+    opacity: 0.05,
+  },
+  sparkleIcon: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    opacity: 0,
+  },
+  cardHeader: {
+    marginBottom: 20,
+  },
+  cardIconContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  iconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
-  featureIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 18,
+  cardTitleContainer: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+  titleUnderline: {
+    width: 64,
+    height: 3,
+    borderRadius: 2,
+  },
+  cardDescription: {
+    fontSize: 15,
+    color: "#6b7280",
+    lineHeight: 22,
+  },
+  cardContent: {
+    marginBottom: 20,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+    backgroundColor: "#f9fafb",
+    padding: 12,
+    borderRadius: 12,
+  },
+  checkIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    marginTop: 2,
+  },
+  featureText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 20,
+    fontWeight: "500",
+  },
+  highlightBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 20,
+  },
+  highlightText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  cardFooter: {},
+  cardButton: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  featureCardTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1e293b",
-    textAlign: "center",
-    marginBottom: 10,
-    lineHeight: 24,
-  },
-  featureCardDescription: {
-    fontSize: 14,
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 21,
-  },
-  ctaSection: {
-    paddingVertical: 48,
+    paddingVertical: 14,
     paddingHorizontal: 20,
-    backgroundColor: "#ffffff",
-  },
-  ctaCard: {
-    backgroundColor: "rgba(59, 130, 246, 0.08)",
-    borderRadius: 28,
-    padding: 36,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(59, 130, 246, 0.2)",
-    shadowColor: "#2563eb",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  ctaTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#1e293b",
-    marginTop: 20,
-    marginBottom: 16,
-    textAlign: "center",
-    letterSpacing: 0.5,
-  },
-  ctaDescription: {
-    fontSize: 15,
-    color: "#64748b",
-    textAlign: "center",
-    marginBottom: 28,
-    lineHeight: 23,
-    paddingHorizontal: 8,
-  },
-  ctaButton: {
-    backgroundColor: "#2563eb",
-    paddingHorizontal: 36,
-    paddingVertical: 18,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 20,
-    shadowColor: "#2563eb",
-    shadowOffset: { width: 0, height: 6 },
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  ctaButtonText: {
-    color: "#fff",
-    fontSize: 18,
+  cardButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+    marginHorizontal: 8,
+  },
+
+  // Why Choose Section
+  whyChooseSection: {
+    backgroundColor: "#f9fafb",
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+    marginBottom: 30,
+  },
+  sectionTitle: {
+    fontSize: 22,
     fontWeight: "700",
-    letterSpacing: 0.3,
+    color: "#0f172a",
+    textAlign: "center",
+    marginBottom: 30,
+    lineHeight: 30,
   },
-  ctaNote: {
+  whyChooseGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  whyChooseCard: {
+    width: "48%",
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 15,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  whyChooseIcon: {
+    marginBottom: 12,
+  },
+  whyChooseTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  whyChooseDesc: {
+    fontSize: 13,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+
+  // Posts Section
+  postsSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  postsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  postsHeaderLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  postsTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  postsSubtitle: {
+    color: "#6b7280",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  viewAllBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    backgroundColor: "#f0fdfa",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#99f6e4",
   },
-  ctaNoteText: {
+  viewAllText: {
+    color: "#0d9488",
+    fontWeight: "600",
     fontSize: 14,
-    color: "#64748b",
+    marginRight: 4,
+  },
+  postsScroll: {
+    flexDirection: "row",
+  },
+  postCard: {
+    width: width * 0.7,
+    backgroundColor: "white",
+    borderRadius: 16,
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  postImage: {
+    height: 150,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  postContent: {
+    padding: 16,
+  },
+  postTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
+  postPriceContainer: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  postPrice: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#ef4444",
+  },
+  postType: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginLeft: 4,
+  },
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#6b7280",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  centerCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    marginTop: 8,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  noResults: {
+    color: "#6b7280",
+    fontSize: 16,
+    marginTop: 12,
+    textAlign: "center",
     fontWeight: "500",
   },
 });
-
-export default HomeScreen;

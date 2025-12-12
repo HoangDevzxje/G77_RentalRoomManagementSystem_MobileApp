@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   TextInput,
   Dimensions,
+  Platform,
+  StatusBar,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import PostCard from "../../components/post/PostCard";
@@ -22,6 +24,10 @@ const AVAILABLE_WIDTH = width - HORIZONTAL_PADDING * 2;
 const CARD_WIDTH = (AVAILABLE_WIDTH - CARD_SPACING) / NUM_COLUMNS;
 const CARD_HEIGHT = CARD_WIDTH * 1.35;
 
+// match RoomDetail header spacing
+const STATUS_BAR_HEIGHT =
+  Platform.OS === "android" ? StatusBar.currentHeight || 0 : 40;
+
 export default function PostListScreen({ route, navigation }) {
   const buildingId = route.params?.buildingId;
   const [posts, setPosts] = useState([]);
@@ -35,24 +41,16 @@ export default function PostListScreen({ route, navigation }) {
 
   const fetchPosts = async (pageNum = 1, isLoadMore = false) => {
     try {
-      if (!isLoadMore) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+      if (!isLoadMore) setLoading(true);
+      else setLoadingMore(true);
 
       const params = {
         page: pageNum,
         limit: 20,
       };
 
-      if (buildingId) {
-        params.buildingId = buildingId;
-      }
-
-      if (searchQuery.trim()) {
-        params.keyword = searchQuery.trim();
-      }
+      if (buildingId) params.buildingId = buildingId;
+      if (searchQuery.trim()) params.keyword = searchQuery.trim();
 
       const response = await getPosts(params);
 
@@ -61,14 +59,12 @@ export default function PostListScreen({ route, navigation }) {
       } else {
         setPosts(response.data || response);
       }
-      if (response.pagination) {
-        setTotalPages(response.pagination.totalPages);
-      } else {
-        setTotalPages(1);
-      }
+
+      if (response.pagination) setTotalPages(response.pagination.totalPages);
+      else setTotalPages(1);
       setError(null);
-    } catch (error) {
-      setError(`Lỗi: ${error.response?.data?.message || error.message}`);
+    } catch (err) {
+      setError(`Lỗi: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -83,6 +79,7 @@ export default function PostListScreen({ route, navigation }) {
       setError("Vui lòng đăng nhập để xem danh sách bài đăng");
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId, searchQuery, isAuthenticated]);
 
   const handleLoadMore = () => {
@@ -93,16 +90,13 @@ export default function PostListScreen({ route, navigation }) {
     }
   };
 
-  const renderPostItem = ({ item, index }) => (
+  const renderPostItem = ({ item }) => (
     <View style={styles.cardWrapper}>
       <PostCard
         post={item}
         cardWidth={CARD_WIDTH}
         cardHeight={CARD_HEIGHT}
-        // Trong renderPostItem
-        onPress={
-          () => navigation.navigate("RoomDetail", { id: item._id }) // giữ nguyên
-        }
+        onPress={() => navigation.navigate("RoomDetail", { id: item._id })}
       />
     </View>
   );
@@ -117,119 +111,151 @@ export default function PostListScreen({ route, navigation }) {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <View style={styles.loadingIconContainer}>
-          <Ionicons name="newspaper-outline" size={48} color="#0d9488" />
-        </View>
-        <ActivityIndicator size="large" color="#0d9488" />
-        <Text style={styles.loadingText}>Đang tải danh sách bài đăng...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <View style={styles.errorIconContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
-        </View>
-        <Text style={styles.error}>{error}</Text>
-        {!isAuthenticated && (
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => navigation.navigate("Login")}
-          >
-            <Ionicons
-              name="log-in-outline"
-              size={18}
-              color="white"
-              style={styles.buttonIcon}
-            />
-            <Text style={styles.buttonText}>Đăng nhập</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <View style={styles.searchWrapper}>
-          <Ionicons
-            name="search-outline"
-            size={20}
-            color="#94a3b8"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm kiếm theo tiêu đề hoặc địa chỉ..."
-            placeholderTextColor="#94a3b8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery !== "" && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={20} color="#94a3b8" />
-            </TouchableOpacity>
-          )}
-        </View>
+      {/* Header — styled to match RoomDetailScreen */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => {
+            if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate("Home");
+          }}
+          style={styles.backBtn}
+        >
+          <Ionicons name="arrow-back" size={24} color="#1e293b" />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          Danh sách phòng
+        </Text>
+
+        {/* right spacer to keep title centered */}
+        <View style={styles.headerRight} />
       </View>
 
-      <View style={styles.resultCountContainer}>
-        <View style={styles.resultCountWrapper}>
-          <Ionicons name="list-outline" size={18} color="#0d9488" />
-          <Text style={styles.resultCount}>
-            Tìm thấy {posts.length} bài đăng{" "}
-            {page < totalPages && `(trang ${page}/${totalPages})`}
-          </Text>
-        </View>
-      </View>
-
-      {posts.length === 0 ? (
+      {/* Content */}
+      {loading ? (
         <View style={styles.center}>
-          <View style={styles.emptyIconContainer}>
-            <Ionicons name="file-tray-outline" size={64} color="#94a3b8" />
+          <View style={styles.loadingIconContainer}>
+            <Ionicons name="newspaper-outline" size={48} color="#0d9488" />
           </View>
-          <Text style={styles.noResults}>Không tìm thấy bài đăng nào</Text>
-          <Text style={styles.noResultsSub}>
-            {searchQuery
-              ? `với từ khóa "${searchQuery}"`
-              : buildingId
-              ? "trong tòa nhà này"
-              : "phù hợp với tìm kiếm"}
-          </Text>
-          {searchQuery && (
+          <ActivityIndicator size="large" color="#0d9488" />
+          <Text style={styles.loadingText}>Đang tải danh sách bài đăng...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
+          </View>
+          <Text style={styles.error}>{error}</Text>
+          {!isAuthenticated && (
             <TouchableOpacity
               style={styles.button}
-              onPress={() => setSearchQuery("")}
+              onPress={() => navigation.navigate("Login")}
             >
               <Ionicons
-                name="refresh-outline"
+                name="log-in-outline"
                 size={18}
                 color="white"
                 style={styles.buttonIcon}
               />
-              <Text style={styles.buttonText}>Xóa tìm kiếm</Text>
+              <Text style={styles.buttonText}>Đăng nhập</Text>
             </TouchableOpacity>
           )}
         </View>
       ) : (
-        <FlatList
-          data={posts}
-          keyExtractor={(item) => item._id || item.id}
-          renderItem={renderPostItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          numColumns={NUM_COLUMNS}
-          columnWrapperStyle={styles.row}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-        />
+        <View style={styles.content}>
+          <View style={styles.searchContainer}>
+            <View style={styles.searchWrapper}>
+              <Ionicons
+                name="search-outline"
+                size={20}
+                color="#94a3b8"
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Tìm kiếm theo tiêu đề hoặc địa chỉ..."
+                placeholderTextColor="#94a3b8"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                returnKeyType="search"
+                onSubmitEditing={() => {
+                  setPage(1);
+                  fetchPosts(1, false);
+                }}
+              />
+              {searchQuery !== "" && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchQuery("");
+                    setPage(1);
+                    fetchPosts(1, false);
+                  }}
+                >
+                  <Ionicons name="close-circle" size={20} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.resultCountContainer}>
+            <View style={styles.resultCountWrapper}>
+              <Ionicons name="list-outline" size={18} color="#0d9488" />
+              <Text style={styles.resultCount}>
+                Tìm thấy {posts.length} bài đăng{" "}
+                {page < totalPages && `(trang ${page}/${totalPages})`}
+              </Text>
+            </View>
+          </View>
+
+          {posts.length === 0 ? (
+            <View style={styles.center}>
+              <View style={styles.emptyIconContainer}>
+                <Ionicons name="file-tray-outline" size={64} color="#94a3b8" />
+              </View>
+              <Text style={styles.noResults}>Không tìm thấy bài đăng nào</Text>
+              <Text style={styles.noResultsSub}>
+                {searchQuery
+                  ? `với từ khóa "${searchQuery}"`
+                  : buildingId
+                  ? "trong tòa nhà này"
+                  : "phù hợp với tìm kiếm"}
+              </Text>
+              {searchQuery && (
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={() => {
+                    setSearchQuery("");
+                    setPage(1);
+                    fetchPosts(1, false);
+                  }}
+                >
+                  <Ionicons
+                    name="refresh-outline"
+                    size={18}
+                    color="white"
+                    style={styles.buttonIcon}
+                  />
+                  <Text style={styles.buttonText}>Xóa tìm kiếm</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <FlatList
+              contentContainerStyle={styles.listContent}
+              data={posts}
+              keyExtractor={(item) => item._id || item.id}
+              renderItem={renderPostItem}
+              showsVerticalScrollIndicator={false}
+              numColumns={NUM_COLUMNS}
+              columnWrapperStyle={styles.row}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={renderFooter}
+            />
+          )}
+        </View>
       )}
     </View>
   );
@@ -240,6 +266,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
+
+  /* Header (matching RoomDetail header) */
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingTop: STATUS_BAR_HEIGHT,
+    paddingBottom: 16,
+    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  backBtn: { padding: 8 },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1e293b",
+    flex: 1,
+    textAlign: "center",
+  },
+  headerRight: { width: 40 },
+
+  /* Content wrapper (below header) */
+  content: {
+    flex: 1,
+  },
+
   center: {
     flex: 1,
     justifyContent: "center",
@@ -258,6 +313,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     opacity: 0.6,
   },
+
   searchContainer: {
     backgroundColor: "white",
     paddingHorizontal: HORIZONTAL_PADDING,
@@ -283,6 +339,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1e293b",
   },
+
   resultCountContainer: {
     backgroundColor: "white",
     paddingHorizontal: HORIZONTAL_PADDING,
@@ -300,6 +357,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1e293b",
   },
+
   listContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 16,
