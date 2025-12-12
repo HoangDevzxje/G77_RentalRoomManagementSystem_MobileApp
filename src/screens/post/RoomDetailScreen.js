@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Dimensions,
   Linking,
   ActivityIndicator,
@@ -63,9 +62,20 @@ export default function RoomDetailScreen({ route, navigation }) {
     try {
       const data = await getPostById(postId);
       setPost(data);
-      const availableRooms = data.rooms || [];
-      setRooms(availableRooms);
-      if (availableRooms.length > 0) setSelectedRoom(availableRooms[0]);
+
+      const rawRooms = data.rooms || [];
+
+      const visibleRooms = rawRooms.filter(
+        (room) => room.status === "available" || room.isSoonAvailable
+      );
+
+      setRooms(visibleRooms);
+
+      if (visibleRooms.length > 0) {
+        setSelectedRoom(visibleRooms[0]);
+      } else {
+        setSelectedRoom(null);
+      }
     } catch (error) {
       console.error("Lỗi tải bài đăng:", error);
     } finally {
@@ -195,9 +205,11 @@ export default function RoomDetailScreen({ route, navigation }) {
     );
   }
 
+  const isRoomBookable =
+    selectedRoom && (selectedRoom.isAvailable || selectedRoom.isSoonAvailable);
+
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -221,21 +233,42 @@ export default function RoomDetailScreen({ route, navigation }) {
         />
 
         <TouchableOpacity
-          style={styles.bookingBanner}
+          style={[
+            styles.bookingBanner,
+            !isRoomBookable && { backgroundColor: "#94a3b8", opacity: 0.8 },
+          ]}
           onPress={navigateToBooking}
-          disabled={!selectedRoom}
+          disabled={!isRoomBookable}
         >
           <View style={styles.bookingBannerContent}>
             <View style={styles.bookingIconContainer}>
               <Ionicons name="calendar" size={24} color="#fff" />
             </View>
             <View style={styles.bookingTextContainer}>
-              <Text style={styles.bookingTitle}>Đặt lịch xem phòng ngay</Text>
+              <Text style={styles.bookingTitle}>
+                {selectedRoom?.isSoonAvailable
+                  ? "Đặt trước phòng này"
+                  : selectedRoom?.isAvailable
+                  ? "Đặt lịch xem phòng ngay"
+                  : rooms.length === 0
+                  ? "Đã hết phòng"
+                  : "Vui lòng chọn phòng"}
+              </Text>
               <Text style={styles.bookingSubtitle}>
-                Chọn ngày và giờ phù hợp để xem trực tiếp phòng trọ
+                {selectedRoom?.isSoonAvailable
+                  ? `Phòng trống từ ${new Date(
+                      selectedRoom.expectedAvailableDate
+                    ).toLocaleDateString("vi-VN")}`
+                  : selectedRoom?.isAvailable
+                  ? "Chọn ngày và giờ phù hợp để xem trực tiếp"
+                  : rooms.length === 0
+                  ? "Hiện tại không còn phòng trống nào"
+                  : "Danh sách phòng khả dụng ở bên dưới"}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#fff" />
+            {isRoomBookable && (
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            )}
           </View>
         </TouchableOpacity>
 
@@ -300,7 +333,6 @@ export default function RoomDetailScreen({ route, navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Chi phí dịch vụ</Text>
           <View style={styles.costGrid}>
-            {/* ĐIỆN */}
             <View style={styles.costRow}>
               <View style={styles.costLeft}>
                 <Ionicons name="flash-outline" size={18} color="#f59e0b" />
@@ -317,7 +349,6 @@ export default function RoomDetailScreen({ route, navigation }) {
               </View>
             </View>
 
-            {/* NƯỚC */}
             <View style={styles.costRow}>
               <View style={styles.costLeft}>
                 <Ionicons name="water-outline" size={18} color="#3b82f6" />

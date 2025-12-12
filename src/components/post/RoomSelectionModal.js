@@ -20,10 +20,36 @@ const RoomSelectionModal = ({
 }) => {
   if (!visible) return null;
 
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+  };
+
+  const renderStatus = (room) => {
+    if (room.isAvailable) {
+      return <Text style={[s.status, s.available]}>Còn trống</Text>;
+    }
+
+    if (room.isSoonAvailable && room.expectedAvailableDate) {
+      return (
+        <Text style={[s.status, s.soonAvailable]}>
+          Trống từ {formatDate(room.expectedAvailableDate)}
+        </Text>
+      );
+    }
+
+    if (room.isRented) {
+      return <Text style={[s.status, s.occupied]}>Đã thuê</Text>;
+    }
+
+    return null;
+  };
+
   return (
     <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={onClose}>
       <TouchableOpacity
-        style={[s.container, { maxHeight: screenHeight * 0.65 }]}
+        style={[s.container, { maxHeight: screenHeight * 0.7 }]}
         activeOpacity={1}
         onPress={(e) => e.stopPropagation()}
       >
@@ -56,6 +82,7 @@ const RoomSelectionModal = ({
                   <Ionicons name="checkmark-circle" size={22} color="#0d9488" />
                 )}
               </View>
+
               <Text
                 style={[
                   s.price,
@@ -64,18 +91,14 @@ const RoomSelectionModal = ({
               >
                 {formatPrice(room.price)}
               </Text>
+
               <View style={s.info}>
-                <Text style={s.area}>{room.area || post.areaMin} m²</Text>
-                {room.status && (
-                  <Text
-                    style={[
-                      s.status,
-                      room.status === "available" ? s.available : s.occupied,
-                    ]}
-                  >
-                    {room.status === "available" ? "Trống" : "Đã thuê"}
-                  </Text>
-                )}
+                <View style={s.infoRow}>
+                  <Ionicons name="resize-outline" size={14} color="#64748b" />
+                  <Text style={s.area}>{room.area || post.areaMin} m²</Text>
+                </View>
+
+                {renderStatus(room)}
               </View>
             </TouchableOpacity>
           ))}
@@ -148,17 +171,26 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 4,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   area: { fontSize: 14, color: "#64748b" },
+
   status: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 12,
+    fontWeight: "600",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
+    overflow: "hidden",
   },
   available: { backgroundColor: "#dcfce7", color: "#166534" },
   occupied: { backgroundColor: "#fee2e2", color: "#991b1b" },
+  soonAvailable: { backgroundColor: "#fef3c7", color: "#b45309" },
 });
 
 export default RoomSelectionModal;

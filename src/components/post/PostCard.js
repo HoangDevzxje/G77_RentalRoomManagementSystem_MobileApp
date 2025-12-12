@@ -23,37 +23,26 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
     if (priceMin === priceMax) {
       return formatSinglePrice(priceMin);
     }
-
     return `${formatSinglePrice(priceMin)} - ${formatSinglePrice(priceMax)}`;
   };
 
   const formatArea = (areaMin, areaMax) => {
     if (!areaMin && !areaMax) return "N/A";
-
-    if (areaMin === areaMax) {
-      return `${areaMin}m²`;
-    }
-
+    if (areaMin === areaMax) return `${areaMin}m²`;
     return `${areaMin}-${areaMax}m²`;
-  };
-
-  const getBuildingName = () => {
-    if (!post.buildingId) return null;
-    if (typeof post.buildingId === "object") {
-      return post.buildingId.name || null;
-    }
-    return null;
   };
 
   const getLandlordName = () => {
     if (!post.landlordId) return null;
-    if (typeof post.landlordId === "object") {
-      return post.landlordId.fullName || null;
+    if (post.landlordId.fullName) return post.landlordId.fullName;
+    if (post.landlordId.userInfo && post.landlordId.userInfo.fullName) {
+      return post.landlordId.userInfo.fullName;
     }
-    return null;
+
+    return "Chủ nhà";
   };
 
-  const buildingName = getBuildingName();
+  const buildingName = post.buildingId?.name || null;
   const landlordName = getLandlordName();
 
   return (
@@ -70,20 +59,17 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
           resizeMode="cover"
         />
 
-        {/* Draft Badge */}
+        {/* Status Badges */}
         {post.isDraft && (
           <View style={styles.draftBadge}>
             <Text style={styles.draftText}>Bản nháp</Text>
           </View>
         )}
-
-        {/* Status Badge */}
         {post.status === "hidden" && (
           <View style={[styles.draftBadge, { backgroundColor: "#64748b" }]}>
             <Text style={styles.draftText}>Đã ẩn</Text>
           </View>
         )}
-
         {post.status === "expired" && (
           <View style={[styles.draftBadge, { backgroundColor: "#dc2626" }]}>
             <Text style={styles.draftText}>Hết hạn</Text>
@@ -101,22 +87,20 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
 
       {/* Card Content */}
       <View style={styles.cardContent}>
-        {/* Title */}
         <Text style={styles.title} numberOfLines={2}>
           {post.title || "Không có tiêu đề"}
         </Text>
 
-        {/* Address */}
         <View style={styles.addressRow}>
           <Ionicons name="location-outline" size={12} color="#64748b" />
           <Text style={styles.address} numberOfLines={1}>
-            {post.address || "Đang cập nhật địa chỉ"}
+            {post.address ||
+              post.buildingId?.address ||
+              "Đang cập nhật địa chỉ"}
           </Text>
         </View>
 
-        {/* Info Row */}
         <View style={styles.infoRow}>
-          {/* Area */}
           <View style={styles.infoItem}>
             <Ionicons name="resize-outline" size={12} color="#94a3b8" />
             <Text style={styles.infoText}>
@@ -124,11 +108,13 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
             </Text>
           </View>
 
-          {/* Building */}
           {buildingName && (
             <View style={styles.infoItem}>
               <Ionicons name="business-outline" size={12} color="#94a3b8" />
-              <Text style={styles.infoText} numberOfLines={1}>
+              <Text
+                style={[styles.infoText, { maxWidth: 80 }]}
+                numberOfLines={1}
+              >
                 {buildingName}
               </Text>
             </View>
@@ -152,16 +138,6 @@ export default function PostCard({ post, onPress, cardWidth, cardHeight }) {
             </Text>
           </View>
         )}
-
-        {/* Created Date */}
-        <View style={styles.dateInfo}>
-          <Ionicons name="calendar-outline" size={10} color="#cbd5e1" />
-          <Text style={styles.dateText}>
-            {post.createdAt
-              ? new Date(post.createdAt).toLocaleDateString("vi-VN")
-              : ""}
-          </Text>
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -187,7 +163,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-
   draftBadge: {
     position: "absolute",
     top: 8,
@@ -224,7 +199,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     opacity: 0.95,
   },
-
   cardContent: {
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -249,7 +223,6 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 16,
   },
-
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -266,7 +239,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#94a3b8",
   },
-
   roomsInfo: {
     flexDirection: "row",
     alignItems: "center",
@@ -278,7 +250,6 @@ const styles = StyleSheet.create({
     color: "#6366f1",
     fontWeight: "500",
   },
-
   landlordInfo: {
     flexDirection: "row",
     alignItems: "center",
@@ -294,7 +265,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flex: 1,
   },
-
   dateInfo: {
     flexDirection: "row",
     alignItems: "center",
