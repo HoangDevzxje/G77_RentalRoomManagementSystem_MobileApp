@@ -767,24 +767,6 @@ const ContractDetailScreen = ({ navigation, route }) => {
                 <Text style={styles.btnText}>Ký hợp đồng</Text>
               </TouchableOpacity>
             )}
-
-            {/* Nút tải PDF nếu hợp đồng đã hoàn thành */}
-            {contract.status === "completed" && (
-              <TouchableOpacity
-                style={styles.btnDownload}
-                onPress={() => {
-                  // TODO: Thêm chức năng tải PDF
-                  Toast.show({
-                    type: "info",
-                    text1: "Tính năng đang phát triển",
-                    text2: "Chức năng tải PDF sẽ sớm có mặt",
-                  });
-                }}
-              >
-                <Ionicons name="download-outline" size={20} color="#fff" />
-                <Text style={styles.btnText}>Tải PDF</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
       </ScrollView>
