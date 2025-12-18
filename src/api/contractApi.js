@@ -1,5 +1,7 @@
 import baseApi from "./baseApi";
 
+// ... (Các hàm khác giữ nguyên: getMyContracts, getMyContract, updateMyData, v.v...)
+
 export const getMyContracts = async ({ status, page = 1, limit = 20 } = {}) => {
   const params = { page, limit };
   if (status) params.status = status;
@@ -56,30 +58,24 @@ export const requestTerminate = async (id, reason, note = "") => {
 };
 
 export const downloadContractPdf = async (id) => {
-  // Logic download này đặc thù nên giữ nguyên xử lý Blob
   try {
     const res = await baseApi.get(`/contracts/${id}/download`, {
       responseType: "blob",
     });
-
-    // Xử lý tạo link download trên web (hoặc react native web)
     const url = window.URL.createObjectURL(new Blob([res.data]));
     const link = document.createElement("a");
     link.href = url;
-
     const contentDisposition = res.headers["content-disposition"];
     let fileName = `Hop_dong_${id}.pdf`;
     if (contentDisposition) {
       const match = contentDisposition.match(/filename="?(.+)"?/i);
       if (match?.[1]) fileName = match[1];
     }
-
     link.setAttribute("download", fileName);
     document.body.appendChild(link);
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
-
     return { success: true, fileName };
   } catch (err) {
     let msg = "Không thể tải file hợp đồng";
@@ -91,4 +87,17 @@ export const downloadContractPdf = async (id) => {
     }
     throw new Error(msg);
   }
+};
+
+export const verifyIdentity = async (id, formData) => {
+  const res = await baseApi.post(`/contracts/${id}/verify-identity`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data", // Bắt buộc
+    },
+    timeout: 120000,
+    transformRequest: (data) => {
+      return data;
+    },
+  });
+  return res.data;
 };

@@ -11,15 +11,18 @@ import {
   Alert,
   StatusBar,
   useWindowDimensions,
-  TextInput,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+
 import {
   getMyContract,
   updateMyData,
   signByTenant,
-  searchAccountByEmail,
+  verifyIdentity,
 } from "../../api/contractApi";
 
 import ContractTopBar from "../../components/contracts/detail/ContractTopBar";
@@ -29,28 +32,45 @@ import ContractTerms from "../../components/contracts/detail/ContractTerms";
 
 const isWeb = Platform.OS === "web";
 
+const normalizeFileUri = (uri) => {
+  if (!uri || typeof uri !== "string") return uri;
+  if (uri.startsWith("ph://")) return uri.replace("ph://", "assets-library://");
+  if (uri.startsWith("/") && !uri.startsWith("file://")) return `file://${uri}`;
+  if (Platform.OS === "android") {
+    if (!uri.startsWith("file://") && !uri.startsWith("content://")) {
+      return `file://${uri}`;
+    }
+  }
+  return uri;
+};
+
 const ContractDetailScreen = ({ navigation, route }) => {
   const routeId = route?.params?.id;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [contract, setContract] = useState(null);
+
   const [payload, setPayload] = useState({ B: {}, bikes: [], roommates: [] });
   const [validationErrors, setValidationErrors] = useState({});
 
-  // Signature
+  // --- EKYC STATES ---
+  const [verifyModalVisible, setVerifyModalVisible] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [idImages, setIdImages] = useState({
+    cccdFront: null,
+    cccdBack: null,
+    selfie: null,
+  });
+
+  // --- SIGNATURE STATES ---
   const [sigModalVisible, setSigModalVisible] = useState(false);
   const [sigLoading, setSigLoading] = useState(false);
   const nativeSigRef = useRef(null);
-  const webSigRef = useRef(null);
 
   let NativeSignature = null;
-  let WebSignature = null;
   try {
-    if (!isWeb) {
+    if (!isWeb)
       NativeSignature = require("react-native-signature-canvas")?.default;
-    } else {
-      WebSignature = require("react-signature-canvas")?.default;
-    }
   } catch (err) {}
 
   const { width: screenWidth } = useWindowDimensions();
@@ -58,11 +78,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     if (!routeId) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Không có ID hợp đồng",
-      });
+      Toast.show({ type: "error", text1: "Lỗi", text2: "Thiếu ID hợp đồng" });
       navigation.replace("Contracts");
       return;
     }
@@ -71,90 +87,37 @@ const ContractDetailScreen = ({ navigation, route }) => {
 
   const formatDateForAPI = (dateStr) => {
     if (!dateStr || !dateStr.trim()) return "";
-
     const trimmed = dateStr.trim();
-
-    // Nếu đã là YYYY-MM-DD thì giữ nguyên
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      return trimmed;
-    }
-
-    // Nếu là DD-MM-YYYY thì chuyển đổi
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
     if (/^\d{2}-\d{2}-\d{4}$/.test(trimmed)) {
       const [day, month, year] = trimmed.split("-");
       return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     }
-
-    // Nếu có dấu / thì chuyển đổi từ DD/MM/YYYY
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
       const [day, month, year] = trimmed.split("/");
       return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     }
-
-    try {
-      const date = new Date(trimmed);
-      if (!isNaN(date.getTime())) {
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, "0");
-        const day = date.getDate().toString().padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      }
-    } catch (e) {}
-
     return trimmed;
   };
 
   const formatDateForDisplay = (dateStr) => {
     if (!dateStr || !dateStr.toString().trim()) return "";
-
     const trimmed = dateStr.toString().trim();
-
-    // Nếu là YYYY-MM-DD thì chuyển đổi
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
       const [year, month, day] = trimmed.split("-");
       return `${day.padStart(2, "0")}-${month.padStart(2, "0")}-${year}`;
     }
-
-    // Nếu đã là DD-MM-YYYY thì giữ nguyên
-    if (/^\d{2}-\d{2}-\d{4}$/.test(trimmed)) {
-      return trimmed;
-    }
-
-    // Nếu là DD/MM/YYYY thì đổi thành DD-MM-YYYY
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
-      return trimmed.replace(/\//g, "-");
-    }
-
-    // Try to parse Date object
-    try {
-      const date = new Date(trimmed);
-      if (!isNaN(date.getTime())) {
-        const day = date.getDate().toString().padStart(2, "0");
-        const month = (date.getMonth() + 1).toString().padStart(2, "0");
-        const year = date.getFullYear();
-        return `${day}-${month}-${year}`;
-      }
-    } catch (e) {}
-
     return trimmed;
   };
 
-  // Hàm format date cho hiển thị (DD/MM/YYYY)
   const fmtDate = (d) => {
     if (!d) return "--/--/----";
-
-    // Nếu là string DD-MM-YYYY
-    if (typeof d === "string" && /^\d{2}-\d{2}-\d{4}$/.test(d)) {
-      const [day, month, year] = d.split("-");
-      return `${day}/${month}/${year}`;
-    }
-
-    // Nếu là string YYYY-MM-DD
+    if (typeof d === "string" && /^\d{2}-\d{2}-\d{4}$/.test(d))
+      return d.replace(/-/g, "/");
     if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
       const [year, month, day] = d.split("-");
       return `${day}/${month}/${year}`;
     }
-
     try {
       const date = new Date(d);
       if (!isNaN(date.getTime())) {
@@ -164,31 +127,24 @@ const ContractDetailScreen = ({ navigation, route }) => {
         return `${day}/${month}/${year}`;
       }
     } catch (e) {}
-
     return "--/--/----";
   };
 
   const fetchDetail = async (id) => {
     setLoading(true);
     try {
-      const doc = await getMyContract(id);
-      const data = doc?.data || doc || null;
+      const contractRes = await getMyContract(id);
+      const data = contractRes?.data || contractRes || null;
       if (!data) throw new Error("Không có dữ liệu hợp đồng");
-      const bikes = Array.isArray(data.bikes) ? data.bikes : [];
-      const roommates = Array.isArray(data.roommates) ? data.roommates : [];
-      const B = data.B || {};
 
-      const formattedB = { ...B };
-      if (formattedB.dob) {
-        formattedB.dob = formatDateForDisplay(formattedB.dob);
-      }
-      if (formattedB.cccdIssuedDate) {
+      const formattedB = { ...data.B };
+      if (formattedB.dob) formattedB.dob = formatDateForDisplay(formattedB.dob);
+      if (formattedB.cccdIssuedDate)
         formattedB.cccdIssuedDate = formatDateForDisplay(
           formattedB.cccdIssuedDate
         );
-      }
 
-      const formattedRoommates = roommates.map((rm) => ({
+      const formattedRoommates = (data.roommates || []).map((rm) => ({
         ...rm,
         dob: formatDateForDisplay(rm.dob),
         cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate),
@@ -197,16 +153,12 @@ const ContractDetailScreen = ({ navigation, route }) => {
       setContract(data);
       setPayload({
         B: formattedB,
-        bikes: [...bikes],
-        roommates: [...formattedRoommates],
+        bikes: data.bikes || [],
+        roommates: formattedRoommates,
       });
       setValidationErrors({});
     } catch (e) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi tải hợp đồng",
-        text2: e?.response?.data?.message || e.message || "Không thể tải",
-      });
+      Toast.show({ type: "error", text1: "Lỗi tải", text2: e.message });
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -216,7 +168,6 @@ const ContractDetailScreen = ({ navigation, route }) => {
   const validatePayload = () => {
     const errors = {};
     let isValid = true;
-
     const requiredFields = [
       "name",
       "dob",
@@ -227,96 +178,20 @@ const ContractDetailScreen = ({ navigation, route }) => {
       "permanentAddress",
     ];
 
+    // Validate B (Chính chủ)
     requiredFields.forEach((field) => {
       if (!payload.B?.[field]?.toString().trim()) {
-        errors[`B.${field}`] = `Vui lòng điền ${getFieldLabel(field)}`;
+        errors[`B.${field}`] = `Vui lòng điền thông tin này`;
         isValid = false;
       }
     });
 
-    if (payload.B?.dob && payload.B.dob.trim()) {
-      const dateRegex = /^(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})$/;
-      if (!dateRegex.test(payload.B.dob.trim())) {
-        errors["B.dob"] =
-          "Định dạng ngày không hợp lệ (DD-MM-YYYY hoặc YYYY-MM-DD)";
-        isValid = false;
-      }
-    }
-
-    if (payload.B?.cccdIssuedDate && payload.B.cccdIssuedDate.trim()) {
-      const dateRegex = /^(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})$/;
-      if (!dateRegex.test(payload.B.cccdIssuedDate.trim())) {
-        errors["B.cccdIssuedDate"] =
-          "Định dạng ngày không hợp lệ (DD-MM-YYYY hoặc YYYY-MM-DD)";
-        isValid = false;
-      }
-    }
-
-    if (payload.B?.cccd && payload.B.cccd.trim()) {
-      const cccdValue = payload.B.cccd.trim();
-      if (!/^\d{12}$/.test(cccdValue)) {
-        errors["B.cccd"] = "CCCD phải có 12 số";
-        isValid = false;
-      }
-    }
-
-    if (payload.B?.phone && payload.B.phone.trim()) {
-      const phoneValue = payload.B.phone.trim();
-      if (!/^(0[3|5|7|8|9])[0-9]{8}$/.test(phoneValue)) {
-        errors["B.phone"] =
-          "Số điện thoại không hợp lệ (10 số, bắt đầu bằng 0)";
-        isValid = false;
-      }
-    }
-
-    // Validate từng xe trong danh sách
-    if (payload.bikes && payload.bikes.length > 0) {
-      payload.bikes.forEach((bike, index) => {
-        if (!bike.bikeNumber?.trim()) {
-          errors[`bikes[${index}].bikeNumber`] = "Vui lòng nhập biển số";
-          isValid = false;
-        }
-        if (!bike.brand?.trim()) {
-          errors[`bikes[${index}].brand`] = "Vui lòng nhập loại xe";
-          isValid = false;
-        }
-        if (!bike.color?.trim()) {
-          errors[`bikes[${index}].color`] = "Vui lòng nhập màu xe";
-          isValid = false;
-        }
-      });
-    }
-
-    // Validate từng người ở cùng
+    // Validate Roommates (Người ở cùng) - Kiểm tra cơ bản
     if (payload.roommates && payload.roommates.length > 0) {
       payload.roommates.forEach((rm, index) => {
         if (!rm.name?.trim()) {
-          errors[`roommates[${index}].name`] = "Vui lòng nhập họ tên";
+          errors[`roommates[${index}].name`] = "Thiếu tên";
           isValid = false;
-        }
-        if (!rm.phone?.trim()) {
-          errors[`roommates[${index}].phone`] = "Vui lòng nhập số điện thoại";
-          isValid = false;
-        } else if (!/^(0[3|5|7|8|9])[0-9]{8}$/.test(rm.phone.trim())) {
-          errors[`roommates[${index}].phone`] =
-            "Số điện thoại không hợp lệ (10 số, bắt đầu bằng 0)";
-          isValid = false;
-        }
-        if (!rm.cccd?.trim()) {
-          errors[`roommates[${index}].cccd`] = "Vui lòng nhập CCCD";
-          isValid = false;
-        } else if (!/^\d{12}$/.test(rm.cccd.trim())) {
-          errors[`roommates[${index}].cccd`] = "CCCD phải có 12 số";
-          isValid = false;
-        }
-        if (rm.dob && rm.dob.trim()) {
-          const dateRegex =
-            /^(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})$/;
-          if (!dateRegex.test(rm.dob.trim())) {
-            errors[`roommates[${index}].dob`] =
-              "Định dạng ngày sinh không hợp lệ";
-            isValid = false;
-          }
         }
       });
     }
@@ -325,159 +200,226 @@ const ContractDetailScreen = ({ navigation, route }) => {
     return isValid;
   };
 
-  // Helper để lấy label cho field
-  const getFieldLabel = (field) => {
-    const labels = {
-      name: "họ tên",
-      dob: "ngày sinh",
-      cccd: "số CCCD",
-      cccdIssuedDate: "ngày cấp CCCD",
-      cccdIssuedPlace: "nơi cấp CCCD",
-      phone: "số điện thoại",
-      permanentAddress: "địa chỉ thường trú",
-      email: "email",
-    };
-    return labels[field] || field;
-  };
-
-  const getFurnitureCondition = (condition) => {
-    const conditions = {
-      new: "Mới",
-      good: "Tốt",
-      normal: "Bình thường",
-      damaged: "Hư hỏng",
-      broken: "Hỏng nặng",
-    };
-    return conditions[condition] || condition;
-  };
-
   const handleSave = async () => {
-    if (!contract) return;
-
     if (!validatePayload()) {
       Toast.show({
         type: "error",
-        text1: "Vui lòng điền đầy đủ thông tin",
-        text2: "Có trường bắt buộc chưa được điền hoặc sai định dạng",
+        text1: "Thiếu thông tin",
+        text2: "Vui lòng điền đủ thông tin bắt buộc",
       });
       return;
     }
-
     setSaving(true);
     try {
+      const cleanStr = (str) => (str ? String(str).trim() : "");
+
       const apiPayload = {
         ...payload,
         B: {
           ...payload.B,
+          name: cleanStr(payload.B.name),
+          cccd: cleanStr(payload.B.cccd),
+          permanentAddress: cleanStr(payload.B.permanentAddress),
+          phone: cleanStr(payload.B.phone),
+          email: cleanStr(payload.B.email || contract.B?.email || ""),
           dob: formatDateForAPI(payload.B.dob),
           cccdIssuedDate: formatDateForAPI(payload.B.cccdIssuedDate),
-          email: payload.B.email || contract.B?.email || "",
+          cccdIssuedPlace: cleanStr(payload.B.cccdIssuedPlace),
         },
         roommates: payload.roommates.map((rm) => ({
           ...rm,
+          name: cleanStr(rm.name),
+          cccd: cleanStr(rm.cccd),
+          phone: cleanStr(rm.phone),
+          email: cleanStr(rm.email),
+          permanentAddress: cleanStr(rm.permanentAddress),
           dob: formatDateForAPI(rm.dob),
-          cccdIssuedDate: formatDateForAPI(rm.cccdIssuedDate),
+        })),
+        bikes: payload.bikes.map((bike) => ({
+          ...bike,
+          bikeNumber: cleanStr(bike.bikeNumber),
+          brand: cleanStr(bike.brand),
+          color: cleanStr(bike.color),
         })),
       };
 
-      const updated = await updateMyData(contract._id, apiPayload);
-      const newDoc = updated?.data || updated || {};
+      await updateMyData(contract._id, apiPayload);
+      await fetchDetail(contract._id);
 
-      const formattedB = { ...newDoc.B };
-      if (formattedB.dob) {
-        formattedB.dob = formatDateForDisplay(formattedB.dob);
-      }
-      if (formattedB.cccdIssuedDate) {
-        formattedB.cccdIssuedDate = formatDateForDisplay(
-          formattedB.cccdIssuedDate
-        );
-      }
-
-      const formattedRoommates = (newDoc.roommates || []).map((rm) => ({
-        ...rm,
-        dob: formatDateForDisplay(rm.dob),
-        cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate),
-      }));
-
-      setContract({ ...newDoc, B: formattedB, roommates: formattedRoommates });
-      setPayload((prev) => ({
-        ...prev,
-        B: formattedB,
-        roommates: formattedRoommates,
-      }));
-      setValidationErrors({});
-      Toast.show({ type: "success", text1: "Đã lưu thông tin" });
-    } catch (e) {
       Toast.show({
-        type: "error",
-        text1: "Lưu thất bại",
-        text2: e?.response?.data?.message || e.message || "Đã xảy ra lỗi",
+        type: "success",
+        text1: "Lưu thành công",
+        text2: "Thông tin đã được cập nhật.",
       });
+
+      if (contract?.identityVerification?.status !== "verified") {
+        setVerifyModalVisible(true);
+      }
+    } catch (e) {
+      Toast.show({ type: "error", text1: "Lỗi lưu", text2: e.message });
     } finally {
       setSaving(false);
     }
   };
 
-  const submitSignature = async (dataURL) => {
-    if (!contract) return;
+  const handleManualAddRoommate = () => {
+    setPayload((prev) => ({
+      ...prev,
+      roommates: [
+        ...(prev.roommates || []),
+        {
+          name: "",
+          phone: "",
+          cccd: "",
+          dob: "",
+          permanentAddress: "",
+          email: "",
+        },
+      ],
+    }));
+  };
+
+  const processImageResult = (result, field) => {
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setIdImages((prev) => ({ ...prev, [field]: result.assets[0].uri }));
+    }
+  };
+
+  const takePhoto = async (field) => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Cấp quyền", "Ứng dụng cần quyền Camera để chụp ảnh.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      processImageResult(result, field);
+    } catch (error) {
+      console.log("Camera Error:", error);
+    }
+  };
+
+  const pickFromGallery = async (field) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      processImageResult(result, field);
+    } catch (error) {
+      console.log("Gallery Error:", error);
+    }
+  };
+
+  const handleSelectImage = (field) => {
+    Alert.alert(
+      "Tải ảnh lên",
+      "Chọn nguồn ảnh",
+      [
+        { text: "Hủy", style: "cancel" },
+        { text: "Chụp ảnh", onPress: () => takePhoto(field) },
+        { text: "Thư viện", onPress: () => pickFromGallery(field) },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const onPressVerify = () => {
+    const isNameDirty = payload.B.name !== contract.B.name;
+    const isCccdDirty = payload.B.cccd !== contract.B.cccd;
+
+    // Nếu dữ liệu B bị sửa (chưa lưu) thì bắt lưu trước
+    if (isNameDirty || isCccdDirty) {
+      Alert.alert(
+        "Chưa lưu thông tin",
+        "Vui lòng nhấn 'Lưu thông tin' trước khi xác thực.",
+        [{ text: "Đã hiểu" }]
+      );
+      return;
+    }
 
     if (!validatePayload()) {
+      Toast.show({ type: "error", text1: "Thiếu thông tin cá nhân" });
+      return;
+    }
+    setVerifyModalVisible(true);
+  };
+
+  const handleVerifyIdentity = async () => {
+    if (!idImages.cccdFront || !idImages.cccdBack || !idImages.selfie) {
       Toast.show({
         type: "error",
-        text1: "Không thể ký",
-        text2: "Vui lòng điền đầy đủ thông tin bắt buộc trước khi ký",
+        text1: "Thiếu ảnh",
+        text2: "Vui lòng tải đủ 3 ảnh",
       });
       return;
     }
+    setVerifyLoading(true);
     try {
-      const apiPayload = {
-        ...payload,
-        B: {
-          ...payload.B,
-          dob: formatDateForAPI(payload.B.dob),
-          cccdIssuedDate: formatDateForAPI(payload.B.cccdIssuedDate),
-          email: payload.B.email || contract.B?.email || "",
-        },
-        roommates: payload.roommates.map((rm) => ({
-          ...rm,
-          dob: formatDateForAPI(rm.dob),
-          cccdIssuedDate: formatDateForAPI(rm.cccdIssuedDate),
-        })),
+      const formData = new FormData();
+      const appendFile = async (key, originalUri) => {
+        if (!originalUri) return;
+        let uri = normalizeFileUri(originalUri);
+        let name = uri.split("/").pop();
+        if (!name || !name.includes(".")) name = `photo_${Date.now()}.jpg`;
+        if (/\.(heic|heif)$/i.test(name)) {
+          try {
+            const manipResult = await ImageManipulator.manipulateAsync(
+              uri,
+              [],
+              { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            uri = manipResult.uri;
+            name = name.replace(/\.(heic|heif)$/i, ".jpg");
+          } catch (err) {}
+        }
+        formData.append(key, { uri, name, type: "image/jpeg" });
       };
 
-      await updateMyData(contract._id, apiPayload);
-      const newDoc = await getMyContract(contract._id);
-      const data = newDoc?.data || newDoc;
+      await appendFile("cccdFront", idImages.cccdFront);
+      await appendFile("cccdBack", idImages.cccdBack);
+      await appendFile("selfie", idImages.selfie);
 
-      const formattedB = { ...data.B };
-      if (formattedB.dob) {
-        formattedB.dob = formatDateForDisplay(formattedB.dob);
+      const response = await verifyIdentity(contract._id, formData);
+      const result = response?.identityVerification || {};
+
+      if (result.status === "verified") {
+        setVerifyModalVisible(false);
+        fetchDetail(contract._id);
+        setTimeout(() => {
+          Toast.show({
+            type: "success",
+            text1: "Xác thực thành công!",
+            text2: "Thông tin B đã được khóa. Bạn có thể ký hợp đồng.",
+            visibilityTime: 4000,
+          });
+        }, 300);
+      } else {
+        const reason = result.rejectedReason || "Thông tin không khớp.";
+        Alert.alert("Xác thực thất bại", reason);
       }
-      if (formattedB.cccdIssuedDate) {
-        formattedB.cccdIssuedDate = formatDateForDisplay(
-          formattedB.cccdIssuedDate
-        );
-      }
-
-      const formattedRoommates = (data.roommates || []).map((rm) => ({
-        ...rm,
-        dob: formatDateForDisplay(rm.dob),
-        cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate),
-      }));
-
-      setContract({ ...data, B: formattedB, roommates: formattedRoommates });
     } catch (e) {
+      Alert.alert("Lỗi", e.message || "Lỗi kết nối");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const submitSignature = async (dataURL) => {
+    const isVerified = contract?.identityVerification?.status === "verified";
+    if (!isVerified) {
       Toast.show({
         type: "error",
-        text1: "Lưu thông tin thất bại",
-        text2:
-          e?.response?.data?.message ||
-          e.message ||
-          "Không thể ký khi thông tin chưa được lưu",
+        text1: "Chưa xác thực",
+        text2: "Vui lòng eKYC trước.",
       });
       return;
     }
-
     setSigLoading(true);
     try {
       await signByTenant(contract._id, dataURL);
@@ -485,86 +427,9 @@ const ContractDetailScreen = ({ navigation, route }) => {
       setSigModalVisible(false);
       fetchDetail(contract._id);
     } catch (e) {
-      Toast.show({
-        type: "error",
-        text1: "Ký thất bại",
-        text2: e?.response?.data?.message || e.message || "Đã xảy ra lỗi",
-      });
+      Toast.show({ type: "error", text1: "Lỗi ký", text2: e.message });
     } finally {
       setSigLoading(false);
-    }
-  };
-
-  const handleWebConfirm = () => {
-    if (!webSigRef.current?.getTrimmedCanvas) return;
-    const dataURL = webSigRef.current.getTrimmedCanvas().toDataURL("image/png");
-    submitSignature(dataURL);
-  };
-  const clearWebPad = () => webSigRef.current?.clear();
-
-  const handleSearchByEmail = () => {
-    if (Platform.OS === "ios" && Alert.prompt) {
-      Alert.prompt(
-        "Tìm người ở cùng theo email",
-        "Nhập email tài khoản người thuê khác",
-        async (email) => {
-          if (!email?.trim()) return;
-          await searchAndAddRoommate(email.trim());
-        },
-        "plain-text",
-        "",
-        "email-address"
-      );
-    } else {
-      if (isWeb && typeof window !== "undefined" && window.prompt) {
-        const email = window.prompt("Nhập email tài khoản người thuê khác");
-        if (email) searchAndAddRoommate(email.trim());
-      } else {
-        Toast.show({
-          type: "info",
-          text1: "Chức năng chỉ hỗ trợ trên iOS/Web",
-          text2: "Trên Android, vui lòng thêm người ở cùng thủ công.",
-        });
-      }
-    }
-  };
-
-  const searchAndAddRoommate = async (email) => {
-    try {
-      const data = await searchAccountByEmail(email.toLowerCase());
-      Alert.alert(
-        "Tìm thấy tài khoản",
-        `${data.fullName}\n${data.email}\n${data.phoneNumber || ""}`,
-        [
-          {
-            text: "Thêm làm roommate",
-            onPress: () => {
-              const newRm = {
-                name: data.fullName || "",
-                phone: data.phoneNumber || "",
-                email: data.email || "",
-                permanentAddress: data.address || "",
-                dob: data.dob ? formatDateForDisplay(data.dob) : "",
-                cccd: "",
-                cccdIssuedDate: "",
-                cccdIssuedPlace: "",
-              };
-              setPayload((prev) => ({
-                ...prev,
-                roommates: [...(prev.roommates || []), newRm],
-              }));
-              Toast.show({ type: "success", text1: "Đã thêm người ở cùng" });
-            },
-          },
-          { text: "Hủy", style: "cancel" },
-        ]
-      );
-    } catch (err) {
-      Toast.show({
-        type: "error",
-        text1: "Không tìm thấy",
-        text2: err?.response?.data?.message || "Email không tồn tại",
-      });
     }
   };
 
@@ -573,30 +438,19 @@ const ContractDetailScreen = ({ navigation, route }) => {
     contract &&
     ["sent_to_tenant", "signed_by_landlord"].includes(contract.status) &&
     !contract.tenantSignatureUrl;
+  const isVerified = contract?.identityVerification?.status === "verified";
+  const showVerifyBtn = canEdit && !isVerified;
 
   if (loading)
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#0d9488" />
-        <Text style={{ marginTop: 12, color: "#64748b" }}>
-          Đang tải hợp đồng...
-        </Text>
       </View>
     );
-
   if (!contract)
     return (
       <View style={styles.center}>
-        <Ionicons name="document-outline" size={48} color="#94a3b8" />
-        <Text style={{ marginTop: 12, color: "#64748b" }}>
-          Không tìm thấy hợp đồng
-        </Text>
-        <TouchableOpacity
-          style={[styles.btnSave, { marginTop: 20 }]}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.btnText}>Quay lại</Text>
-        </TouchableOpacity>
+        <Text>Không tìm thấy</Text>
       </View>
     );
 
@@ -610,7 +464,6 @@ const ContractDetailScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.card}>
-          {/* header info */}
           <View style={styles.officialHeader}>
             <Text style={styles.nation}>
               CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
@@ -626,100 +479,40 @@ const ContractDetailScreen = ({ navigation, route }) => {
             <View style={styles.validationAlert}>
               <Ionicons name="warning-outline" size={20} color="#dc2626" />
               <Text style={styles.validationAlertText}>
-                Vui lòng điền đầy đủ tất cả thông tin bắt buộc trước khi lưu
-                hoặc ký
+                Vui lòng kiểm tra lại thông tin nhập thiếu/sai.
               </Text>
             </View>
           )}
 
-          {/* Sections split into components */}
           <ContractInfoSection
             contract={contract}
             payload={payload}
             setPayload={setPayload}
             canEdit={canEdit}
             fmtDate={fmtDate}
-            onAddRoommate={handleSearchByEmail}
+            onAddRoommate={handleManualAddRoommate}
             validationErrors={validationErrors}
+            identityStatus={contract?.identityVerification}
           />
 
           <ContractTerms contract={contract} contentWidth={contentWidth} />
 
-          {contract.furnitures && contract.furnitures.length > 0 && (
+          {contract.furnitures?.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Đồ nội thất đi kèm</Text>
-              <View style={styles.furnitureContainer}>
-                {contract.furnitures.map((furniture, index) => (
-                  <View key={index} style={styles.furnitureItem}>
-                    <View style={styles.furnitureHeader}>
-                      <Text style={styles.furnitureName}>
-                        {furniture.name || "Nội thất không tên"}
-                      </Text>
-                      <View
-                        style={[
-                          styles.conditionBadge,
-                          furniture.condition === "new" && styles.conditionNew,
-                          furniture.condition === "good" &&
-                            styles.conditionGood,
-                          furniture.condition === "normal" &&
-                            styles.conditionNormal,
-                          furniture.condition === "damaged" &&
-                            styles.conditionDamaged,
-                          furniture.condition === "broken" &&
-                            styles.conditionBroken,
-                        ]}
-                      >
-                        <Text style={styles.conditionText}>
-                          {getFurnitureCondition(furniture.condition)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.furnitureDetails}>
-                      <Text style={styles.furnitureDetail}>
-                        <Text style={styles.detailLabel}>Số lượng: </Text>
-                        {furniture.quantity || 1}
-                      </Text>
-                      {furniture.damageCount > 0 && (
-                        <Text
-                          style={[styles.furnitureDetail, styles.damageText]}
-                        >
-                          <Text style={styles.detailLabel}>Số chỗ hư: </Text>
-                          {furniture.damageCount}
-                        </Text>
-                      )}
-                      {furniture.notes && (
-                        <Text style={styles.furnitureDetail}>
-                          <Text style={styles.detailLabel}>Ghi chú: </Text>
-                          {furniture.notes}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
-              </View>
+              <Text style={styles.sectionTitle}>
+                Nội thất ({contract.furnitures.length})
+              </Text>
             </View>
           )}
 
           <ContractSignatures
             contract={contract}
             payload={payload}
-            canSign={canSign}
-            onOpenSign={() => {
-              if (!validatePayload()) {
-                Toast.show({
-                  type: "error",
-                  text1: "Không thể ký",
-                  text2: "Vui lòng điền đầy đủ thông tin bắt buộc trước",
-                });
-                return;
-              }
-              setSigModalVisible(true);
-            }}
+            canSign={canSign && isVerified}
+            onOpenSign={() => setSigModalVisible(true)}
             fmtDate={fmtDate}
           />
 
-          {/* Action buttons (save/add/sign) */}
           <View style={styles.actionSection}>
             {canEdit && (
               <>
@@ -728,35 +521,31 @@ const ContractDetailScreen = ({ navigation, route }) => {
                   onPress={handleSave}
                   disabled={saving}
                 >
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="save-outline" size={20} color="#fff" />
-                      <Text style={styles.btnText}>Lưu thông tin</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.btnAddRoommate}
-                  onPress={handleSearchByEmail}
-                >
-                  <Ionicons name="person-add" size={20} color="#fff" />
-                  <Text style={styles.btnText}>Thêm người ở cùng</Text>
+                  <Ionicons name="save-outline" size={20} color="#fff" />
+                  <Text style={styles.btnText}>Lưu thông tin</Text>
                 </TouchableOpacity>
               </>
             )}
 
+            {showVerifyBtn && (
+              <TouchableOpacity
+                style={styles.btnVerify}
+                onPress={onPressVerify}
+              >
+                <Ionicons name="scan-circle-outline" size={20} color="#fff" />
+                <Text style={styles.btnText}>Xác thực danh tính (eKYC)</Text>
+              </TouchableOpacity>
+            )}
+
             {canSign && (
               <TouchableOpacity
-                style={styles.btnSign}
+                style={[styles.btnSign, !isVerified && styles.btnDisabled]}
                 onPress={() => {
-                  if (!validatePayload()) {
+                  if (!isVerified) {
                     Toast.show({
-                      type: "error",
-                      text1: "Không thể ký",
-                      text2: "Vui lòng điền đầy đủ thông tin bắt buộc trước",
+                      type: "info",
+                      text1: "Yêu cầu",
+                      text2: "Vui lòng xác thực danh tính trước khi ký.",
                     });
                     return;
                   }
@@ -764,14 +553,117 @@ const ContractDetailScreen = ({ navigation, route }) => {
                 }}
               >
                 <Ionicons name="create" size={20} color="#fff" />
-                <Text style={styles.btnText}>Ký hợp đồng</Text>
+                <Text style={styles.btnText}>
+                  {!isVerified ? "Ký hợp đồng (Cần eKYC)" : "Ký hợp đồng"}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
       </ScrollView>
 
-      {/* Signature Modal */}
+      <Modal
+        visible={verifyModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setVerifyModalVisible(false)}
+              style={styles.modalCloseBtn}
+            >
+              <Ionicons name="close" size={28} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Xác thực danh tính</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.verifyNote}>
+              Vui lòng cung cấp ảnh CCCD và ảnh chân dung.
+            </Text>
+            <Text style={styles.uploadLabel}>1. CCCD Mặt trước</Text>
+            <TouchableOpacity
+              style={styles.uploadBox}
+              onPress={() => handleSelectImage("cccdFront")}
+            >
+              {idImages.cccdFront ? (
+                <Image
+                  source={{ uri: idImages.cccdFront }}
+                  style={styles.uploadPreview}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.uploadPlaceholder}>
+                  <Ionicons name="id-card-outline" size={32} color="#94a3b8" />
+                  <Text style={styles.uploadPlaceholderText}>
+                    Chụp/Chọn ảnh
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <Text style={styles.uploadLabel}>2. CCCD Mặt sau</Text>
+            <TouchableOpacity
+              style={styles.uploadBox}
+              onPress={() => handleSelectImage("cccdBack")}
+            >
+              {idImages.cccdBack ? (
+                <Image
+                  source={{ uri: idImages.cccdBack }}
+                  style={styles.uploadPreview}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.uploadPlaceholder}>
+                  <Ionicons name="id-card-outline" size={32} color="#94a3b8" />
+                  <Text style={styles.uploadPlaceholderText}>
+                    Chụp/Chọn ảnh
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <Text style={styles.uploadLabel}>3. Ảnh chân dung</Text>
+            <TouchableOpacity
+              style={styles.uploadBox}
+              onPress={() => handleSelectImage("selfie")}
+            >
+              {idImages.selfie ? (
+                <Image
+                  source={{ uri: idImages.selfie }}
+                  style={styles.uploadPreview}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.uploadPlaceholder}>
+                  <Ionicons name="camera-outline" size={32} color="#94a3b8" />
+                  <Text style={styles.uploadPlaceholderText}>
+                    Chụp/Chọn ảnh
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.btnVerifySubmit,
+                verifyLoading && styles.btnDisabled,
+              ]}
+              onPress={handleVerifyIdentity}
+              disabled={verifyLoading}
+            >
+              {verifyLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.btnText}>Gửi xác thực</Text>
+              )}
+            </TouchableOpacity>
+            <View style={{ height: 50 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+
       <Modal
         visible={sigModalVisible}
         animationType="slide"
@@ -785,134 +677,23 @@ const ContractDetailScreen = ({ navigation, route }) => {
             >
               <Ionicons name="close" size={28} color="#000" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Ký tên của bạn</Text>
+            <Text style={styles.modalTitle}>Ký tên</Text>
             <View style={{ width: 40 }} />
           </View>
-
           <View style={styles.modalContent}>
-            {isWeb &&
-              typeof require !== "undefined" &&
-              (() => {
-                try {
-                  const WebSignature =
-                    require("react-signature-canvas")?.default;
-                  return (
-                    <>
-                      <View style={styles.signatureContainer}>
-                        <WebSignature
-                          ref={webSigRef}
-                          canvasProps={{
-                            style: {
-                              width: "100%",
-                              height: 300,
-                              border: "1px solid #ddd",
-                              borderRadius: 8,
-                              backgroundColor: "#f9fafb",
-                            },
-                          }}
-                        />
-                      </View>
-                      <View style={styles.modalActions}>
-                        <TouchableOpacity
-                          style={styles.modalBtnSecondary}
-                          onPress={clearWebPad}
-                        >
-                          <Ionicons
-                            name="trash-outline"
-                            size={18}
-                            color="#64748b"
-                          />
-                          <Text style={styles.modalBtnSecondaryText}>Xóa</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.modalBtnPrimary,
-                            sigLoading && styles.btnDisabled,
-                          ]}
-                          onPress={handleWebConfirm}
-                          disabled={sigLoading}
-                        >
-                          {sigLoading ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark"
-                                size={18}
-                                color="#fff"
-                              />
-                              <Text style={styles.modalBtnPrimaryText}>
-                                Xác nhận ký
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  );
-                } catch (err) {
-                  return (
-                    <View style={styles.notSupportedContainer}>
-                      <Ionicons
-                        name="alert-circle-outline"
-                        size={48}
-                        color="#94a3b8"
-                      />
-                      <Text style={styles.notSupportedText}>
-                        Không hỗ trợ ký trên nền Web này
-                      </Text>
-                    </View>
-                  );
-                }
-              })()}
-
-            {!isWeb &&
-              typeof require !== "undefined" &&
-              (() => {
-                try {
-                  const NativeSignature =
-                    require("react-native-signature-canvas")?.default;
-                  return NativeSignature ? (
-                    <View style={styles.nativeSignatureContainer}>
-                      <NativeSignature
-                        ref={nativeSigRef}
-                        onOK={submitSignature}
-                        onEmpty={() =>
-                          Toast.show({ type: "info", text1: "Vui lòng ký tên" })
-                        }
-                        clearText="Xóa"
-                        confirmText="Xác nhận ký"
-                        autoClear={false}
-                        descriptionText=""
-                        webStyle={`
-                          .m-signature-pad {
-                            box-shadow: none;
-                            border: 1px solid #e2e8f0;
-                            border-radius: 8px;
-                            background-color: #f9fafb;
-                          }
-                          .m-signature-pad--body {
-                            border: none;
-                          }
-                        `}
-                      />
-                    </View>
-                  ) : null;
-                } catch (err) {
-                  return (
-                    <View style={styles.notSupportedContainer}>
-                      <Ionicons
-                        name="alert-circle-outline"
-                        size={48}
-                        color="#94a3b8"
-                      />
-                      <Text style={styles.notSupportedText}>
-                        Không hỗ trợ ký trên thiết bị này
-                      </Text>
-                    </View>
-                  );
-                }
-              })()}
+            {!isWeb && NativeSignature && (
+              <View style={styles.nativeSignatureContainer}>
+                <NativeSignature
+                  ref={nativeSigRef}
+                  onOK={submitSignature}
+                  onEmpty={() =>
+                    Toast.show({ type: "info", text1: "Vui lòng ký tên" })
+                  }
+                  clearText="Xóa"
+                  confirmText="Xác nhận"
+                />
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -923,22 +704,12 @@ const ContractDetailScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  container: {
-    padding: 16,
-    paddingBottom: 32,
-  },
+  screen: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { padding: 16, paddingBottom: 32 },
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
     elevation: 5,
   },
   officialHeader: {
@@ -953,35 +724,15 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textTransform: "uppercase",
     color: "#000",
-    marginBottom: 4,
   },
-  motto: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 8,
-    color: "#000",
-  },
+  motto: { fontSize: 13, fontWeight: "600", marginBottom: 8, color: "#000" },
   contractTitle: {
     fontSize: 18,
     fontWeight: "900",
     marginBottom: 8,
     color: "#000",
-    textAlign: "center",
   },
-  contractNumber: {
-    fontSize: 12,
-    color: "#666",
-    fontStyle: "italic",
-  },
-  statusBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontWeight: "700",
-    fontSize: 13,
-  },
+  contractNumber: { fontSize: 12, color: "#666", fontStyle: "italic" },
   validationAlert: {
     flexDirection: "row",
     alignItems: "center",
@@ -999,14 +750,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
   },
-  actionSection: {
-    marginTop: 20,
-    gap: 12,
-  },
+  actionSection: { marginTop: 20, gap: 12 },
   btnSave: {
     backgroundColor: "#0d9488",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    padding: 14,
     borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
@@ -1015,8 +762,7 @@ const styles = StyleSheet.create({
   },
   btnAddRoommate: {
     backgroundColor: "#7c2d12",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    padding: 14,
     borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
@@ -1025,36 +771,32 @@ const styles = StyleSheet.create({
   },
   btnSign: {
     backgroundColor: "#2563eb",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    padding: 14,
     borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  btnDownload: {
-    backgroundColor: "#4f46e5",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+  btnVerify: {
+    backgroundColor: "#0891b2",
+    padding: 14,
     borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  btnDisabled: {
-    opacity: 0.7,
+  btnVerifySubmit: {
+    backgroundColor: "#0891b2",
+    padding: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 20,
   },
-  btnText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
+  btnDisabled: { opacity: 0.6, backgroundColor: "#94a3b8" },
+  btnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  modalContainer: { flex: 1, backgroundColor: "#fff" },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1069,82 +811,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  modalContent: {
-    flex: 1,
-    padding: 16,
-  },
-  signatureContainer: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#f9fafb",
-  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
+  modalContent: { flex: 1, padding: 16 },
   nativeSignatureContainer: {
     flex: 1,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 16,
-  },
-  modalBtnPrimary: {
-    flex: 1,
-    backgroundColor: "#0d9488",
-    padding: 14,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  modalBtnSecondary: {
-    flex: 1,
-    backgroundColor: "#f1f5f9",
-    padding: 14,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+    minHeight: 300,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    borderRadius: 8,
   },
-  modalBtnPrimaryText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  modalBtnSecondaryText: {
-    color: "#64748b",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  notSupportedContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  notSupportedText: {
-    textAlign: "center",
-    color: "#64748b",
-    fontSize: 16,
-    marginTop: 16,
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    padding: 20,
-  },
-
   section: {
     marginBottom: 24,
     backgroundColor: "#fff",
@@ -1158,72 +833,30 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: "#0f172a",
   },
-  furnitureContainer: {
-    marginTop: 8,
-  },
-  furnitureItem: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  furnitureHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  furnitureName: {
-    fontSize: 15,
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  verifyNote: { fontSize: 14, color: "#475569", marginBottom: 20 },
+  uploadLabel: {
+    fontSize: 14,
     fontWeight: "600",
     color: "#0f172a",
-    flex: 1,
-    marginRight: 8,
-  },
-  conditionBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 70,
-    alignItems: "center",
-  },
-  conditionNew: {
-    backgroundColor: "#dcfce7",
-  },
-  conditionGood: {
-    backgroundColor: "#dbeafe",
-  },
-  conditionNormal: {
-    backgroundColor: "#fef3c7",
-  },
-  conditionDamaged: {
-    backgroundColor: "#fee2e2",
-  },
-  conditionBroken: {
-    backgroundColor: "#fca5a5",
-  },
-  conditionText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#1f2937",
-  },
-  furnitureDetails: {
+    marginBottom: 8,
     marginTop: 4,
   },
-  furnitureDetail: {
-    fontSize: 13,
-    color: "#475569",
-    marginBottom: 4,
+  uploadBox: {
+    height: 160,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    overflow: "hidden",
   },
-  detailLabel: {
-    fontWeight: "600",
-    color: "#64748b",
-  },
-  damageText: {
-    color: "#dc2626",
-  },
+  uploadPlaceholder: { alignItems: "center", justifyContent: "center" },
+  uploadPlaceholderText: { marginTop: 8, color: "#64748b", fontSize: 13 },
+  uploadPreview: { width: "100%", height: "100%" },
 });
 
 export default ContractDetailScreen;

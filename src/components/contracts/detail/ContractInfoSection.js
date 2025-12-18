@@ -16,8 +16,19 @@ const ContractInfoSection = ({
   fmtDate,
   onAddRoommate,
   validationErrors,
+  identityStatus,
 }) => {
-  // Helper để update mảng (roommates hoặc bikes)
+  const isVerified = identityStatus?.status === "verified";
+  const isFailed = identityStatus?.status === "failed";
+
+  // LOGIC KHÓA:
+  // 1. Thông tin cốt lõi (Bên B): Chỉ sửa được khi (Có quyền sửa contract VÀ Chưa verify)
+  const canEditCoreInfo = canEdit && !isVerified;
+
+  // 2. Thông tin phụ (Xe, Roommates): Sửa được khi (Có quyền sửa contract)
+  // (Kể cả đã verify xong vẫn được thêm xe hoặc thêm bạn)
+  const canEditSubItems = canEdit;
+
   const updateArrayItem = (key, index, field, value) => {
     const newArray = [...payload[key]];
     newArray[index] = { ...newArray[index], [field]: value };
@@ -36,7 +47,6 @@ const ContractInfoSection = ({
     }));
   };
 
-  // Hàm helper để lấy error message
   const getFieldError = (fieldName, index = null, subField = null) => {
     if (!validationErrors) return null;
 
@@ -50,14 +60,10 @@ const ContractInfoSection = ({
     return validationErrors[fieldName];
   };
 
-  // Hàm lấy thông tin bên A đầy đủ từ contract
   const getLandlordInfo = () => {
-    // Ưu tiên lấy từ contract.A
     if (contract.A && (contract.A.name || contract.A.email)) {
       return contract.A;
     }
-
-    // Nếu không có thì lấy từ landlordId.userInfo
     if (contract.landlordId?.userInfo) {
       const ui = contract.landlordId.userInfo;
       return {
@@ -71,7 +77,6 @@ const ContractInfoSection = ({
         cccdIssuedPlace: contract.A?.cccdIssuedPlace || "",
       };
     }
-
     return {};
   };
 
@@ -79,7 +84,7 @@ const ContractInfoSection = ({
 
   return (
     <>
-      {/* --- BÊN A (CHỦ NHÀ) - ĐẦY ĐỦ THÔNG TIN --- */}
+      {/* --- BÊN A (CHỦ NHÀ) --- */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Bên cho thuê (Bên A)</Text>
         <View style={styles.infoGrid}>
@@ -117,12 +122,34 @@ const ContractInfoSection = ({
 
       {/* --- BÊN B (NGƯỜI THUÊ) --- */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Bên thuê (Bên B) - Thông tin của bạn
-        </Text>
+        <View style={{ marginBottom: 12 }}>
+          <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>
+            Bên thuê (Bên B) - Thông tin của bạn
+          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "flex-start" }}>
+            {isVerified && (
+              <View style={styles.badgeSuccess}>
+                <Ionicons name="checkmark-circle" size={14} color="#15803d" />
+                <Text style={styles.badgeTextSuccess}>
+                  Đã xác thực thông tin
+                </Text>
+              </View>
+            )}
+            {isFailed && (
+              <View style={styles.badgeError}>
+                <Ionicons name="alert-circle" size={14} color="#b91c1c" />
+                <Text style={styles.badgeTextError}>
+                  Chưa xác thực thông tin
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
         <View style={styles.infoGrid}>
+          {/* 1. HỌ TÊN */}
           <Text style={styles.infoLabel}>Họ tên:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -146,8 +173,9 @@ const ContractInfoSection = ({
             </Text>
           )}
 
+          {/* 2. NGÀY SINH */}
           <Text style={styles.infoLabel}>Ngày sinh:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -171,8 +199,9 @@ const ContractInfoSection = ({
             </Text>
           )}
 
+          {/* 3. CCCD */}
           <Text style={styles.infoLabel}>CCCD:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -198,8 +227,9 @@ const ContractInfoSection = ({
             </Text>
           )}
 
+          {/* 4. NGÀY CẤP */}
           <Text style={styles.infoLabel}>Ngày cấp:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -228,8 +258,9 @@ const ContractInfoSection = ({
             </Text>
           )}
 
+          {/* 5. NƠI CẤP */}
           <Text style={styles.infoLabel}>Nơi cấp:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -258,8 +289,9 @@ const ContractInfoSection = ({
             </Text>
           )}
 
+          {/* 6. ĐIỆN THOẠI */}
           <Text style={styles.infoLabel}>Điện thoại:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -288,8 +320,9 @@ const ContractInfoSection = ({
             </Text>
           )}
 
+          {/* 7. HỘ KHẨU */}
           <Text style={styles.infoLabel}>Hộ khẩu:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -322,8 +355,9 @@ const ContractInfoSection = ({
             </Text>
           )}
 
+          {/* 8. EMAIL */}
           <Text style={styles.infoLabel}>Email:</Text>
-          {canEdit ? (
+          {canEditCoreInfo ? (
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -352,13 +386,19 @@ const ContractInfoSection = ({
             </Text>
           )}
         </View>
+
+        {isVerified && canEdit && (
+          <Text style={styles.noteText}>
+            * Thông tin định danh đã được xác thực nên không thể chỉnh sửa.
+          </Text>
+        )}
       </View>
 
       {/* --- DANH SÁCH XE (BIKES) --- */}
       <View style={styles.section}>
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>Danh sách xe</Text>
-          {canEdit && (
+          {canEditSubItems && (
             <TouchableOpacity onPress={addBike} style={styles.addButton}>
               <Ionicons name="add-circle" size={24} color="#0d9488" />
             </TouchableOpacity>
@@ -376,7 +416,7 @@ const ContractInfoSection = ({
           <View key={index} style={styles.subItemContainer}>
             <View style={styles.subHeader}>
               <Text style={styles.subItemTitle}>Xe {index + 1}</Text>
-              {canEdit && (
+              {canEditSubItems && (
                 <TouchableOpacity
                   onPress={() => removeArrayItem("bikes", index)}
                   style={styles.deleteButton}
@@ -388,7 +428,7 @@ const ContractInfoSection = ({
 
             <View style={styles.infoGrid}>
               <Text style={styles.infoLabel}>Biển số:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -414,7 +454,7 @@ const ContractInfoSection = ({
               )}
 
               <Text style={styles.infoLabel}>Loại xe:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -440,7 +480,7 @@ const ContractInfoSection = ({
               )}
 
               <Text style={styles.infoLabel}>Màu xe:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -469,11 +509,11 @@ const ContractInfoSection = ({
         ))}
       </View>
 
-      {/* --- NGƯỜI Ở CÙNG --- */}
+      {/* --- NGƯỜI Ở CÙNG (ROOMMATES) --- */}
       <View style={styles.section}>
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>Người ở cùng</Text>
-          {canEdit && (
+          {canEditSubItems && (
             <TouchableOpacity onPress={onAddRoommate} style={styles.addButton}>
               <Ionicons name="add-circle" size={24} color="#0d9488" />
             </TouchableOpacity>
@@ -492,7 +532,7 @@ const ContractInfoSection = ({
           <View key={index} style={styles.subItemContainer}>
             <View style={styles.subHeader}>
               <Text style={styles.subItemTitle}>Người {index + 1}</Text>
-              {canEdit && (
+              {canEditSubItems && (
                 <TouchableOpacity
                   onPress={() => removeArrayItem("roommates", index)}
                   style={styles.deleteButton}
@@ -504,7 +544,7 @@ const ContractInfoSection = ({
 
             <View style={styles.infoGrid}>
               <Text style={styles.infoLabel}>Họ tên:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -530,7 +570,7 @@ const ContractInfoSection = ({
               )}
 
               <Text style={styles.infoLabel}>SĐT:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -558,7 +598,7 @@ const ContractInfoSection = ({
               )}
 
               <Text style={styles.infoLabel}>CCCD:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -586,7 +626,7 @@ const ContractInfoSection = ({
               )}
 
               <Text style={styles.infoLabel}>Ngày sinh:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -612,7 +652,7 @@ const ContractInfoSection = ({
               )}
 
               <Text style={styles.infoLabel}>Hộ khẩu:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -641,7 +681,7 @@ const ContractInfoSection = ({
               )}
 
               <Text style={styles.infoLabel}>Email:</Text>
-              {canEdit ? (
+              {canEditSubItems ? (
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={[
@@ -826,6 +866,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
     paddingVertical: 12,
+  },
+  badgeSuccess: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  badgeTextSuccess: { fontSize: 12, color: "#15803d", fontWeight: "600" },
+  badgeError: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  badgeTextError: { fontSize: 12, color: "#b91c1c", fontWeight: "600" },
+  noteText: {
+    fontSize: 12,
+    color: "#64748b",
+    fontStyle: "italic",
+    marginTop: 8,
   },
 });
 
