@@ -1,42 +1,60 @@
 import baseApi from "./baseApi";
 
-const unwrap = (res) => {
-  if (res === null || res === undefined) return null;
-  if (res.data !== undefined) return res.data;
-  return res;
-};
-
-export const getMyRoomDetail = async () => {
+export const getMyRoomDetail = async (roomId = null) => {
   try {
-    const res = await baseApi.get("/rooms/my-room");
-    const payload = unwrap(res);
-    const data = payload?.data ?? payload;
-
-    if (data && (data.room !== undefined || data.furnitures !== undefined)) {
-      const room = data.room ?? null;
-      const furnitures = Array.isArray(data.furnitures)
-        ? data.furnitures
-        : data.room && Array.isArray(data.room.furnitures)
-        ? data.room.furnitures
-        : [];
-      return { room, furnitures };
+    const res = await baseApi.get("/rooms/my-room", {
+      params: roomId ? { roomId } : {},
+    });
+    if (res.data?.success) {
+      return {
+        success: true,
+        data: res.data.data,
+        message: res.data.message,
+      };
     }
 
-    if (data && typeof data === "object") {
-      const looksLikeRoom =
-        data._id ||
-        data.id ||
-        data.roomNumber ||
-        data.tenants ||
-        data.currentTenantIds;
-      if (looksLikeRoom) {
-        return { room: data, furnitures: [] };
-      }
-    }
-    return { room: null, furnitures: [] };
+    return {
+      success: false,
+      data: null,
+      message: res.data?.message || "Không thể lấy thông tin chi tiết phòng",
+    };
   } catch (err) {
-    throw err;
+    console.error("Error fetching room detail:", err);
+    return {
+      success: false,
+      data: null,
+      message: err.response?.data?.message || "Lỗi kết nối hệ thống",
+    };
   }
 };
 
-export default { getMyRoomDetail };
+export const getMyRoomsList = async () => {
+  try {
+    const res = await baseApi.get("/rooms/my-rooms");
+    if (res.data?.success) {
+      return {
+        success: true,
+        data: res.data.data,
+        message: res.data.message,
+      };
+    }
+
+    return {
+      success: false,
+      data: null,
+      message: res.data?.message || "Không thể lấy danh sách phòng",
+    };
+  } catch (err) {
+    console.error("Error fetching rooms list:", err);
+    return {
+      success: false,
+      data: null,
+      message: err.response?.data?.message || "Lỗi kết nối hệ thống",
+    };
+  }
+};
+
+export default {
+  getMyRoomDetail,
+  getMyRoomsList,
+};

@@ -1,26 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   FlatList,
   RefreshControl,
+  ActivityIndicator,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "../../context/AuthContext";
+import { useFocusEffect } from "@react-navigation/native";
 import { getMyInvoices } from "../../api/invoiceApi";
-import Toast from "react-native-toast-message";
 
 const STATUS_COLORS = {
-  draft: "#6b7280",
+  draft: "#94a3b8",
   sent: "#3b82f6",
   transfer_pending: "#f59e0b",
   paid: "#10b981",
   overdue: "#ef4444",
-  cancelled: "#9ca3af",
+  cancelled: "#64748b",
+  replaced: "#475569",
 };
 
 const STATUS_LABELS = {
@@ -30,53 +31,66 @@ const STATUS_LABELS = {
   paid: "Đã thanh toán",
   overdue: "Quá hạn",
   cancelled: "Đã hủy",
+  replaced: "Đã thay thế",
 };
 
+const FILTER_OPTIONS = [
+  { key: "", label: "Tất cả", icon: "list", color: "#64748b" },
+  {
+    key: "sent",
+    label: "Chờ thanh toán",
+    icon: "time-outline",
+    color: "#3b82f6",
+  },
+  {
+    key: "transfer_pending",
+    label: "Chờ xác nhận",
+    icon: "hourglass-outline",
+    color: "#f59e0b",
+  },
+  {
+    key: "paid",
+    label: "Đã thanh toán",
+    icon: "checkmark-circle",
+    color: "#10b981",
+  },
+  { key: "overdue", label: "Quá hạn", icon: "alert-circle", color: "#ef4444" },
+  {
+    key: "cancelled",
+    label: "Đã hủy",
+    icon: "close-circle-outline",
+    color: "#64748b",
+  },
+];
+
 export default function InvoiceListScreen({ navigation }) {
-  const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filters, setFilters] = useState({
-    status: "",
-    periodMonth: "",
-    periodYear: "",
-  });
+  const [statusFilter, setStatusFilter] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-
-  const STATUS_OPTIONS = [
-    { value: "", label: "Tất cả" },
-    { value: "sent", label: "Chờ thanh toán" },
-    { value: "transfer_pending", label: "Chờ xác nhận" },
-    { value: "paid", label: "Đã thanh toán" },
-    { value: "overdue", label: "Quá hạn" },
-    { value: "draft", label: "Bản nháp" },
-    { value: "cancelled", label: "Đã hủy" },
-  ];
-
-  const loadInvoices = async (showRefresh = false) => {
+  const loadInvoices = async (isRefresh = false) => {
     try {
-      if (!showRefresh) setLoading(true);
-      const data = await getMyInvoices(filters);
+      if (!isRefresh) setLoading(true);
+      const params = { limit: 50, page: 1 };
+      if (statusFilter) params.status = statusFilter;
+
+      const data = await getMyInvoices(params);
       setInvoices(data.items || []);
     } catch (error) {
-      console.error("Error loading invoices:", error);
-      Toast.show({
-        type: "error",
-        text1: "Lỗi kết nối",
-        text2: "Không thể tải danh sách hóa đơn",
-        position: "top",
-      });
+      console.error("Load Invoice Error:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    loadInvoices();
-  }, [filters]);
+  useFocusEffect(
+    useCallback(() => {
+      loadInvoices();
+    }, [statusFilter])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -87,558 +101,317 @@ export default function InvoiceListScreen({ navigation }) {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
-    }).format(amount);
+    }).format(amount || 0);
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return "-";
+    if (!dateString) return "--/--/----";
     return new Date(dateString).toLocaleDateString("vi-VN");
   };
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "-";
-    const date = new Date(dateString);
-    return `${date.toLocaleDateString("vi-VN")} ${date.toLocaleTimeString(
-      "vi-VN",
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    )}`;
+  const handleFilterSelect = (filterKey) => {
+    setStatusFilter(filterKey);
+    setModalVisible(false);
   };
 
-  const renderInvoiceItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.invoiceCard}
-      onPress={() =>
-        navigation.navigate("InvoiceDetail", { invoiceId: item._id })
-      }
-      activeOpacity={0.85}
-    >
-      <View style={styles.invoiceHeader}>
-        <View style={styles.invoiceInfo}>
-          <View style={styles.invoiceNumberContainer}>
-            <Ionicons name="document-text" size={20} color="#3b82f6" />
+  const getActiveFilterLabel = () => {
+    const active = FILTER_OPTIONS.find((f) => f.key === statusFilter);
+    return active ? active.label : "Tất cả";
+  };
+
+  const renderItem = ({ item }) => {
+    const isPaid = item.status === "paid";
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.7}
+        onPress={() =>
+          navigation.navigate("InvoiceDetail", { invoiceId: item._id })
+        }
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.row}>
+            <Ionicons name="receipt-outline" size={18} color="#475569" />
             <Text style={styles.invoiceNumber}>{item.invoiceNumber}</Text>
           </View>
-          <View style={styles.periodContainer}>
-            <Ionicons name="calendar" size={14} color="#64748b" />
-            <Text style={styles.period}>
-              Kỳ {item.periodMonth}/{item.periodYear}
+          <View
+            style={[
+              styles.badge,
+              { backgroundColor: STATUS_COLORS[item.status] || "#94a3b8" },
+            ]}
+          >
+            <Text style={styles.badgeText}>
+              {STATUS_LABELS[item.status] || item.status}
             </Text>
           </View>
         </View>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: STATUS_COLORS[item.status] || "#9ca3af" },
-          ]}
-        >
-          <Text style={styles.statusText}>
-            {STATUS_LABELS[item.status] || item.status}
+
+        <View style={styles.cardBody}>
+          <Text style={styles.buildingName}>
+            {item.buildingId?.name} - P.{item.roomId?.roomNumber}
           </Text>
-        </View>
-      </View>
+          <Text style={styles.periodText}>
+            Hóa đơn kỳ: {item.periodMonth}/{item.periodYear}
+          </Text>
 
-      <View style={styles.invoiceDetails}>
-        <View style={styles.detailRow}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="business" size={18} color="#3b82f6" />
-          </View>
-          <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Tòa nhà</Text>
-            <Text style={styles.detailValue}>
-              {item.buildingId?.name || "Chưa xác định"}
-            </Text>
-            {item.buildingId?.address && (
-              <Text style={styles.detailSubValue}>
-                {item.buildingId.address}
-              </Text>
-            )}
-          </View>
-        </View>
+          <View style={styles.divider} />
 
-        <View style={styles.detailRow}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="home" size={18} color="#10b981" />
-          </View>
-          <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Phòng</Text>
-            <Text style={styles.detailValue}>
-              {item.roomId?.roomNumber || "-"}
+          <View style={styles.rowBetween}>
+            <Text style={styles.label}>Tổng tiền:</Text>
+            <Text style={styles.amountText}>
+              {formatCurrency(item.totalAmount)}
             </Text>
           </View>
-        </View>
 
-        <View style={styles.detailRow}>
-          <View style={styles.iconContainer}>
-            <Ionicons
-              name={item.status === "transfer_pending" ? "time" : "alarm"}
-              size={18}
-              color={item.status === "overdue" ? "#ef4444" : "#f59e0b"}
-            />
-          </View>
-          <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>
-              {item.status === "transfer_pending"
-                ? "Ngày gửi minh chứng"
-                : "Hạn thanh toán"}
+          <View style={styles.rowBetween}>
+            <Text style={styles.label}>
+              {isPaid ? "Ngày thanh toán:" : "Hạn thanh toán:"}
             </Text>
             <Text
               style={[
-                styles.detailValue,
-                item.status === "overdue" && styles.overdueDate,
+                styles.dateText,
+                item.status === "overdue" && { color: "#ef4444" },
               ]}
             >
-              {item.status === "transfer_pending"
-                ? formatDateTime(item.transferRequestedAt || item.updatedAt)
-                : formatDate(item.dueDate)}
+              {formatDate(isPaid ? item.paidAt : item.dueDate)}
             </Text>
           </View>
         </View>
-
-        {item.status === "paid" && item.paidAt && (
-          <View style={styles.detailRow}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Đã thanh toán</Text>
-              <Text style={[styles.detailValue, styles.paidDateText]}>
-                {formatDateTime(item.paidAt)}
-              </Text>
-            </View>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.invoiceFooter}>
-        <View style={styles.totalAmountContainer}>
-          <Text style={styles.totalLabel}>Tổng tiền</Text>
-          <Text style={styles.amount}>{formatCurrency(item.totalAmount)}</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.viewDetailButton}
-          activeOpacity={0.75}
-          onPress={() =>
-            navigation.navigate("InvoiceDetail", { invoiceId: item._id })
-          }
-        >
-          <Text style={styles.viewDetailText}>Xem chi tiết</Text>
-          <Ionicons name="chevron-forward" size={16} color="#3b82f6" />
-        </TouchableOpacity>
-      </View>
-
-      {item.status === "overdue" && (
-        <View style={styles.overdueBadge}>
-          <Ionicons name="warning" size={14} color="#fff" />
-          <Text style={styles.overdueText}>QUÁ HẠN</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "sent":
-        return "time-outline";
-      case "transfer_pending":
-        return "hourglass-outline";
-      case "paid":
-        return "checkmark-circle-outline";
-      case "overdue":
-        return "alert-circle-outline";
-      case "draft":
-        return "document-outline";
-      case "cancelled":
-        return "close-circle-outline";
-      default:
-        return "apps-outline";
-    }
-  };
-
-  const getCurrentStatusLabel = () => {
-    const option = STATUS_OPTIONS.find((opt) => opt.value === filters.status);
-    return option ? option.label : "Tất cả";
+      </TouchableOpacity>
+    );
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.customHeader}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() =>
-              navigation.navigate("BottomTabs", { screen: "Chi tiết phòng" })
-            }
-          >
-            <Ionicons name="arrow-back" size={24} color="#1e293b" />
-          </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#1e293b" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Hóa đơn của tôi</Text>
+        <TouchableOpacity onPress={() => setModalVisible(true)}>
+          <Ionicons name="filter" size={24} color="#3b82f6" />
+        </TouchableOpacity>
+      </View>
 
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Hóa đơn của tôi</Text>
-            <Text style={styles.headerSubtitle}>
-              Bạn đang có {invoices.length} hóa đơn
-            </Text>
-          </View>
-          <View style={styles.headerRight} />
+      {/* Filter Button Display */}
+      <TouchableOpacity
+        style={styles.filterButton}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.filterButtonContent}>
+          <Ionicons name="funnel-outline" size={18} color="#3b82f6" />
+          <Text style={styles.filterButtonText}>{getActiveFilterLabel()}</Text>
         </View>
+        <Ionicons name="chevron-down" size={20} color="#64748b" />
+      </TouchableOpacity>
 
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowFilterDropdown(!showFilterDropdown)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.filterButtonContent}>
-              <Ionicons
-                name={getStatusIcon(filters.status)}
-                size={18}
-                color="#3b82f6"
-              />
-              <Text style={styles.filterButtonText}>
-                {getCurrentStatusLabel()}
-              </Text>
-            </View>
-            <Ionicons
-              name={showFilterDropdown ? "chevron-up" : "chevron-down"}
-              size={20}
-              color="#64748b"
-            />
-          </TouchableOpacity>
-
-          {showFilterDropdown && (
-            <View style={styles.filterDropdown}>
-              <ScrollView style={styles.filterDropdownScroll}>
-                {STATUS_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.filterDropdownItem,
-                      filters.status === option.value &&
-                        styles.filterDropdownItemSelected,
-                    ]}
-                    onPress={() => {
-                      setFilters((prev) => ({ ...prev, status: option.value }));
-                      setShowFilterDropdown(false);
-                    }}
-                  >
-                    <View style={styles.filterDropdownItemContent}>
-                      <Ionicons
-                        name={getStatusIcon(option.value)}
-                        size={18}
-                        color={
-                          filters.status === option.value
-                            ? "#3b82f6"
-                            : "#64748b"
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.filterDropdownText,
-                          filters.status === option.value &&
-                            styles.filterDropdownTextSelected,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </View>
-                    {filters.status === option.value && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={18}
-                        color="#3b82f6"
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-
+      {loading && !refreshing ? (
+        <ActivityIndicator
+          size="large"
+          color="#3b82f6"
+          style={{ marginTop: 20 }}
+        />
+      ) : (
         <FlatList
           data={invoices}
-          renderItem={renderInvoiceItem}
+          renderItem={renderItem}
           keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
-          contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
-            !loading ? (
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconContainer}>
-                  <Ionicons name="receipt-outline" size={64} color="#cbd5e1" />
-                </View>
-                <Text style={styles.emptyText}>Không có hóa đơn nào</Text>
-                <Text style={styles.emptySubtext}>
-                  {filters.status
-                    ? `Không có hóa đơn "${STATUS_LABELS[filters.status]}"`
-                    : "Bạn chưa có hóa đơn nào"}
-                </Text>
-              </View>
-            ) : null
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="document-text-outline"
+                size={64}
+                color="#cbd5e1"
+              />
+              <Text style={styles.emptyText}>Chưa có hóa đơn nào</Text>
+            </View>
           }
         />
-      </View>
+      )}
+
+      {/* Filter Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Lọc theo trạng thái</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              {FILTER_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.filterOption,
+                    statusFilter === option.key && styles.filterOptionActive,
+                  ]}
+                  onPress={() => handleFilterSelect(option.key)}
+                >
+                  <View style={styles.filterOptionLeft}>
+                    <View
+                      style={[
+                        styles.filterIcon,
+                        { backgroundColor: option.color + "20" },
+                      ]}
+                    >
+                      <Ionicons
+                        name={option.icon}
+                        size={22}
+                        color={option.color}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.filterOptionText,
+                        statusFilter === option.key &&
+                          styles.filterOptionTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
+                  {statusFilter === option.key && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#3b82f6"
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#fff" },
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  customHeader: {
+  container: { flex: 1, backgroundColor: "#f1f5f9" },
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    justifyContent: "space-between",
+    padding: 16,
     backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
     elevation: 2,
   },
-  backButton: { padding: 8, marginRight: 8 },
-  headerContent: { flex: 1 },
-  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#1e293b" },
-  headerSubtitle: { fontSize: 13, color: "#64748b", marginTop: 2 },
-  headerRight: { width: 40 },
-  filterContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    zIndex: 10,
-  },
+  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#1e293b" },
   filterButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#f8fafc",
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#e2e8f0",
+    elevation: 1,
   },
-  filterButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: "#1e293b",
-    fontWeight: "600",
-  },
-  filterDropdown: {
-    position: "absolute",
-    top: 60,
-    left: 16,
-    right: 16,
+  filterButtonContent: { flexDirection: "row", alignItems: "center", gap: 8 },
+  filterButtonText: { fontSize: 15, fontWeight: "600", color: "#1e293b" },
+  listContent: { padding: 16 },
+  card: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    maxHeight: 250,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  filterDropdownScroll: { maxHeight: 250 },
-  filterDropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  filterDropdownItemSelected: { backgroundColor: "#eff6ff" },
-  filterDropdownItemContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  filterDropdownText: {
-    fontSize: 14,
-    color: "#475569",
-    fontWeight: "500",
-  },
-  filterDropdownTextSelected: {
-    color: "#3b82f6",
-    fontWeight: "700",
-  },
-  listContainer: { padding: 16, paddingBottom: 32 },
-  invoiceCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-  invoiceHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  invoiceInfo: { flex: 1 },
-  invoiceNumberContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  invoiceNumber: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginLeft: 8,
-  },
-  periodContainer: { flexDirection: "row", alignItems: "center" },
-  period: { fontSize: 13, color: "#64748b", marginLeft: 6 },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    color: "#fff",
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-  invoiceDetails: { marginBottom: 16 },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
     marginBottom: 12,
+    padding: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#f8fafc",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  detailContent: { flex: 1 },
-  detailLabel: {
-    fontSize: 12,
-    color: "#94a3b8",
-    marginBottom: 2,
-    fontWeight: "500",
-  },
-  detailValue: {
-    fontSize: 15,
-    color: "#1e293b",
-    fontWeight: "600",
-  },
-  detailSubValue: {
-    fontSize: 13,
-    color: "#64748b",
-    marginTop: 2,
-  },
-  overdueDate: { color: "#ef4444" },
-  paidDateText: { color: "#10b981" },
-  invoiceFooter: {
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
-  },
-  totalAmountContainer: { flex: 1 },
-  totalLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 4,
-    fontWeight: "500",
-  },
-  amount: { fontSize: 20, fontWeight: "bold", color: "#1e293b" },
-  viewDetailButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#eff6ff",
-    borderRadius: 8,
-  },
-  viewDetailText: {
-    fontSize: 13,
-    color: "#3b82f6",
-    fontWeight: "600",
-    marginRight: 4,
-  },
-  overdueBadge: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-    shadowColor: "#ef4444",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  overdueText: {
-    fontSize: 10,
-    color: "#fff",
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 80,
-    paddingHorizontal: 32,
-  },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#f8fafc",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: "#64748b",
-    fontWeight: "700",
     marginBottom: 8,
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#94a3b8",
-    textAlign: "center",
-    lineHeight: 20,
+  row: { flexDirection: "row", alignItems: "center", gap: 6 },
+  invoiceNumber: { fontSize: 14, fontWeight: "600", color: "#475569" },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  badgeText: { fontSize: 11, color: "#fff", fontWeight: "bold" },
+  cardBody: { gap: 4 },
+  buildingName: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
+  periodText: { fontSize: 13, color: "#64748b" },
+  divider: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 8 },
+  rowBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
+  label: { fontSize: 13, color: "#64748b" },
+  amountText: { fontSize: 16, fontWeight: "bold", color: "#3b82f6" },
+  dateText: { fontSize: 13, fontWeight: "500", color: "#334155" },
+  emptyContainer: { alignItems: "center", marginTop: 50 },
+  emptyText: { marginTop: 12, color: "#94a3b8" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#1e293b" },
+  modalBody: { padding: 16 },
+  filterOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: "#f8fafc",
+  },
+  filterOptionActive: {
+    backgroundColor: "#eff6ff",
+    borderWidth: 1.5,
+    borderColor: "#3b82f6",
+  },
+  filterOptionLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  filterIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterOptionText: { fontSize: 15, fontWeight: "600", color: "#475569" },
+  filterOptionTextActive: { color: "#1e293b", fontWeight: "700" },
 });
