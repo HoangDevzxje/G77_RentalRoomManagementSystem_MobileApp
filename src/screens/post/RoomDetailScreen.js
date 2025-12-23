@@ -84,7 +84,6 @@ export default function RoomDetailScreen({ route, navigation }) {
         setSelectedRoom(null);
       }
     } catch (error) {
-      console.error("Lỗi tải bài đăng:", error);
       Toast.show({
         type: "error",
         text1: "Lỗi",
@@ -99,23 +98,16 @@ export default function RoomDetailScreen({ route, navigation }) {
     try {
       const detail = await getRoomById(roomId);
       setRoomDetail(detail);
-    } catch (error) {
-      console.error("Lỗi tải chi tiết phòng:", error);
-    }
+    } catch (error) {}
   };
 
   const checkExistingContact = async () => {
-    try {
-      const response = await getMyContacts({ page: 1, limit: 100 });
-      const contacts = response.data || response.contacts || [];
-      const exists = contacts.some(
-        (c) =>
-          c.roomId?._id === selectedRoom._id || c.roomId === selectedRoom._id
-      );
-      setHasExistingContact(exists);
-    } catch (error) {
-      console.error("Lỗi kiểm tra contact:", error);
-    }
+    const response = await getMyContacts({ page: 1, limit: 100 });
+    const contacts = response.data || response.contacts || [];
+    const exists = contacts.some(
+      (c) => c.roomId?._id === selectedRoom._id || c.roomId === selectedRoom._id
+    );
+    setHasExistingContact(exists);
   };
 
   const handleRoomSelect = (room) => {

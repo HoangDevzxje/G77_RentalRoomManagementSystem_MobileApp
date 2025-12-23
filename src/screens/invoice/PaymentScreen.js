@@ -42,7 +42,7 @@ export default function PaymentScreen({ route, navigation }) {
         type: "error",
         text1: "Lỗi",
         text2: msg,
-        visibilityTime: 3000,
+        visibilityTime: 10000,
         position: "top",
       });
       setTimeout(() => navigation.goBack(), 2000);

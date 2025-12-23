@@ -24,11 +24,11 @@ import {
   signByTenant,
   verifyIdentity,
 } from "../../api/contractApi";
-
 import ContractTopBar from "../../components/contracts/detail/ContractTopBar";
 import ContractInfoSection from "../../components/contracts/detail/ContractInfoSection";
 import ContractSignatures from "../../components/contracts/detail/ContractSignatures";
 import ContractTerms from "../../components/contracts/detail/ContractTerms";
+import { CheckIcon } from "lucide-react-native";
 
 const isWeb = Platform.OS === "web";
 
@@ -56,6 +56,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
   // --- EKYC STATES ---
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const [idImages, setIdImages] = useState({
     cccdFront: null,
     cccdBack: null,
@@ -333,7 +334,6 @@ const ContractDetailScreen = ({ navigation, route }) => {
     const isNameDirty = payload.B.name !== contract.B.name;
     const isCccdDirty = payload.B.cccd !== contract.B.cccd;
 
-    // Nếu dữ liệu B bị sửa (chưa lưu) thì bắt lưu trước
     if (isNameDirty || isCccdDirty) {
       Alert.alert(
         "Chưa lưu thông tin",
@@ -645,13 +645,37 @@ const ContractDetailScreen = ({ navigation, route }) => {
               )}
             </TouchableOpacity>
 
+            {/* Phần Checkbox và Disclaimer */}
+            <TouchableOpacity
+              style={styles.disclaimerWrapper}
+              activeOpacity={0.7}
+              onPress={() => setIsConfirmed(!isConfirmed)}
+            >
+              <View
+                style={[
+                  styles.checkboxBase,
+                  isConfirmed && styles.checkboxChecked,
+                ]}
+              >
+                {isConfirmed && <CheckIcon size={14} color="#fff" />}
+              </View>
+
+              <Text style={styles.disclaimerText}>
+                Tôi xác nhận đã cung cấp đầy đủ và chính xác thông tin căn cước
+                công dân cho hệ thống. Tôi hiểu rằng thông tin này sẽ được sử
+                dụng để xác thực danh tính và quản lý hợp đồng thuê phòng.
+              </Text>
+            </TouchableOpacity>
+
+            {/* Nút Gửi xác thực */}
             <TouchableOpacity
               style={[
                 styles.btnVerifySubmit,
-                verifyLoading && styles.btnDisabled,
+                (verifyLoading || !isConfirmed) && styles.btnDisabled,
               ]}
               onPress={handleVerifyIdentity}
-              disabled={verifyLoading}
+              disabled={verifyLoading || !isConfirmed} // Khóa nút nếu chưa tích chọn
+              activeOpacity={0.8}
             >
               {verifyLoading ? (
                 <ActivityIndicator color="#fff" />
@@ -659,6 +683,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
                 <Text style={styles.btnText}>Gửi xác thực</Text>
               )}
             </TouchableOpacity>
+
             <View style={{ height: 50 }} />
           </ScrollView>
         </View>
@@ -667,22 +692,27 @@ const ContractDetailScreen = ({ navigation, route }) => {
       <Modal
         visible={sigModalVisible}
         animationType="slide"
-        presentationStyle="formSheet"
+        presentationStyle="fullScreen"
+        transparent={false}
       >
-        <View style={styles.modalContainer}>
+        <View style={styles.fullScreenModalContainer}>
+          {/* Header */}
           <View style={styles.modalHeader}>
             <TouchableOpacity
               onPress={() => setSigModalVisible(false)}
               style={styles.modalCloseBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="close" size={28} color="#000" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Ký tên</Text>
             <View style={{ width: 40 }} />
           </View>
+
+          {/* Signature Area */}
           <View style={styles.modalContent}>
             {!isWeb && NativeSignature && (
-              <View style={styles.nativeSignatureContainer}>
+              <View style={styles.signatureContainer}>
                 <NativeSignature
                   ref={nativeSigRef}
                   onOK={submitSignature}
@@ -691,7 +721,29 @@ const ContractDetailScreen = ({ navigation, route }) => {
                   }
                   clearText="Xóa"
                   confirmText="Xác nhận"
+                  style={styles.signaturePad}
                 />
+              </View>
+            )}
+
+            {/* Nếu cần custom buttons riêng */}
+            {!NativeSignature && (
+              <View style={styles.signatureContainer}>
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.clearButton]}
+                    onPress={clearSignature}
+                  >
+                    <Text style={styles.clearButtonText}>Xóa</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.button, styles.confirmButton]}
+                    onPress={submitSignature}
+                  >
+                    <Text style={styles.confirmButtonText}>Xác nhận</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -704,6 +756,89 @@ const ContractDetailScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
+  fullScreenModalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  signaturePad: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+
+  signaturePlaceholder: {
+    position: "absolute",
+    top: "50%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    transform: [{ translateY: -10 }],
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: "#999",
+    fontStyle: "italic",
+  },
+
+  emptySignature: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#e0e0e0",
+    borderStyle: "dashed",
+    borderRadius: 8,
+    margin: 20,
+    backgroundColor: "#fafafa",
+  },
+
+  emptyText: {
+    fontSize: 18,
+    color: "#888",
+    fontStyle: "italic",
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    backgroundColor: "#fafafa",
+  },
+
+  button: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 25,
+    minWidth: 120,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  clearButton: {
+    backgroundColor: "#f8f8f8",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+
+  confirmButton: {
+    backgroundColor: "#007AFF",
+  },
+
+  clearButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
+  },
+
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+
+  nativeSignatureContainer: {
+    flex: 1,
+  },
   screen: { flex: 1, backgroundColor: "#f8fafc" },
   container: { padding: 16, paddingBottom: 32 },
   card: {
@@ -799,20 +934,42 @@ const styles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: "#fff" },
   modalHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 60 : 30,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: "#f0f0f0",
+    backgroundColor: "#fff",
   },
   modalCloseBtn: {
     width: 40,
     height: 40,
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: 20,
+    backgroundColor: "#f5f5f5",
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1a1a1a",
+  },
   modalContent: { flex: 1, padding: 16 },
+  signatureContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   nativeSignatureContainer: {
     flex: 1,
     minHeight: 300,
@@ -853,6 +1010,51 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
     overflow: "hidden",
+  },
+  disclaimerWrapper: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 10,
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  checkboxBase: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#475569",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    marginTop: 2,
+    backgroundColor: "#fff",
+  },
+  checkboxChecked: {
+    backgroundColor: "#475569",
+  },
+  disclaimerText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#475569",
+    lineHeight: 18,
+    textAlign: "left",
+  },
+  btnVerifySubmit: {
+    backgroundColor: "#0891b2",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 16,
+    height: 52,
+    justifyContent: "center",
+  },
+  btnDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#94a3b8",
   },
   uploadPlaceholder: { alignItems: "center", justifyContent: "center" },
   uploadPlaceholderText: { marginTop: 8, color: "#64748b", fontSize: 13 },

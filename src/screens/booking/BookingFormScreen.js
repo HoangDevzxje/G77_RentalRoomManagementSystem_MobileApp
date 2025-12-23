@@ -39,9 +39,10 @@ export default function BookingFormScreen({ route, navigation }) {
       selectedDate &&
       selectedTimeSlot &&
       contactName.trim() &&
-      contactPhone.trim();
+      contactPhone.trim() &&
+      tenantNote.trim();
     setIsFormReady(!!ready);
-  }, [selectedDate, selectedTimeSlot, contactName, contactPhone]);
+  }, [selectedDate, selectedTimeSlot, contactName, contactPhone, tenantNote]);
 
   const getDateRange = () => {
     const today = new Date();
@@ -127,7 +128,6 @@ export default function BookingFormScreen({ route, navigation }) {
     return calendar;
   };
 
-  // FIX: Hàm format ngày đúng cách (không bị lệch timezone)
   const formatDateToString = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -140,38 +140,32 @@ export default function BookingFormScreen({ route, navigation }) {
     return acc;
   }, {});
 
-  // Kiểm tra ngày có khả dụng không
   const isDateAvailable = (date) => {
     const dateStr = formatDateToString(date);
     return slotsByDate[dateStr] && slotsByDate[dateStr].length > 0;
   };
 
-  // Kiểm tra ngày có được chọn không
   const isDateSelected = (date) => {
     if (!selectedDate) return false;
     const dateStr = formatDateToString(date);
     return dateStr === selectedDate;
   };
 
-  // Kiểm tra ngày có phải hôm nay không
   const isToday = (date) => {
     const today = new Date();
     return date.toDateString() === today.toDateString();
   };
 
-  // Kiểm tra ngày có phải trong tháng hiện tại không
   const isCurrentMonth = (date) => {
     return date.getMonth() === currentMonth.getMonth();
   };
 
-  // Chuyển tháng
   const changeMonth = (direction) => {
     const newMonth = new Date(currentMonth);
     newMonth.setMonth(newMonth.getMonth() + direction);
     setCurrentMonth(newMonth);
   };
 
-  // Hàm tạo các giờ cụ thể từ khung giờ
   const generateTimeOptions = (slots) => {
     const timeOptions = [];
 
@@ -180,27 +174,33 @@ export default function BookingFormScreen({ route, navigation }) {
       const [startHour] = startTime.split(":").map(Number);
       const [endHour] = endTime.split(":").map(Number);
 
-      // Tạo các giờ từ startHour đến endHour (không bao gồm endHour)
       for (let hour = startHour; hour < endHour; hour++) {
         const timeStr = `${String(hour).padStart(2, "0")}:00`;
         timeOptions.push(timeStr);
       }
     });
 
-    // Loại bỏ trùng lặp và sắp xếp
     return [...new Set(timeOptions)].sort();
   };
 
-  // Hàm chọn ngày
   const handleDateSelect = (date) => {
     const dateStr = formatDateToString(date);
     if (isDateAvailable(date)) {
       setSelectedDate(dateStr);
-      setSelectedTimeSlot(null); // Reset time slot khi chọn ngày mới
+      setSelectedTimeSlot(null);
     }
   };
 
   const handleSubmit = async () => {
+    if (!tenantNote.trim()) {
+      Toast.show({
+        type: "error",
+        text1: "Thiếu thông tin",
+        text2: "Vui lòng nhập ghi chú",
+      });
+      return;
+    }
+
     if (!isFormReady) {
       Toast.show({
         type: "error",
@@ -262,7 +262,6 @@ export default function BookingFormScreen({ route, navigation }) {
     });
   };
 
-  // Format ngày hiển thị đúng
   const formatDisplayDate = (dateString) => {
     if (!dateString) return "";
     const [year, month, day] = dateString.split("-");
@@ -283,7 +282,6 @@ export default function BookingFormScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#0f172a" />
@@ -292,7 +290,6 @@ export default function BookingFormScreen({ route, navigation }) {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Body */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -304,7 +301,6 @@ export default function BookingFormScreen({ route, navigation }) {
           }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Thông tin bài đăng */}
           <View style={styles.infoCard}>
             <Text style={styles.postTitle}>
               {post?.title || "Không có tiêu đề"}
@@ -318,7 +314,6 @@ export default function BookingFormScreen({ route, navigation }) {
             </Text>
           </View>
 
-          {/* Lịch chọn ngày */}
           <Text style={styles.sectionTitle}>Chọn ngày</Text>
 
           {loadingSlots ? (
@@ -328,7 +323,6 @@ export default function BookingFormScreen({ route, navigation }) {
             </View>
           ) : (
             <View style={styles.calendarContainer}>
-              {/* Header lịch - Điều hướng tháng */}
               <View style={styles.calendarHeader}>
                 <TouchableOpacity
                   onPress={() => changeMonth(-1)}
@@ -349,7 +343,6 @@ export default function BookingFormScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Các ngày trong tuần */}
               <View style={styles.weekDaysContainer}>
                 {weekDays.map((day, index) => (
                   <Text key={index} style={styles.weekDayText}>
@@ -358,7 +351,6 @@ export default function BookingFormScreen({ route, navigation }) {
                 ))}
               </View>
 
-              {/* Các ngày trong tháng */}
               <View style={styles.calendarGrid}>
                 {calendar.map((date, index) => {
                   const available = isDateAvailable(date);
@@ -400,14 +392,12 @@ export default function BookingFormScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* Chọn giờ */}
           {selectedDate && (
             <>
               <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
                 Chọn giờ - {formatDisplayDate(selectedDate)}
               </Text>
 
-              {/* Hiển thị khung giờ có sẵn */}
               <View style={styles.availableRangeContainer}>
                 <Ionicons name="time-outline" size={16} color="#64748b" />
                 <Text style={styles.availableRangeText}>
@@ -416,7 +406,6 @@ export default function BookingFormScreen({ route, navigation }) {
                 </Text>
               </View>
 
-              {/* Grid chọn giờ cụ thể */}
               <View style={styles.timeSlotContainer}>
                 {generateTimeOptions(slotsByDate[selectedDate] || []).map(
                   (time) => (
@@ -443,7 +432,6 @@ export default function BookingFormScreen({ route, navigation }) {
             </>
           )}
 
-          {/* Thông tin liên hệ */}
           <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
             Thông tin liên hệ
           </Text>
@@ -473,7 +461,7 @@ export default function BookingFormScreen({ route, navigation }) {
               styles.textArea,
               submitting && styles.inputDisabled,
             ]}
-            placeholder="Ghi chú (tùy chọn)"
+            placeholder="Ghi chú *"
             placeholderTextColor="#94a3b8"
             multiline
             numberOfLines={4}
@@ -485,7 +473,6 @@ export default function BookingFormScreen({ route, navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Footer - Nút xác nhận */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[

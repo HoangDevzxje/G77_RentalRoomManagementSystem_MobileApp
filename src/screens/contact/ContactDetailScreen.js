@@ -41,13 +41,20 @@ export default function ContactDetailScreen({ route, navigation }) {
       }
     }
 
+    if (!formData.tenantNote.trim()) {
+      newErrors.tenantNote = "Vui lòng nhập ghi chú";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
-    // Kiểm tra form có đầy đủ thông tin không
-    if (!formData.contactName.trim() || !formData.contactPhone.trim()) {
+    if (
+      !formData.contactName.trim() ||
+      !formData.contactPhone.trim() ||
+      !formData.tenantNote.trim()
+    ) {
       Toast.show({
         type: "error",
         text1: "Thiếu thông tin",
@@ -57,7 +64,6 @@ export default function ContactDetailScreen({ route, navigation }) {
       return;
     }
 
-    // Validate form
     if (!validateForm()) {
       Toast.show({
         type: "error",
@@ -65,6 +71,7 @@ export default function ContactDetailScreen({ route, navigation }) {
         text2:
           errors.contactPhone ||
           errors.contactName ||
+          errors.tenantNote ||
           "Vui lòng kiểm tra lại thông tin",
         visibilityTime: 3000,
       });
@@ -123,7 +130,6 @@ export default function ContactDetailScreen({ route, navigation }) {
       [field]: value,
     }));
 
-    // Clear error khi user nhập lại
     if (errors[field]) {
       setErrors((prev) => ({
         ...prev,
@@ -229,11 +235,16 @@ export default function ContactDetailScreen({ route, navigation }) {
               ) : null}
             </View>
 
-            {/* Ghi chú */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Ghi chú (tuỳ chọn)</Text>
+              <Text style={styles.label}>
+                Ghi chú <Text style={styles.required}>*</Text>
+              </Text>
               <TextInput
-                style={[styles.textInput, styles.textArea]}
+                style={[
+                  styles.textInput,
+                  styles.textArea,
+                  errors.tenantNote ? styles.inputError : null,
+                ]}
                 placeholder="Thêm ghi chú cho chủ trọ (thời gian liên hệ, yêu cầu đặc biệt...)"
                 placeholderTextColor="#9ca3af"
                 value={formData.tenantNote}
@@ -243,6 +254,9 @@ export default function ContactDetailScreen({ route, navigation }) {
                 textAlignVertical="top"
                 editable={!loading}
               />
+              {errors.tenantNote ? (
+                <Text style={styles.errorText}>{errors.tenantNote}</Text>
+              ) : null}
             </View>
           </View>
         </View>
