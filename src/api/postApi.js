@@ -7,7 +7,7 @@ export const getPosts = async (params = {}) => {
 
 export const getPostById = async (id) => {
   const res = await baseApi.get(`/posts/${id}`);
-  return res.data.data;
+  return res.data.data || res.data;
 };
 
 export const getRoomsByPost = async (postId) => {

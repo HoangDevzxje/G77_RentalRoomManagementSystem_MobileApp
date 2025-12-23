@@ -420,9 +420,6 @@ export default function MaintenanceRequestsScreen({ navigation }) {
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>Yêu cầu bảo trì</Text>
-            {roomInfo && (
-              <Text style={styles.roomInfo}>Phòng {roomInfo.roomNumber}</Text>
-            )}
           </View>
         </View>
 

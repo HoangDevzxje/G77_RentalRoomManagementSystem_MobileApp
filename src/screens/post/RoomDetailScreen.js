@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import Toast from "react-native-toast-message";
 import { getPostById } from "../../api/postApi";
 import { getMyContacts } from "../../api/contactApi";
 import { getRoomById } from "../../api/postApi";
@@ -19,6 +20,7 @@ import ImageSlider from "../../components/post/ImageSlider";
 import FurnitureList from "../../components/post/FurnitureList";
 import ActionBar from "../../components/post/ActionBar";
 import RoomSelectionModal from "../../components/post/RoomSelectionModal";
+import { useAuth } from "../../context/AuthContext";
 
 const { width, height } = Dimensions.get("window");
 const DEFAULT_IMAGE =
@@ -26,6 +28,8 @@ const DEFAULT_IMAGE =
 
 export default function RoomDetailScreen({ route, navigation }) {
   const { id: postId } = route.params;
+  const { isAuthenticated } = useAuth();
+
   const [post, setPost] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -53,10 +57,14 @@ export default function RoomDetailScreen({ route, navigation }) {
 
   useEffect(() => {
     if (selectedRoom?._id) {
-      checkExistingContact();
+      if (isAuthenticated) {
+        checkExistingContact();
+      } else {
+        setHasExistingContact(false);
+      }
       fetchRoomDetail(selectedRoom._id);
     }
-  }, [selectedRoom]);
+  }, [selectedRoom, isAuthenticated]);
 
   const fetchPostDetail = async () => {
     try {
@@ -64,7 +72,6 @@ export default function RoomDetailScreen({ route, navigation }) {
       setPost(data);
 
       const rawRooms = data.rooms || [];
-
       const visibleRooms = rawRooms.filter(
         (room) => room.status === "available" || room.isSoonAvailable
       );
@@ -78,6 +85,11 @@ export default function RoomDetailScreen({ route, navigation }) {
       }
     } catch (error) {
       console.error("Lỗi tải bài đăng:", error);
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể tải thông tin bài đăng",
+      });
     } finally {
       setLoading(false);
     }
@@ -89,7 +101,6 @@ export default function RoomDetailScreen({ route, navigation }) {
       setRoomDetail(detail);
     } catch (error) {
       console.error("Lỗi tải chi tiết phòng:", error);
-      setRoomDetail(null);
     }
   };
 
@@ -138,8 +149,33 @@ export default function RoomDetailScreen({ route, navigation }) {
     return images.length > 0 ? images : [DEFAULT_IMAGE];
   };
 
+  const checkLoginBeforeAction = (actionName) => {
+    if (isAuthenticated) {
+      return true;
+    } else {
+      Toast.show({
+        type: "info",
+        text1: "Yêu cầu đăng nhập",
+        text2: `Bạn cần đăng nhập để ${actionName}`,
+        visibilityTime: 3000,
+        position: "top",
+        onPress: () => navigation.navigate("Login"),
+      });
+      return false;
+    }
+  };
+
   const navigateToCreateContact = () => {
-    if (!selectedRoom) return alert("Vui lòng chọn phòng trước");
+    if (!checkLoginBeforeAction("tạo hợp đồng")) return;
+
+    if (!selectedRoom) {
+      return Toast.show({
+        type: "error",
+        text1: "Chưa chọn phòng",
+        text2: "Vui lòng chọn phòng để tiếp tục",
+      });
+    }
+
     navigation.navigate("ContactDetail", {
       roomId: selectedRoom._id,
       postId,
@@ -154,8 +190,20 @@ export default function RoomDetailScreen({ route, navigation }) {
   };
 
   const navigateToBooking = () => {
-    if (!selectedRoom) return alert("Vui lòng chọn phòng trước");
-    navigation.navigate("BookingForm", { roomId: selectedRoom._id, postId });
+    if (!checkLoginBeforeAction("đặt lịch xem phòng")) return;
+
+    if (!selectedRoom) {
+      return Toast.show({
+        type: "error",
+        text1: "Chưa chọn phòng",
+        text2: "Vui lòng chọn phòng để tiếp tục",
+      });
+    }
+
+    navigation.navigate("BookingForm", {
+      roomId: selectedRoom._id,
+      postId,
+    });
   };
 
   const images = getImages();
@@ -272,6 +320,7 @@ export default function RoomDetailScreen({ route, navigation }) {
           </View>
         </TouchableOpacity>
 
+        {/* Info Card */}
         <View style={styles.infoCard}>
           <Text style={styles.postTitle}>{post.title}</Text>
           <View style={styles.priceRow}>
@@ -417,9 +466,11 @@ export default function RoomDetailScreen({ route, navigation }) {
         onSelect={handleRoomSelect}
         onClose={() => setModalVisible(false)}
       />
+      <Toast />
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   center: {
@@ -432,7 +483,12 @@ const styles = StyleSheet.create({
   loadingIconContainer: { marginBottom: 16, opacity: 0.8 },
   errorIconContainer: { marginBottom: 16 },
   loadingText: { marginTop: 12, fontSize: 15, color: "#64748b" },
-  noData: { marginTop: 12, fontSize: 16, color: "#64748b", fontWeight: "600" },
+  noData: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#64748b",
+    fontWeight: "600",
+  },
   backButton: {
     backgroundColor: "#0d9488",
     paddingHorizontal: 24,

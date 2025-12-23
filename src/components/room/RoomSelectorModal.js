@@ -8,11 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  getContractStatusText,
-  getContractStatusColor,
-  formatDate,
-} from "../../utils/roomHelpers";
+import { formatDate } from "../../utils/roomHelpers";
 
 const RoomSelectorModal = ({
   visible,
@@ -76,41 +72,12 @@ const RoomSelectorModal = ({
             />
           </View>
           <View style={styles.roomOptionInfo}>
-            <Text style={styles.roomOptionName}>
-              Phòng {item.roomNumber || "—"}
-            </Text>
+            <Text style={styles.roomOptionName}>Phòng {item.roomNumber}</Text>
             <Text style={styles.roomOptionBuilding}>
               {item.buildingName || "Tòa nhà"}
             </Text>
             {renderContractInfo(item)}
           </View>
-        </View>
-        <View style={styles.roomOptionRight}>
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor: `${getContractStatusColor(item.status)}20`,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusText,
-                { color: getContractStatusColor(item.status) },
-              ]}
-            >
-              {getContractStatusText(item.status)}
-            </Text>
-          </View>
-          {isSelected && (
-            <Ionicons
-              name="checkmark-circle"
-              size={20}
-              color="#0d9488"
-              style={styles.checkIcon}
-            />
-          )}
         </View>
       </TouchableOpacity>
     );

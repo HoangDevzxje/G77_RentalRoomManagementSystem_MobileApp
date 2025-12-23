@@ -1,6 +1,5 @@
 import baseApi from "./baseApi";
 
-// Helper xử lý URI ảnh (Private)
 const normalizeFileUri = (uri) => {
   if (!uri || typeof uri !== "string") return uri;
   if (uri.startsWith("ph://")) return uri.replace("ph://", "assets-library://");

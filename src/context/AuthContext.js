@@ -30,7 +30,6 @@ export const AuthProvider = ({ children }) => {
           });
         }
       } catch (error) {
-        console.error("Error checking auth status:", error);
       } finally {
         setLoading(false);
       }
@@ -54,7 +53,6 @@ export const AuthProvider = ({ children }) => {
     try {
       await logoutApi();
     } catch (err) {
-      console.error("Logout error:", err);
     } finally {
       await removeTokens();
       setUser(null);

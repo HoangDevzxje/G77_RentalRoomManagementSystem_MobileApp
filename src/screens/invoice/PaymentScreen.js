@@ -8,13 +8,13 @@ import {
   ActivityIndicator,
   Image,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
-
 import { payInvoice, confirmTransfer } from "../../api/invoiceApi";
 
 export default function PaymentScreen({ route, navigation }) {
@@ -31,18 +31,21 @@ export default function PaymentScreen({ route, navigation }) {
   const fetchPaymentInfo = async () => {
     try {
       setLoading(true);
-      const res = await payInvoice(invoiceId, { method: "online_gateway" });
+      const res = await payInvoice(invoiceId, { method: "bank_transfer" });
       setPaymentData(res);
     } catch (error) {
       console.error("Payment info error:", error);
+      const msg =
+        error.response?.data?.message || "Không thể lấy thông tin thanh toán";
+
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2: "Không thể lấy thông tin thanh toán",
+        text2: msg,
         visibilityTime: 3000,
         position: "top",
       });
-      setTimeout(() => navigation.goBack(), 1500);
+      setTimeout(() => navigation.goBack(), 2000);
     } finally {
       setLoading(false);
     }
@@ -63,32 +66,21 @@ export default function PaymentScreen({ route, navigation }) {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Toast.show({
-        type: "info",
-        text1: "Cần quyền truy cập",
-        text2: "Vui lòng cấp quyền thư viện ảnh để tải lên biên lai.",
-        visibilityTime: 3000,
-        position: "top",
-      });
+      Alert.alert(
+        "Cần quyền truy cập",
+        "Vui lòng cấp quyền thư viện ảnh để tải lên biên lai."
+      );
       return;
     }
 
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-      aspect: [9, 16],
+      allowsEditing: false,
+      quality: 0.8,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setProofImage(result.assets[0]);
-      Toast.show({
-        type: "success",
-        text1: "Đã chọn ảnh",
-        text2: "Ảnh minh chứng đã được chọn",
-        visibilityTime: 1500,
-        position: "top",
-      });
     }
   };
 
@@ -108,20 +100,21 @@ export default function PaymentScreen({ route, navigation }) {
       setSubmitting(true);
       const formData = new FormData();
 
-      if (Platform.OS === "web") {
-        const response = await fetch(proofImage.uri);
-        const blob = await response.blob();
-        formData.append("proofImage", blob, "proof.jpg");
-      } else {
-        formData.append("proofImage", {
-          uri: proofImage.uri,
-          name: proofImage.fileName || `proof_${Date.now()}.jpg`,
-          type: proofImage.mimeType || "image/jpeg",
-        });
-      }
+      const localUri = proofImage.uri;
+      const filename = localUri.split("/").pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image`;
 
-      formData.append("amount", String(paymentData.amount));
-      formData.append("note", "Xác nhận chuyển khoản");
+      formData.append("proofImage", {
+        uri:
+          Platform.OS === "android"
+            ? localUri
+            : localUri.replace("file://", ""),
+        name: filename || "upload.jpg",
+        type: type || "image/jpeg",
+      });
+
+      formData.append("note", "Xác nhận đã chuyển khoản");
 
       await confirmTransfer(invoiceId, formData);
 
@@ -129,22 +122,16 @@ export default function PaymentScreen({ route, navigation }) {
         type: "success",
         text1: "Thành công",
         text2: "Đã gửi xác nhận chuyển khoản!",
-        visibilityTime: 2500,
+        visibilityTime: 2000,
         position: "top",
         onHide: () => {
           navigation.navigate("InvoiceDetail", { invoiceId });
         },
-        onPress: () => {
-          // Nếu người dùng nhấn vào Toast, điều hướng ngay
-          Toast.hide();
-          navigation.navigate("InvoiceDetail", { invoiceId });
-        },
       });
 
-      // Cũng có thể sử dụng timeout dự phòng
       setTimeout(() => {
         navigation.navigate("InvoiceDetail", { invoiceId });
-      }, 2500);
+      }, 2000);
     } catch (error) {
       console.error("Confirm error:", error);
       Toast.show({
@@ -171,13 +158,16 @@ export default function PaymentScreen({ route, navigation }) {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#3b82f6" />
-          <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+          <Text style={styles.loadingText}>
+            Đang lấy thông tin thanh toán...
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!paymentData) return null;
+  if (!paymentData) return <View style={styles.container} />;
+
   const { bankInfo, transferNote, amount, message } = paymentData;
 
   return (
@@ -201,6 +191,7 @@ export default function PaymentScreen({ route, navigation }) {
           <Text style={styles.invoiceCode}>{invoiceCode}</Text>
           <Text style={styles.instruction}>{message}</Text>
 
+          {/* QR CODE */}
           {bankInfo?.qrImageUrl ? (
             <View style={styles.qrContainer}>
               <Image
@@ -211,6 +202,7 @@ export default function PaymentScreen({ route, navigation }) {
             </View>
           ) : null}
 
+          {/* BANK INFO */}
           <View style={styles.bankDetailsContainer}>
             <View style={styles.bankRow}>
               <Text style={styles.bankLabel}>Ngân hàng:</Text>
@@ -242,11 +234,8 @@ export default function PaymentScreen({ route, navigation }) {
 
             <View style={styles.copyRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.bankLabel}>Nội dung chuyển khoản:</Text>
+                <Text style={styles.bankLabel}>Nội dung CK (Bắt buộc):</Text>
                 <Text style={styles.highlightValue}>{transferNote}</Text>
-                <Text style={styles.warningText}>
-                  (Bắt buộc ghi đúng nội dung)
-                </Text>
               </View>
               <TouchableOpacity
                 style={styles.copyButton}
@@ -266,11 +255,11 @@ export default function PaymentScreen({ route, navigation }) {
             </View>
           </View>
 
+          {/* UPLOAD SECTION */}
           <View style={styles.uploadSection}>
             <Text style={styles.uploadTitle}>Xác nhận thanh toán</Text>
             <Text style={styles.uploadDesc}>
-              Vui lòng tải lên ảnh chụp màn hình giao dịch chuyển khoản thành
-              công để chủ trọ xác nhận.
+              Vui lòng tải lên ảnh chụp màn hình giao dịch thành công.
             </Text>
 
             <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
@@ -314,14 +303,10 @@ export default function PaymentScreen({ route, navigation }) {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.doneButtonText}>
-                Gửi xác nhận chuyển khoản
-              </Text>
+              <Text style={styles.doneButtonText}>Gửi xác nhận ngay</Text>
             )}
           </TouchableOpacity>
         </View>
-
-        {/* THÊM COMPONENT TOAST VÀO ĐÂY */}
         <Toast />
       </View>
     </SafeAreaView>
@@ -354,6 +339,7 @@ const styles = StyleSheet.create({
     color: "#64748b",
     textAlign: "center",
     marginBottom: 20,
+    paddingHorizontal: 10,
   },
   qrContainer: {
     alignItems: "center",
@@ -364,6 +350,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     alignSelf: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   qrImage: { width: 200, height: 200 },
   bankDetailsContainer: {
@@ -385,7 +376,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 16,
   },
-  bankLabel: { fontSize: 13, color: "#64748b", marginBottom: 2 },
+  bankLabel: { fontSize: 13, color: "#64748b", marginBottom: 4 },
   bankValue: {
     fontSize: 15,
     fontWeight: "600",
@@ -394,12 +385,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   highlightValue: { fontSize: 16, fontWeight: "bold", color: "#3b82f6" },
-  warningText: {
-    fontSize: 12,
-    color: "#ef4444",
-    fontStyle: "italic",
-    marginTop: 2,
-  },
   copyButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -408,6 +393,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     gap: 4,
+    marginLeft: 8,
   },
   copyText: { fontSize: 12, color: "#3b82f6", fontWeight: "600" },
   divider: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 12 },
@@ -421,10 +407,10 @@ const styles = StyleSheet.create({
   },
   uploadDesc: { fontSize: 14, color: "#64748b", marginBottom: 12 },
   uploadBox: {
-    height: 200,
+    height: 180,
     backgroundColor: "#f1f5f9",
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#cbd5e1",
     borderStyle: "dashed",
     justifyContent: "center",
@@ -438,8 +424,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   previewImage: { width: "100%", height: "100%" },
-  reselectBtn: { alignItems: "center", marginTop: 8 },
-  reselectText: { color: "#3b82f6", fontWeight: "600" },
+  reselectBtn: { alignItems: "center", marginTop: 12 },
+  reselectText: { color: "#3b82f6", fontWeight: "600", fontSize: 15 },
   footer: { padding: 16, borderTopWidth: 1, borderColor: "#f1f5f9" },
   doneButton: {
     backgroundColor: "#3b82f6",

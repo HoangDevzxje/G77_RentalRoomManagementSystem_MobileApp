@@ -9,9 +9,7 @@ export const setTokens = async (accessToken, user = null, role = null) => {
     if (accessToken) await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
     if (user) await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
     if (role) await AsyncStorage.setItem(ROLE_KEY, role);
-  } catch (error) {
-    console.log("Error saving tokens:", error);
-  }
+  } catch (error) {}
 };
 
 export const getAccessToken = async () => {
@@ -42,7 +40,5 @@ export const getRole = async () => {
 export const removeTokens = async () => {
   try {
     await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, USER_KEY, ROLE_KEY]);
-  } catch (error) {
-    console.log("Error removing tokens:", error);
-  }
+  } catch (error) {}
 };

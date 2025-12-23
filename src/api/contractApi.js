@@ -1,7 +1,5 @@
 import baseApi from "./baseApi";
 
-// ... (Các hàm khác giữ nguyên: getMyContracts, getMyContract, updateMyData, v.v...)
-
 export const getMyContracts = async ({ status, page = 1, limit = 20 } = {}) => {
   const params = { page, limit };
   if (status) params.status = status;
@@ -92,7 +90,7 @@ export const downloadContractPdf = async (id) => {
 export const verifyIdentity = async (id, formData) => {
   const res = await baseApi.post(`/contracts/${id}/verify-identity`, formData, {
     headers: {
-      "Content-Type": "multipart/form-data", // Bắt buộc
+      "Content-Type": "multipart/form-data",
     },
     timeout: 120000,
     transformRequest: (data) => {

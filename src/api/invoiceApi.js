@@ -46,7 +46,15 @@ export const payInvoice = async (
 export const confirmTransfer = async (id, formData) => {
   const res = await baseApi.post(
     `/invoices/${id}/request-transfer-confirmation`,
-    formData
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      transformRequest: (data, headers) => {
+        return data;
+      },
+    }
   );
   return res.data;
 };

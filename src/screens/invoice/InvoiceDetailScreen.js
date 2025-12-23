@@ -7,12 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Image,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMyInvoiceDetail } from "../../api/invoiceApi";
 import Toast from "react-native-toast-message";
+
+const { width, height } = Dimensions.get("window");
 
 const STATUS_CONFIG = {
   draft: { label: "Bản nháp", color: "#94a3b8", bg: "#f1f5f9" },
@@ -47,15 +52,15 @@ const ITEM_TYPE_CONFIG = {
   },
 };
 
-const getItemConfig = (type) => {
-  return ITEM_TYPE_CONFIG[type] || ITEM_TYPE_CONFIG.other;
-};
+const getItemConfig = (type) =>
+  ITEM_TYPE_CONFIG[type] || ITEM_TYPE_CONFIG.other;
 
 export default function InvoiceDetailScreen({ route, navigation }) {
   const { invoiceId } = route.params;
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -111,7 +116,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
   const canPay = ["sent", "overdue"].includes(invoice.status);
   const isPending = invoice.status === "transfer_pending";
   const isPaid = invoice.status === "paid";
-
   const remainingAmount = invoice.totalAmount - (invoice.paidAmount || 0);
 
   return (
@@ -133,6 +137,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           />
         }
       >
+        {/* --- STATUS BADGE --- */}
         <View
           style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}
         >
@@ -144,6 +149,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           </Text>
         </View>
 
+        {/* --- GENERAL INFO --- */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="receipt" size={28} color="#3b82f6" />
@@ -154,23 +160,19 @@ export default function InvoiceDetailScreen({ route, navigation }) {
               </Text>
             </View>
           </View>
-
           <View style={styles.dividerSmall} />
-
           <View style={styles.infoRow}>
             <Ionicons name="business-outline" size={18} color="#64748b" />
             <Text style={styles.infoText}>
               {invoice.buildingId?.name} - Phòng {invoice.roomId?.roomNumber}
             </Text>
           </View>
-
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={18} color="#64748b" />
             <Text style={styles.infoText}>
               Hạn đóng: {formatDate(invoice.dueDate)}
             </Text>
           </View>
-
           {isPaid && invoice.paidAt && (
             <View style={styles.infoRow}>
               <Ionicons name="checkmark-circle" size={18} color="#10b981" />
@@ -181,19 +183,20 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           )}
         </View>
 
+        {/* --- PENDING BANNER (Nếu đang chờ xác nhận) --- */}
         {isPending && (
           <View style={styles.pendingBox}>
             <Ionicons name="hourglass" size={22} color="#f59e0b" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.pendingTitle}>Đang chờ xác nhận</Text>
+              <Text style={styles.pendingTitle}>Đang chờ duyệt</Text>
               <Text style={styles.pendingText}>
-                Minh chứng thanh toán đã được gửi, vui lòng chờ chủ trọ xác
-                nhận.
+                Bạn đã gửi minh chứng thanh toán. Vui lòng chờ chủ trọ xác nhận.
               </Text>
             </View>
           </View>
         )}
 
+        {/* --- ITEMS LIST --- */}
         <View style={styles.sectionHeader}>
           <Ionicons name="list" size={20} color="#475569" />
           <Text style={styles.sectionTitle}>Chi tiết khoản thu</Text>
@@ -203,7 +206,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           {invoice.items &&
             invoice.items.map((item, index) => {
               const config = getItemConfig(item.type);
-              const displayLabel = item.label || config.label;
               return (
                 <View key={index} style={styles.itemRow}>
                   <View
@@ -216,7 +218,9 @@ export default function InvoiceDetailScreen({ route, navigation }) {
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.itemLabel}>{displayLabel}</Text>
+                    <Text style={styles.itemLabel}>
+                      {item.label || config.label}
+                    </Text>
                     <Text style={styles.itemSub}>
                       {item.quantity} × {formatCurrency(item.unitPrice)}
                     </Text>
@@ -229,9 +233,10 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             })}
         </View>
 
+        {/* --- SUMMARY --- */}
         <View style={styles.sectionHeader}>
           <Ionicons name="calculator" size={20} color="#475569" />
-          <Text style={styles.sectionTitle}>Tổng kết thanh toán</Text>
+          <Text style={styles.sectionTitle}>Tổng kết</Text>
         </View>
 
         <View style={styles.summaryCard}>
@@ -241,41 +246,27 @@ export default function InvoiceDetailScreen({ route, navigation }) {
               {formatCurrency(invoice.subtotal)}
             </Text>
           </View>
-
           {invoice.discountAmount > 0 && (
             <View style={styles.summaryRow}>
-              <View style={styles.rowWithIcon}>
-                <Ionicons name="gift-outline" size={16} color="#10b981" />
-                <Text style={[styles.summaryLabel, { color: "#10b981" }]}>
-                  Giảm giá
-                </Text>
-              </View>
+              <Text style={[styles.summaryLabel, { color: "#10b981" }]}>
+                Giảm giá
+              </Text>
               <Text style={[styles.summaryValue, { color: "#10b981" }]}>
                 -{formatCurrency(invoice.discountAmount)}
               </Text>
             </View>
           )}
-
           {invoice.lateFee > 0 && (
             <View style={styles.summaryRow}>
-              <View style={styles.rowWithIcon}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={16}
-                  color="#ef4444"
-                />
-                <Text style={[styles.summaryLabel, { color: "#ef4444" }]}>
-                  Phí trễ hạn
-                </Text>
-              </View>
+              <Text style={[styles.summaryLabel, { color: "#ef4444" }]}>
+                Phí trễ hạn
+              </Text>
               <Text style={[styles.summaryValue, { color: "#ef4444" }]}>
                 +{formatCurrency(invoice.lateFee)}
               </Text>
             </View>
           )}
-
           <View style={styles.divider} />
-
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>TỔNG CỘNG</Text>
             <Text style={styles.totalValue}>
@@ -283,23 +274,20 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             </Text>
           </View>
 
+          {/* Số tiền đã trả / còn lại */}
           {invoice.paidAmount > 0 && (
-            <>
-              <View style={styles.dividerSmall} />
+            <View style={{ marginTop: 12 }}>
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: "#10b981" }]}>
+                <Text style={{ fontSize: 14, color: "#10b981" }}>
                   Đã thanh toán
                 </Text>
                 <Text
-                  style={[
-                    styles.summaryValue,
-                    { color: "#10b981", fontWeight: "700" },
-                  ]}
+                  style={{ fontSize: 14, fontWeight: "700", color: "#10b981" }}
                 >
                   {formatCurrency(invoice.paidAmount)}
                 </Text>
               </View>
-            </>
+            </View>
           )}
 
           {remainingAmount > 0 && (
@@ -312,7 +300,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
                 },
               ]}
             >
-              <Text style={styles.remainingLabel}>Còn lại phải thanh toán</Text>
+              <Text style={styles.remainingLabel}>Cần thanh toán</Text>
               <Text
                 style={[
                   styles.remainingValue,
@@ -327,6 +315,43 @@ export default function InvoiceDetailScreen({ route, navigation }) {
           )}
         </View>
 
+        {/*MINH CHỨNG THANH TOÁN*/}
+        {invoice.transferProofImageUrl ? (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="image-outline" size={20} color="#475569" />
+              <Text style={styles.sectionTitle}>Minh chứng chuyển khoản</Text>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.proofDate}>
+                Gửi lúc:{" "}
+                {formatDate(invoice.transferRequestedAt || invoice.updatedAt)}
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.proofImageContainer}
+                onPress={() => setModalVisible(true)}
+              >
+                <Image
+                  source={{ uri: invoice.transferProofImageUrl }}
+                  style={styles.proofImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.zoomOverlay}>
+                  <Ionicons name="expand-outline" size={20} color="#fff" />
+                </View>
+              </TouchableOpacity>
+              {invoice.paymentNote ? (
+                <Text style={styles.noteContent}>
+                  Ghi chú: {invoice.paymentNote}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {/* --- NOTE (General) --- */}
         {invoice.note && (
           <View style={styles.noteBox}>
             <View style={styles.noteHeader}>
@@ -335,13 +360,14 @@ export default function InvoiceDetailScreen({ route, navigation }) {
                 size={18}
                 color="#64748b"
               />
-              <Text style={styles.noteTitle}>Ghi chú</Text>
+              <Text style={styles.noteTitle}>Ghi chú hóa đơn</Text>
             </View>
             <Text style={styles.noteContent}>{invoice.note}</Text>
           </View>
         )}
       </ScrollView>
 
+      {/* --- FOOTER BUTTON --- */}
       {canPay && (
         <View style={styles.footer}>
           <View style={styles.footerLeft}>
@@ -350,16 +376,37 @@ export default function InvoiceDetailScreen({ route, navigation }) {
               {formatCurrency(remainingAmount)}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.payBtn}
-            onPress={handlePay}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.payBtn} onPress={handlePay}>
             <Ionicons name="card" size={20} color="#fff" />
-            <Text style={styles.payBtnText}>Thanh toán</Text>
+            <Text style={styles.payBtnText}>Thanh toán ngay</Text>
           </TouchableOpacity>
         </View>
       )}
+
+      {/* --- MODAL ZOOM ẢNH --- */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity
+            style={styles.modalCloseBtn}
+            onPress={() => setModalVisible(false)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </TouchableOpacity>
+
+          <Image
+            source={{ uri: invoice?.transferProofImageUrl }}
+            style={styles.modalImage}
+            resizeMode="contain"
+          />
+        </View>
+      </Modal>
+
+      <Toast />
     </SafeAreaView>
   );
 }
@@ -374,38 +421,35 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#fff",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
   },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "#1e293b" },
-  scrollContent: { padding: 16, paddingBottom: 120 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     marginBottom: 16,
-    gap: 8,
+    gap: 6,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusLabel: { fontSize: 14, fontWeight: "700" },
+  statusLabel: { fontSize: 13, fontWeight: "700" },
+
   card: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 20,
     elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
   },
   cardHeader: { flexDirection: "row", alignItems: "center" },
-  invoiceNumber: { fontSize: 18, fontWeight: "bold", color: "#1e293b" },
+  invoiceNumber: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
   periodText: { fontSize: 13, color: "#64748b", marginTop: 2 },
   dividerSmall: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 12 },
   infoRow: {
@@ -415,31 +459,29 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   infoText: { fontSize: 14, color: "#475569", flex: 1 },
+
   pendingBox: {
     flexDirection: "row",
-    alignItems: "flex-start",
     gap: 12,
     backgroundColor: "#fffbeb",
     padding: 16,
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 20,
     borderLeftWidth: 4,
     borderLeftColor: "#f59e0b",
   },
-  pendingTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#92400e",
-    marginBottom: 4,
-  },
-  pendingText: { fontSize: 13, color: "#78350f", lineHeight: 18 },
+  pendingTitle: { fontSize: 14, fontWeight: "700", color: "#92400e" },
+  pendingText: { fontSize: 13, color: "#78350f", marginTop: 2 },
+
+  sectionContainer: { marginBottom: 20 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: "#334155" },
+
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -448,83 +490,93 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f1f5f9",
   },
   itemIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
-  itemLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1e293b",
-    marginBottom: 2,
-  },
+  itemLabel: { fontSize: 14, fontWeight: "600", color: "#1e293b" },
   itemSub: { fontSize: 12, color: "#94a3b8" },
-  itemAmount: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
+  itemAmount: { fontSize: 14, fontWeight: "700", color: "#1e293b" },
+
   summaryCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    marginBottom: 20,
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  rowWithIcon: { flexDirection: "row", alignItems: "center", gap: 6 },
   summaryLabel: { fontSize: 14, color: "#64748b" },
   summaryValue: { fontSize: 14, fontWeight: "600", color: "#334155" },
   divider: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 12 },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     backgroundColor: "#f8fafc",
     padding: 12,
-    borderRadius: 10,
-    marginTop: 4,
+    borderRadius: 8,
   },
   totalLabel: { fontSize: 15, fontWeight: "700", color: "#475569" },
-  totalValue: { fontSize: 20, fontWeight: "800", color: "#3b82f6" },
+  totalValue: { fontSize: 18, fontWeight: "800", color: "#3b82f6" },
   remainingBox: {
     marginTop: 12,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  remainingLabel: { fontSize: 13, fontWeight: "600", color: "#475569" },
-  remainingValue: { fontSize: 18, fontWeight: "800" },
+  remainingLabel: { fontSize: 13, fontWeight: "600", color: "#64748b" },
+  remainingValue: { fontSize: 16, fontWeight: "800" },
+
+  // Styles cho Proof Image
+  proofDate: {
+    fontSize: 12,
+    color: "#64748b",
+    marginBottom: 8,
+    fontStyle: "italic",
+  },
+  proofImageContainer: {
+    height: 180,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#f1f5f9",
+    position: "relative",
+    marginBottom: 8,
+  },
+  proofImage: { width: "100%", height: "100%" },
+  zoomOverlay: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 20,
+    padding: 6,
+  },
+
   noteBox: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
     borderLeftColor: "#94a3b8",
+    marginBottom: 20,
   },
-  noteHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
+  noteHeader: { flexDirection: "row", gap: 6, marginBottom: 6 },
   noteTitle: { fontSize: 14, fontWeight: "700", color: "#475569" },
   noteContent: {
     fontSize: 14,
     color: "#334155",
-    lineHeight: 20,
     fontStyle: "italic",
+    lineHeight: 20,
   },
+
   footer: {
     position: "absolute",
     bottom: 0,
@@ -532,34 +584,42 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: "#fff",
     padding: 16,
-    paddingBottom: 20,
     borderTopWidth: 1,
     borderColor: "#e2e8f0",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   footerLeft: { flex: 1 },
-  footerLabel: { fontSize: 12, color: "#64748b", marginBottom: 2 },
-  footerAmount: { fontSize: 20, fontWeight: "800", color: "#ef4444" },
+  footerLabel: { fontSize: 12, color: "#64748b" },
+  footerAmount: { fontSize: 18, fontWeight: "800", color: "#ef4444" },
   payBtn: {
     backgroundColor: "#3b82f6",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
     flexDirection: "row",
-    alignItems: "center",
     gap: 8,
-    elevation: 3,
-    shadowColor: "#3b82f6",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    alignItems: "center",
   },
   payBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCloseBtn: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  modalImage: {
+    width: width,
+    height: height * 0.8,
+  },
 });

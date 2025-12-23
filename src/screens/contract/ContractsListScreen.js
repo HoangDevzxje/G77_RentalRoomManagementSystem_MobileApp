@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,15 @@ import {
   Linking,
   SafeAreaView,
   TouchableOpacity,
+  Dimensions,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Toast from "react-native-toast-message";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { useFocusEffect } from "@react-navigation/native";
+import { useAuth } from "../../context/AuthContext";
+
 import {
   getMyContracts,
   downloadContractPdf,
@@ -33,6 +37,7 @@ import {
 } from "../../utils/contractHelpers";
 
 const STATUS_BAR_HEIGHT = 0;
+const { width } = Dimensions.get("window");
 
 const statusOptions = [
   { value: "", label: "Tất cả trạng thái" },
@@ -46,6 +51,7 @@ const statusOptions = [
 ];
 
 const ContractsListScreen = ({ navigation }) => {
+  const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [contracts, setContracts] = useState([]);
@@ -57,24 +63,24 @@ const ContractsListScreen = ({ navigation }) => {
   const [downloading, setDownloading] = useState(null);
   const [showStatusFilter, setShowStatusFilter] = useState(false);
 
-  // --- State cho Gia hạn (Extend) ---
   const [extendModalVisible, setExtendModalVisible] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
   const [extendMonths, setExtendMonths] = useState("");
   const [extendNote, setExtendNote] = useState("");
   const [extendLoading, setExtendLoading] = useState(false);
 
-  // --- State cho Chấm dứt (Terminate) ---
   const [terminateModalVisible, setTerminateModalVisible] = useState(false);
   const [terminateReason, setTerminateReason] = useState("");
   const [terminateNote, setTerminateNote] = useState("");
   const [terminateLoading, setTerminateLoading] = useState(false);
 
-  useEffect(() => {
-    fetchContracts();
-  }, [page, statusFilter]);
-
   const fetchContracts = async (opts = {}) => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     if (!opts.isRefreshing) setLoading(true);
     try {
       const res = await getMyContracts({
@@ -91,13 +97,17 @@ const ContractsListScreen = ({ navigation }) => {
       }));
       setContracts(prepared);
     } catch (e) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2:
-          e?.response?.data?.message || e?.message || "Không thể tải hợp đồng",
-        position: "top",
-      });
+      if (e?.response?.status !== 401) {
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2:
+            e?.response?.data?.message ||
+            e?.message ||
+            "Không thể tải hợp đồng",
+          position: "top",
+        });
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -105,18 +115,40 @@ const ContractsListScreen = ({ navigation }) => {
     }
   };
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchContracts();
+    } else {
+      setLoading(false);
+    }
+  }, [page, statusFilter, isAuthenticated]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated) {
+        fetchContracts();
+      }
+    }, [isAuthenticated, statusFilter])
+  );
+
   const onRefresh = () => {
     setRefreshing(true);
-    fetchContracts({ isRefreshing: true });
+    if (isAuthenticated) {
+      fetchContracts({ isRefreshing: true });
+    } else {
+      setRefreshing(false);
+    }
   };
 
   const onSubmitSearch = () => {
+    if (!isAuthenticated) return;
     const kw = searchQuery.trim();
     setSubmittingSearch(true);
     fetchContracts({ keyword: kw });
   };
 
   const clearSearch = () => {
+    if (!isAuthenticated) return;
     setSearchQuery("");
     setSubmittingSearch(true);
     fetchContracts({});
@@ -126,7 +158,6 @@ const ContractsListScreen = ({ navigation }) => {
     navigation.navigate("ContractDetail", { id });
   };
 
-  // --- Logic Gia hạn ---
   const openExtendModal = (contract) => {
     setSelectedContract(contract);
     setExtendMonths("");
@@ -143,13 +174,11 @@ const ContractsListScreen = ({ navigation }) => {
 
   const submitExtend = async () => {
     if (!selectedContract) return;
-
     const months = Number(extendMonths);
     if (!months || months <= 0) {
       Toast.show({ type: "error", text1: "Số tháng không hợp lệ" });
       return;
     }
-
     setExtendLoading(true);
     try {
       await requestExtend(selectedContract._id, months, extendNote.trim());
@@ -184,12 +213,10 @@ const ContractsListScreen = ({ navigation }) => {
 
   const submitTerminate = async () => {
     if (!selectedContract) return;
-
     if (!terminateReason.trim()) {
       Toast.show({ type: "error", text1: "Vui lòng nhập lý do chấm dứt" });
       return;
     }
-
     setTerminateLoading(true);
     try {
       await requestTerminate(
@@ -214,7 +241,6 @@ const ContractsListScreen = ({ navigation }) => {
 
   const handleDownloadPdf = async (contract) => {
     if (!contract) return;
-
     const hasBuilding = !!contract.buildingId;
     const hasRoom = !!contract.roomId;
     const hasDates =
@@ -242,21 +268,16 @@ const ContractsListScreen = ({ navigation }) => {
       const API_BASE =
         process.env.EXPO_PUBLIC_API_URL ||
         "https://faultier-nonaristocratically-willene.ngrok-free.dev";
-
       if (Platform.OS === "web") {
         await downloadContractPdf(contract._id);
         Toast.show({ type: "success", text1: "Đang tải file PDF..." });
         return;
       }
-
       const url = `${API_BASE.replace(/\/$/, "")}/contracts/${
         contract._id
       }/download`;
       const token = await getAccessToken();
-
-      if (!token) {
-        throw new Error("Missing auth token");
-      }
+      if (!token) throw new Error("Missing auth token");
 
       const headResp = await fetch(url, {
         method: "GET",
@@ -266,13 +287,9 @@ const ContractsListScreen = ({ navigation }) => {
         },
       });
       const ct = headResp.headers.get("content-type") || "";
-
-      if (!headResp.ok) {
-        throw new Error(`Server error`);
-      }
-      if (!ct.toLowerCase().includes("pdf")) {
+      if (!headResp.ok) throw new Error(`Server error`);
+      if (!ct.toLowerCase().includes("pdf"))
         throw new Error(`Invalid content type`);
-      }
 
       const fileName = `contract_${contract._id}.pdf`;
       const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
@@ -280,9 +297,8 @@ const ContractsListScreen = ({ navigation }) => {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
-      if (!downloadResult || !downloadResult.uri) {
+      if (!downloadResult || !downloadResult.uri)
         throw new Error("Download error");
-      }
 
       let shared = false;
       try {
@@ -303,19 +319,51 @@ const ContractsListScreen = ({ navigation }) => {
           });
         }
       }
-
       Toast.show({ type: "success", text1: "Đã tải file PDF" });
     } catch (e) {
       const message = (e && e.message) || String(e);
-      Toast.show({
-        type: "error",
-        text1: "Tải thất bại",
-        text2: message,
-      });
+      Toast.show({ type: "error", text1: "Tải thất bại", text2: message });
     } finally {
       setDownloading(null);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0d9488" />
+        <Text style={styles.loadingText}>Đang tải hợp đồng...</Text>
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.emptyContainer}>
+          <View style={styles.illustrationCircle}>
+            <Ionicons name="log-in-outline" size={60} color="#0d9488" />
+          </View>
+          <Text style={styles.emptyTitle}>Chào mừng bạn</Text>
+          <Text style={styles.emptySubtitle}>
+            Vui lòng đăng nhập để xem và quản lý danh sách hợp đồng của bạn.
+          </Text>
+          <TouchableOpacity
+            style={styles.btnPrimary}
+            onPress={() => navigation.navigate("Login")}
+          >
+            <Ionicons
+              name="log-in-outline"
+              size={20}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.btnPrimaryText}>Đăng nhập ngay</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -367,65 +415,73 @@ const ContractsListScreen = ({ navigation }) => {
           visible={showStatusFilter}
         />
       </View>
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0d9488" />
-          <Text style={styles.loadingText}>Đang tải hợp đồng...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={contracts}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item, index }) => (
-            <ContractCard
-              item={item}
-              index={index}
-              lastIndex={contracts.length - 1}
-              onOpenDetail={openDetail}
-              onDownload={handleDownloadPdf}
-              downloading={downloading}
-              onExtend={openExtendModal}
-              onTerminate={openTerminateModal}
-            />
-          )}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <View style={{ alignItems: "center", paddingVertical: 60 }}>
+
+      <FlatList
+        data={contracts}
+        keyExtractor={(item) => item._id}
+        renderItem={({ item, index }) => (
+          <ContractCard
+            item={item}
+            index={index}
+            lastIndex={contracts.length - 1}
+            onOpenDetail={openDetail}
+            onDownload={handleDownloadPdf}
+            downloading={downloading}
+            onExtend={openExtendModal}
+            onTerminate={openTerminateModal}
+          />
+        )}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#0d9488"]}
+            tintColor="#0d9488"
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.illustrationCircle}>
               <Ionicons
                 name="document-text-outline"
-                size={64}
-                color="#cbd5e1"
-                style={{ marginBottom: 16 }}
+                size={60}
+                color="#0d9488"
               />
-              <Text style={styles.emptyTitle}>Chưa có hợp đồng</Text>
-              <Text style={styles.emptySubtitle}>
-                Bạn vui lòng đến trang bài đăng để tạo hợp đồng thuê trọ
-              </Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate("PostList")}
-                style={{
-                  backgroundColor: "#0d9488",
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  borderRadius: 8,
-                }}
-              >
-                <Text
-                  style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}
-                >
-                  Đi đến trang bài đăng
-                </Text>
-              </TouchableOpacity>
             </View>
-          }
-        />
-      )}
+            <Text style={styles.emptyTitle}>Chưa có hợp đồng</Text>
+            <Text style={styles.emptySubtitle}>
+              Bạn chưa có hợp đồng nào. Hãy tìm phòng trọ ưng ý và tạo hợp đồng
+              ngay!
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("PostList")}
+              style={styles.btnPrimary}
+            >
+              <Ionicons
+                name="search-outline"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.btnPrimaryText}>Tìm phòng ngay</Text>
+            </TouchableOpacity>
 
-      {/* Modal Gia hạn */}
+            <TouchableOpacity onPress={onRefresh} style={styles.btnSecondary}>
+              <Ionicons
+                name="refresh-outline"
+                size={18}
+                color="#64748b"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.btnSecondaryText}>Làm mới</Text>
+            </TouchableOpacity>
+          </View>
+        }
+      />
+
+      {/* Modal Gia hạn & Chấm dứt */}
       <ExtendModal
         visible={extendModalVisible}
         onClose={closeExtendModal}
@@ -491,7 +547,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   clearFilterText: { fontSize: 14, color: "#64748b", fontWeight: "500" },
-  listContainer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
+
+  listContainer: { paddingBottom: 32, flexGrow: 1 },
+
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -504,11 +562,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
   },
+
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+    width: "100%",
+  },
+  illustrationCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#f0fdfa",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#ccfbf1",
+  },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#334155",
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginBottom: 12,
     textAlign: "center",
   },
   emptySubtitle: {
@@ -517,7 +594,40 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
     maxWidth: 320,
+    marginBottom: 24,
+  },
+  btnPrimary: {
+    backgroundColor: "#0d9488",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 3,
+    shadowColor: "#0d9488",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
     marginBottom: 16,
+  },
+  btnPrimaryText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  btnSecondary: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e2e8f0",
+  },
+  btnSecondaryText: {
+    color: "#64748b",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

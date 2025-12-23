@@ -9,7 +9,6 @@ import {
   ScrollView,
   Alert,
   Platform,
-  StatusBar,
   Dimensions,
   Modal,
   FlatList,
@@ -20,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
 import { Ionicons } from "@expo/vector-icons";
-import { getMyRoomDetail } from "../../api/roomApi";
+import { getMyRoomDetail, getMyRoomsList } from "../../api/roomApi";
 import { createRequest } from "../../api/maintenanceApi";
 import { useAuth } from "../../context/AuthContext";
 
@@ -47,10 +46,11 @@ export default function CreateMaintenanceRequest({ navigation }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
-  // Data state
+  const [allRooms, setAllRooms] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const [furnitures, setFurnitures] = useState([]);
-  const [roomInfo, setRoomInfo] = useState(null);
 
   const [furnitureId, setFurnitureId] = useState("");
   const [category, setCategory] = useState("");
@@ -59,59 +59,81 @@ export default function CreateMaintenanceRequest({ navigation }) {
   const [affectedQuantity, setAffectedQuantity] = useState("1");
   const [images, setImages] = useState([]);
 
+  const [showRoomModal, setShowRoomModal] = useState(false);
   const [showFurnitureModal, setShowFurnitureModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
 
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    loadRoomData();
+    fetchRoomsList();
   }, []);
 
-  const loadRoomData = async () => {
+  const fetchRoomsList = async () => {
     try {
       setLoading(true);
-      const r = await getMyRoomDetail();
-      const room = r?.room ?? r;
-      if (!room) {
-        Toast.show({
-          type: "error",
-          text1: "Lỗi",
-          text2: "Không tìm thấy thông tin phòng của bạn",
-        });
-        return;
-      }
+      const res = await getMyRoomsList();
 
-      setRoomInfo(room);
-      const roomFurn = r?.furnitures ?? room?.furnitures ?? [];
-      const validFurnitures = roomFurn.filter((f) => f && (f.name || f._id));
-      setFurnitures(validFurnitures);
+      console.log("Rooms List Response:", JSON.stringify(res, null, 2));
+
+      if (res.success && res.data?.rooms) {
+        const rooms = res.data.rooms;
+        setAllRooms(rooms);
+
+        if (rooms.length > 0) {
+          handleSelectRoom(rooms[0]);
+        } else {
+          Toast.show({ type: "info", text1: "Bạn chưa thuê phòng nào" });
+        }
+      } else {
+        Toast.show({ type: "error", text1: "Không lấy được danh sách phòng" });
+      }
     } catch (err) {
-      console.error("loadRoomData error:", err);
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Không tải được dữ liệu phòng",
-      });
+      console.error("fetchRoomsList error:", err);
+      Toast.show({ type: "error", text1: "Lỗi kết nối" });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSelectRoom = async (room) => {
+    if (!room || !room._id) return;
+
+    setSelectedRoom(room);
+    setShowRoomModal(false);
+    setFurnitureId("");
+    setCategory("");
+    setFurnitures([]);
+    try {
+      setLoadingDetail(true);
+      const res = await getMyRoomDetail(room._id);
+      console.log("Room Detail Response:", JSON.stringify(res, null, 2));
+
+      if (res.success && res.data) {
+        const details = res.data;
+        const fetchedFurnitures =
+          details.furnitures || (details.room && details.room.furnitures) || [];
+
+        const validFurnitures = fetchedFurnitures.filter(
+          (f) => f && (f.name || f._id)
+        );
+        setFurnitures(validFurnitures);
+      }
+    } catch (err) {
+      console.log("Error fetching room detail:", err);
+      Toast.show({ type: "error", text1: "Không tải được nội thất phòng" });
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
-
-    if (!title.trim()) {
-      newErrors.title = "Vui lòng nhập tiêu đề sự cố";
-    }
-
-    if (!category) {
-      newErrors.category = "Vui lòng chọn danh mục sự cố";
-    }
-
-    if (!affectedQuantity || parseInt(affectedQuantity) < 1) {
-      newErrors.affectedQuantity = "Số lượng phải lớn hơn 0";
-    }
+    if (!selectedRoom) newErrors.room = "Vui lòng chọn phòng";
+    if (!title.trim()) newErrors.title = "Vui lòng nhập tiêu đề";
+    if (!category) newErrors.category = "Vui lòng chọn danh mục";
+    if (!affectedQuantity || parseInt(affectedQuantity) < 1)
+      newErrors.affectedQuantity = "SL > 0";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -124,10 +146,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
       const cleaned = value.replace(/[^0-9]/g, "");
       setAffectedQuantity(cleaned);
     }
-
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleSelectFurniture = (item) => {
@@ -135,7 +154,6 @@ export default function CreateMaintenanceRequest({ navigation }) {
       const fId = String(item._id || item.id);
       setFurnitureId(fId);
       setCategory("furniture");
-
       if (errors.category) setErrors((prev) => ({ ...prev, category: "" }));
     } else {
       setFurnitureId("");
@@ -154,12 +172,8 @@ export default function CreateMaintenanceRequest({ navigation }) {
     try {
       const remaining = MAX_IMAGES - images.length;
       if (remaining <= 0) return;
-
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (perm.status !== "granted") {
-        Toast.show({ type: "error", text1: "Cần cấp quyền truy cập ảnh" });
-        return;
-      }
+      if (perm.status !== "granted") return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.7,
@@ -191,7 +205,14 @@ export default function CreateMaintenanceRequest({ navigation }) {
       return;
     }
 
-    Alert.alert("Xác nhận", "Gửi yêu cầu bảo trì này?", [
+    const finalRoomId = selectedRoom?._id;
+
+    if (!finalRoomId) {
+      Alert.alert("Lỗi", "Không xác định được ID phòng.");
+      return;
+    }
+
+    Alert.alert("Xác nhận", `Gửi yêu cầu cho P.${selectedRoom.roomNumber}?`, [
       { text: "Hủy", style: "cancel" },
       {
         text: "Gửi yêu cầu",
@@ -199,7 +220,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
           try {
             setSubmitting(true);
             const payload = {
-              roomId: roomInfo?.id ?? roomInfo?._id,
+              roomId: finalRoomId,
               category,
               title: title.trim(),
               description: description.trim(),
@@ -217,6 +238,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
             Toast.show({ type: "success", text1: "Tạo yêu cầu thành công" });
             setTimeout(() => navigation.goBack(), 1500);
           } catch (err) {
+            console.log(err);
             const msg = err?.response?.data?.message || "Tạo yêu cầu thất bại";
             Toast.show({ type: "error", text1: msg });
           } finally {
@@ -240,6 +262,55 @@ export default function CreateMaintenanceRequest({ navigation }) {
     </View>
   );
 
+  const RoomModal = () => (
+    <Modal
+      visible={showRoomModal}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setShowRoomModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Chọn phòng</Text>
+            <TouchableOpacity onPress={() => setShowRoomModal(false)}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={allRooms}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => {
+              const isSelected = item._id === selectedRoom?._id;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.furnitureItem,
+                    isSelected && styles.furnitureItemSelected,
+                  ]}
+                  onPress={() => handleSelectRoom(item)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.furnitureItemName}>
+                      P.{item.roomNumber} - {item.buildingName || "Tòa nhà"}
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#0d9488"
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+
   const FurnitureModal = () => (
     <Modal
       visible={showFurnitureModal}
@@ -250,29 +321,23 @@ export default function CreateMaintenanceRequest({ navigation }) {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chọn thiết bị trong phòng</Text>
+            <Text style={styles.modalTitle}>Chọn thiết bị</Text>
             <TouchableOpacity onPress={() => setShowFurnitureModal(false)}>
               <Ionicons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
           </View>
-
           <TouchableOpacity
             style={styles.furnitureItem}
             onPress={() => handleSelectFurniture(null)}
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.furnitureItemName}>
-                Vấn đề khác (Điện, Nước, Tường...)
-              </Text>
-              <Text style={styles.subLabel}>
-                Không thuộc danh sách đồ nội thất
-              </Text>
+              <Text style={styles.furnitureItemName}>Vấn đề khác</Text>
+              <Text style={styles.subLabel}>Điện, Nước, Tường...</Text>
             </View>
             {!furnitureId && (
               <Ionicons name="checkmark" size={20} color="#0d9488" />
             )}
           </TouchableOpacity>
-
           <FlatList
             data={furnitures}
             keyExtractor={(item, i) => String(item._id || i)}
@@ -315,7 +380,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chọn loại sự cố</Text>
+            <Text style={styles.modalTitle}>Chọn danh mục</Text>
             <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
               <Ionicons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
@@ -378,14 +443,47 @@ export default function CreateMaintenanceRequest({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* SECTION CHỌN PHÒNG */}
         <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Thông tin sự cố</Text>
+          <Text style={styles.sectionTitle}>Thông tin chung</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Phòng <Text style={styles.required}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.selectBtn,
+                allRooms.length <= 1 && styles.disabledBtn,
+              ]}
+              onPress={() => allRooms.length > 1 && setShowRoomModal(true)}
+              disabled={allRooms.length <= 1}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text style={styles.selectBtnText}>
+                  {selectedRoom
+                    ? `P.${selectedRoom.roomNumber} - ${
+                        selectedRoom.buildingName || "Tòa nhà"
+                      }`
+                    : "Chọn phòng..."}
+                </Text>
+              </View>
+              {allRooms.length > 1 && (
+                <Ionicons name="chevron-down" size={20} color="#64748b" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* SECTION CHI TIẾT SỰ CỐ */}
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Chi tiết sự cố</Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Đối tượng gặp sự cố</Text>
+            <Text style={styles.label}>Đối tượng</Text>
             <TouchableOpacity
-              style={styles.selectBtn}
-              onPress={() => setShowFurnitureModal(true)}
+              style={[styles.selectBtn, loadingDetail && styles.disabledBtn]}
+              onPress={() => !loadingDetail && setShowFurnitureModal(true)}
+              disabled={loadingDetail}
             >
               <Text
                 style={[
@@ -434,7 +532,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
             </Text>
             <TextInput
               style={[styles.textInput, errors.title && styles.inputError]}
-              placeholder="Vd: Vòi nước bị rò, Điều hòa không mát..."
+              placeholder="Vd: Hỏng khóa, Vỡ kính..."
               placeholderTextColor="#94a3b8"
               value={title}
               onChangeText={(v) => handleInputChange("title", v)}
@@ -451,7 +549,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
                 errors.affectedQuantity && styles.labelError,
               ]}
             >
-              Số lượng bị ảnh hưởng
+              Số lượng
             </Text>
             <TextInput
               style={[styles.textInput, { width: 100, textAlign: "center" }]}
@@ -463,11 +561,10 @@ export default function CreateMaintenanceRequest({ navigation }) {
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Mô tả & Hình ảnh</Text>
-
+          <Text style={styles.sectionTitle}>Hình ảnh</Text>
           <TextInput
             style={[styles.textInput, styles.textArea]}
-            placeholder="Mô tả chi tiết tình trạng..."
+            placeholder="Mô tả chi tiết..."
             placeholderTextColor="#94a3b8"
             multiline
             numberOfLines={4}
@@ -475,38 +572,29 @@ export default function CreateMaintenanceRequest({ navigation }) {
             onChangeText={(v) => handleInputChange("description", v)}
             textAlignVertical="top"
           />
-
-          <View style={{ marginTop: 16 }}>
-            <Text style={styles.label}>
-              Hình ảnh ({images.length}/{MAX_IMAGES})
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginTop: 8 }}
-            >
-              {images.map((img, idx) => (
-                <View key={idx} style={styles.imageWrapper}>
-                  <Image source={{ uri: img.uri }} style={styles.pickImage} />
-                  <TouchableOpacity
-                    onPress={() => removeImageAt(idx)}
-                    style={styles.removeImageBtn}
-                  >
-                    <Ionicons name="close" size={16} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {images.length < MAX_IMAGES && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 12 }}
+          >
+            {images.map((img, idx) => (
+              <View key={idx} style={styles.imageWrapper}>
+                <Image source={{ uri: img.uri }} style={styles.pickImage} />
                 <TouchableOpacity
-                  style={styles.addImageBtn}
-                  onPress={pickImages}
+                  onPress={() => removeImageAt(idx)}
+                  style={styles.removeImageBtn}
                 >
-                  <Ionicons name="camera-outline" size={24} color="#64748b" />
-                  <Text style={styles.addImageText}>Thêm</Text>
+                  <Ionicons name="close" size={16} color="#fff" />
                 </TouchableOpacity>
-              )}
-            </ScrollView>
-          </View>
+              </View>
+            ))}
+            {images.length < MAX_IMAGES && (
+              <TouchableOpacity style={styles.addImageBtn} onPress={pickImages}>
+                <Ionicons name="camera-outline" size={24} color="#64748b" />
+                <Text style={styles.addImageText}>Thêm</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </View>
       </ScrollView>
 
@@ -527,6 +615,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      <RoomModal />
       <FurnitureModal />
       <CategoryModal />
       <Toast />
@@ -549,7 +638,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#1e293b" },
   scrollContent: { padding: 16, paddingBottom: 100 },
-
   formCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -566,11 +654,9 @@ const styles = StyleSheet.create({
     color: "#0f766e",
     marginBottom: 16,
   },
-
   inputGroup: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: "500", color: "#475569", marginBottom: 6 },
   required: { color: "#dc2626" },
-
   textInput: {
     borderWidth: 1,
     borderColor: "#cbd5e1",
@@ -584,7 +670,6 @@ const styles = StyleSheet.create({
   inputError: { borderColor: "#dc2626", backgroundColor: "#fef2f2" },
   errorText: { color: "#dc2626", fontSize: 12, marginTop: 4 },
   labelError: { color: "#dc2626" },
-
   selectBtn: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -597,7 +682,6 @@ const styles = StyleSheet.create({
   },
   disabledBtn: { backgroundColor: "#f1f5f9", borderColor: "#e2e8f0" },
   selectBtnText: { fontSize: 15, color: "#1e293b" },
-
   imageWrapper: {
     width: 80,
     height: 80,
@@ -628,7 +712,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   addImageText: { fontSize: 12, color: "#64748b", marginTop: 4 },
-
   actionBar: {
     padding: 16,
     backgroundColor: "#fff",
@@ -647,7 +730,6 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { backgroundColor: "#94a3b8" },
   submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",

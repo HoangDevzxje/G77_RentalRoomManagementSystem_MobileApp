@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Image,
-  Keyboard, // Import Keyboard
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -24,7 +24,7 @@ export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
 
   const handleLogin = async () => {
-    Keyboard.dismiss(); // Ẩn bàn phím để Toast dễ nhìn hơn
+    Keyboard.dismiss();
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
 
@@ -33,7 +33,7 @@ export default function LoginScreen({ navigation }) {
         type: "error",
         text1: "Lỗi",
         text2: "Vui lòng nhập email hoặc tên đăng nhập",
-        position: "top", // Đảm bảo vị trí
+        position: "top",
       });
       return;
     }
@@ -71,19 +71,17 @@ export default function LoginScreen({ navigation }) {
         await AsyncStorage.removeItem("rememberedPassword");
       }
 
-      // Hiển thị Toast thành công
       Toast.show({
         type: "success",
         text1: "Thành công",
         text2: "Đăng nhập thành công!",
-        visibilityTime: 2000, // Thời gian hiển thị
+        visibilityTime: 2000,
         position: "top",
       });
 
-      // Đợi Toast hiển thị một chút rồi mới chuyển trang
       setTimeout(() => {
         navigation.navigate("BottomTabs");
-      }, 1500); // Tăng lên 1.5s để người dùng kịp đọc
+      }, 1500);
     } catch (error) {
       console.log("Login error:", error.message);
 
@@ -137,13 +135,11 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Đặt zIndex cao để Toast luôn hiển thị trên cùng nếu cần */}
       <View style={{ zIndex: 9999 }}>
         <Toast />
       </View>
 
       <View style={styles.card}>
-        {/* Sử dụng component Logo */}
         <Logo isScrolled={false} onPress={handleLogoPress} size={55} />
 
         {/* Title */}
@@ -235,25 +231,6 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.separatorText}>Hoặc</Text>
           <View style={styles.separator} />
         </View>
-
-        {/* Google Login */}
-        <TouchableOpacity
-          style={styles.googleButton}
-          onPress={() => {
-            Toast.show({
-              type: "info",
-              text1: "Thông báo",
-              text2: "Tính năng đăng nhập Google đang phát triển",
-              position: "top",
-            });
-          }}
-        >
-          <Image
-            source={require("../../../assets/images/Google__G__logo.svg.webp")}
-            style={styles.googleLogo}
-          />
-          <Text style={styles.googleText}>Đăng nhập với Google</Text>
-        </TouchableOpacity>
 
         {/* Register */}
         <View style={styles.registerContainer}>

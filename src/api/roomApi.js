@@ -19,7 +19,6 @@ export const getMyRoomDetail = async (roomId = null) => {
       message: res.data?.message || "Không thể lấy thông tin chi tiết phòng",
     };
   } catch (err) {
-    console.error("Error fetching room detail:", err);
     return {
       success: false,
       data: null,
@@ -45,7 +44,6 @@ export const getMyRoomsList = async () => {
       message: res.data?.message || "Không thể lấy danh sách phòng",
     };
   } catch (err) {
-    console.error("Error fetching rooms list:", err);
     return {
       success: false,
       data: null,

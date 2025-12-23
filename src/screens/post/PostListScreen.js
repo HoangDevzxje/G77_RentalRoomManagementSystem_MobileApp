@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import PostCard from "../../components/post/PostCard";
-import { useAuth } from "../../context/AuthContext";
 import { getPosts } from "../../api/postApi";
 
 const { width, height } = Dimensions.get("window");
@@ -24,7 +23,6 @@ const AVAILABLE_WIDTH = width - HORIZONTAL_PADDING * 2;
 const CARD_WIDTH = (AVAILABLE_WIDTH - CARD_SPACING) / NUM_COLUMNS;
 const CARD_HEIGHT = CARD_WIDTH * 1.35;
 
-// match RoomDetail header spacing
 const STATUS_BAR_HEIGHT =
   Platform.OS === "android" ? StatusBar.currentHeight || 0 : 40;
 
@@ -37,7 +35,6 @@ export default function PostListScreen({ route, navigation }) {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
-  const { isAuthenticated } = useAuth();
 
   const fetchPosts = async (pageNum = 1, isLoadMore = false) => {
     try {
@@ -54,17 +51,22 @@ export default function PostListScreen({ route, navigation }) {
 
       const response = await getPosts(params);
 
+      const newData = response.data || response;
+
       if (isLoadMore) {
-        setPosts((prev) => [...prev, ...(response.data || response)]);
+        setPosts((prev) => [...prev, ...newData]);
       } else {
-        setPosts(response.data || response);
+        setPosts(newData);
       }
 
       if (response.pagination) setTotalPages(response.pagination.totalPages);
       else setTotalPages(1);
       setError(null);
     } catch (err) {
-      setError(`Lỗi: ${err.response?.data?.message || err.message}`);
+      console.error("Fetch posts error:", err);
+      setError(
+        `Lỗi: ${err.response?.data?.message || "Không thể tải danh sách"}`
+      );
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -72,15 +74,9 @@ export default function PostListScreen({ route, navigation }) {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      setPage(1);
-      fetchPosts(1, false);
-    } else {
-      setError("Vui lòng đăng nhập để xem danh sách bài đăng");
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildingId, searchQuery, isAuthenticated]);
+    setPage(1);
+    fetchPosts(1, false);
+  }, [buildingId, searchQuery]);
 
   const handleLoadMore = () => {
     if (!loadingMore && page < totalPages) {
@@ -113,7 +109,7 @@ export default function PostListScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header — styled to match RoomDetailScreen */}
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => {
@@ -129,7 +125,6 @@ export default function PostListScreen({ route, navigation }) {
           Danh sách phòng
         </Text>
 
-        {/* right spacer to keep title centered */}
         <View style={styles.headerRight} />
       </View>
 
@@ -148,23 +143,25 @@ export default function PostListScreen({ route, navigation }) {
             <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
           </View>
           <Text style={styles.error}>{error}</Text>
-          {!isAuthenticated && (
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => navigation.navigate("Login")}
-            >
-              <Ionicons
-                name="log-in-outline"
-                size={18}
-                color="white"
-                style={styles.buttonIcon}
-              />
-              <Text style={styles.buttonText}>Đăng nhập</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              setPage(1);
+              fetchPosts(1, false);
+            }}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={18}
+              color="white"
+              style={styles.buttonIcon}
+            />
+            <Text style={styles.buttonText}>Thử lại</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.content}>
+          {/* Search Bar */}
           <View style={styles.searchContainer}>
             <View style={styles.searchWrapper}>
               <Ionicons
@@ -189,8 +186,6 @@ export default function PostListScreen({ route, navigation }) {
                 <TouchableOpacity
                   onPress={() => {
                     setSearchQuery("");
-                    setPage(1);
-                    fetchPosts(1, false);
                   }}
                 >
                   <Ionicons name="close-circle" size={20} color="#94a3b8" />
@@ -222,24 +217,6 @@ export default function PostListScreen({ route, navigation }) {
                   ? "trong tòa nhà này"
                   : "phù hợp với tìm kiếm"}
               </Text>
-              {searchQuery && (
-                <TouchableOpacity
-                  style={styles.button}
-                  onPress={() => {
-                    setSearchQuery("");
-                    setPage(1);
-                    fetchPosts(1, false);
-                  }}
-                >
-                  <Ionicons
-                    name="refresh-outline"
-                    size={18}
-                    color="white"
-                    style={styles.buttonIcon}
-                  />
-                  <Text style={styles.buttonText}>Xóa tìm kiếm</Text>
-                </TouchableOpacity>
-              )}
             </View>
           ) : (
             <FlatList
@@ -266,8 +243,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
-
-  /* Header (matching RoomDetail header) */
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -289,12 +264,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   headerRight: { width: 40 },
-
-  /* Content wrapper (below header) */
   content: {
     flex: 1,
   },
-
   center: {
     flex: 1,
     justifyContent: "center",
@@ -313,7 +285,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     opacity: 0.6,
   },
-
   searchContainer: {
     backgroundColor: "white",
     paddingHorizontal: HORIZONTAL_PADDING,
@@ -339,7 +310,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1e293b",
   },
-
   resultCountContainer: {
     backgroundColor: "white",
     paddingHorizontal: HORIZONTAL_PADDING,
@@ -357,7 +327,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1e293b",
   },
-
   listContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 16,

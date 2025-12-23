@@ -68,7 +68,7 @@ const RoomHeader = ({
             </View>
             <Text style={styles.switcherMainText}>Đổi phòng</Text>
             <Ionicons
-              name="swap-horizontal"
+              name="home"
               size={16}
               color="#fff"
               style={styles.switcherIcon}
