@@ -23,6 +23,7 @@ import {
   searchUser,
   addRoommate,
   removeRoommate,
+  leaveRoommate,
 } from "../../api/roomatesApi";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -242,6 +243,46 @@ export default function RoommatesScreen({ navigation, route }) {
     }
   };
 
+  const handleLeave = () => {
+    Alert.alert(
+      "Xác nhận rời phòng",
+      "Bạn có chắc chắn muốn rời khỏi phòng này không? Hành động này không thể hoàn tác.",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Rời đi",
+          style: "destructive",
+          onPress: doLeave,
+        },
+      ]
+    );
+  };
+
+  const doLeave = async () => {
+    if (!room) return;
+    const roomId = room.id ?? room._id;
+    if (!roomId) return;
+
+    setActionLoading(true);
+    try {
+      await leaveRoommate(roomId);
+      Toast.show({
+        type: "success",
+        text1: "Đã rời phòng thành công",
+      });
+
+      navigation.goBack();
+    } catch (err) {
+      Toast.show({
+        type: "error",
+        text1: "Rời phòng thất bại",
+        text2: err?.response?.data?.message || "Lỗi hệ thống",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const clearSearchResults = () => {
     setShowSearchResults(false);
     setSearchResults([]);
@@ -308,6 +349,16 @@ export default function RoommatesScreen({ navigation, route }) {
               disabled={actionLoading}
             >
               <Ionicons name="trash-outline" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
+
+          {isMe && !isMainTenant && (
+            <TouchableOpacity
+              style={[styles.leaveBtn]}
+              onPress={handleLeave}
+              disabled={actionLoading}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#fff" />
             </TouchableOpacity>
           )}
 
@@ -611,7 +662,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
-    // Thêm padding top cho iOS
     paddingTop: Platform.OS === "ios" ? 0 : 0,
   },
   backBtn: {
@@ -732,7 +782,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     paddingHorizontal: 12,
-    // Thêm chiều cao cố định cho iOS
     minHeight: 50,
   },
   searchIcon: {
@@ -743,7 +792,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: "#0f172a",
-    // Thêm padding cho iOS
     paddingTop: Platform.OS === "ios" ? 8 : 12,
     paddingBottom: Platform.OS === "ios" ? 8 : 12,
   },
@@ -762,7 +810,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
-    // Thêm chiều cao cố định cho iOS
     minHeight: 50,
   },
   searchBtnDisabled: {
@@ -790,7 +837,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
-    // Thêm minHeight cho iOS
     minHeight: 80,
   },
   firstItem: {
@@ -869,6 +915,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   removeBtn: {
+    backgroundColor: "#ef4444",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#ef4444",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  leaveBtn: {
     backgroundColor: "#ef4444",
     width: 36,
     height: 36,

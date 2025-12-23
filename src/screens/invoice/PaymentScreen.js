@@ -9,6 +9,7 @@ import {
   Image,
   Platform,
   Alert,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +24,8 @@ export default function PaymentScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [paymentData, setPaymentData] = useState(null);
   const [proofImage, setProofImage] = useState(null);
+  const [additionalNote, setAdditionalNote] = useState("");
+  const [noteError, setNoteError] = useState("");
 
   useEffect(() => {
     fetchPaymentInfo();
@@ -33,6 +36,15 @@ export default function PaymentScreen({ route, navigation }) {
       setLoading(true);
       const res = await payInvoice(invoiceId, { method: "bank_transfer" });
       setPaymentData(res);
+
+      // Hiển thị thông báo thành công khi lấy thông tin thanh toán
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã tải thông tin thanh toán",
+        visibilityTime: 2000,
+        position: "top",
+      });
     } catch (error) {
       console.error("Payment info error:", error);
       const msg =
@@ -81,10 +93,38 @@ export default function PaymentScreen({ route, navigation }) {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setProofImage(result.assets[0]);
+      // Hiển thị thông báo khi chọn ảnh thành công
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã chọn ảnh chứng minh",
+        visibilityTime: 2000,
+        position: "top",
+      });
     }
   };
 
+  const validateNote = () => {
+    if (additionalNote.length > 500) {
+      setNoteError("Ghi chú không được quá 500 ký tự");
+      return false;
+    }
+    setNoteError("");
+    return true;
+  };
+
   const handleConfirmPayment = async () => {
+    if (!validateNote()) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: noteError,
+        visibilityTime: 3000,
+        position: "top",
+      });
+      return;
+    }
+
     if (!proofImage) {
       Toast.show({
         type: "error",
@@ -114,15 +154,18 @@ export default function PaymentScreen({ route, navigation }) {
         type: type || "image/jpeg",
       });
 
-      formData.append("note", "Xác nhận đã chuyển khoản");
+      if (additionalNote.trim()) {
+        formData.append("note", additionalNote.trim());
+      }
 
       await confirmTransfer(invoiceId, formData);
 
+      // Hiển thị thông báo thành công
       Toast.show({
         type: "success",
         text1: "Thành công",
-        text2: "Đã gửi xác nhận chuyển khoản!",
-        visibilityTime: 2000,
+        text2: "Đã gửi xác nhận chuyển khoản thành công!",
+        visibilityTime: 3000,
         position: "top",
         onHide: () => {
           navigation.navigate("InvoiceDetail", { invoiceId });
@@ -131,7 +174,7 @@ export default function PaymentScreen({ route, navigation }) {
 
       setTimeout(() => {
         navigation.navigate("InvoiceDetail", { invoiceId });
-      }, 2000);
+      }, 3000);
     } catch (error) {
       console.error("Confirm error:", error);
       Toast.show({
@@ -232,14 +275,20 @@ export default function PaymentScreen({ route, navigation }) {
               </TouchableOpacity>
             </View>
 
+            {/* NỘI DUNG CHUYỂN KHOẢN (CỐ ĐỊNH) */}
             <View style={styles.copyRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.bankLabel}>Nội dung CK (Bắt buộc):</Text>
+                <Text style={styles.bankLabel}>Nội dung chuyển khoản:</Text>
                 <Text style={styles.highlightValue}>{transferNote}</Text>
+                <Text style={styles.noteHint}>
+                  (Vui lòng ghi chính xác nội dung này khi chuyển khoản)
+                </Text>
               </View>
               <TouchableOpacity
                 style={styles.copyButton}
-                onPress={() => copyToClipboard(transferNote, "Nội dung")}
+                onPress={() =>
+                  copyToClipboard(transferNote, "Nội dung chuyển khoản")
+                }
               >
                 <Ionicons name="copy-outline" size={18} color="#3b82f6" />
                 <Text style={styles.copyText}>Sao chép</Text>
@@ -253,6 +302,34 @@ export default function PaymentScreen({ route, navigation }) {
                 {formatCurrency(amount)}
               </Text>
             </View>
+          </View>
+
+          <View style={styles.additionalNoteSection}>
+            <Text style={styles.sectionTitle}>Ghi chú</Text>
+
+            <TextInput
+              style={[styles.noteInput, noteError && styles.noteInputError]}
+              value={additionalNote}
+              onChangeText={(text) => {
+                setAdditionalNote(text);
+                if (noteError) setNoteError("");
+              }}
+              placeholder="Nhập ghi chú... "
+              placeholderTextColor="#94a3b8"
+              multiline
+              numberOfLines={3}
+              maxLength={500}
+              autoCorrect={false}
+              spellCheck={false}
+            />
+
+            {noteError ? (
+              <Text style={styles.errorText}>{noteError}</Text>
+            ) : (
+              <Text style={styles.charCount}>
+                {additionalNote.length}/500 ký tự
+              </Text>
+            )}
           </View>
 
           {/* UPLOAD SECTION */}
@@ -376,7 +453,12 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 16,
   },
-  bankLabel: { fontSize: 13, color: "#64748b", marginBottom: 4 },
+  bankLabel: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 4,
+    fontWeight: "500",
+  },
   bankValue: {
     fontSize: 15,
     fontWeight: "600",
@@ -384,7 +466,18 @@ const styles = StyleSheet.create({
     textAlign: "right",
     flex: 1,
   },
-  highlightValue: { fontSize: 16, fontWeight: "bold", color: "#3b82f6" },
+  highlightValue: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#3b82f6",
+    marginBottom: 4,
+  },
+  noteHint: {
+    fontSize: 11,
+    color: "#ef4444",
+    fontStyle: "italic",
+    marginTop: 2,
+  },
   copyButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -398,6 +491,57 @@ const styles = StyleSheet.create({
   copyText: { fontSize: 12, color: "#3b82f6", fontWeight: "600" },
   divider: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 12 },
   totalAmountText: { fontSize: 20, fontWeight: "bold", color: "#ef4444" },
+
+  // Additional Note Styles - ĐÃ CẢI THIỆN ĐỘ ĐẬM VÀ RÕ NÉT
+  additionalNoteSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginBottom: 8,
+  },
+  noteInput: {
+    backgroundColor: "#fff",
+    borderWidth: 2, // Tăng độ dày border
+    borderColor: "#d1d5db", // Màu đậm hơn
+    borderRadius: 8,
+    padding: 14, // Tăng padding
+    fontSize: 16, // Tăng font size
+    color: "#111827", // Màu đen đậm hơn
+    textAlignVertical: "top",
+    minHeight: 90, // Tăng chiều cao
+    fontWeight: "500", // Đậm hơn
+    lineHeight: 22, // Tăng line height cho dễ đọc
+    // Shadow để nổi bật
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  noteInputError: {
+    borderColor: "#dc2626", // Màu đỏ đậm hơn
+    borderWidth: 2,
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 13,
+    marginTop: 6,
+    fontWeight: "500",
+  },
+  charCount: {
+    color: "#6b7280",
+    fontSize: 12,
+    textAlign: "right",
+    marginTop: 6,
+    fontWeight: "500",
+  },
+
   uploadSection: { marginBottom: 30 },
   uploadTitle: {
     fontSize: 16,
@@ -422,10 +566,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: "#64748b",
     fontWeight: "500",
+    fontSize: 15, // Tăng font size cho dễ đọc
   },
   previewImage: { width: "100%", height: "100%" },
   reselectBtn: { alignItems: "center", marginTop: 12 },
-  reselectText: { color: "#3b82f6", fontWeight: "600", fontSize: 15 },
+  reselectText: {
+    color: "#3b82f6",
+    fontWeight: "600",
+    fontSize: 15,
+    padding: 8, // Thêm padding để dễ chạm
+  },
   footer: { padding: 16, borderTopWidth: 1, borderColor: "#f1f5f9" },
   doneButton: {
     backgroundColor: "#3b82f6",
@@ -434,6 +584,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   disabledButton: { backgroundColor: "#94a3b8" },
-  doneButtonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  loadingText: { marginTop: 12, color: "#64748b" },
+  doneButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#64748b",
+    fontSize: 15,
+    fontWeight: "500",
+  },
 });

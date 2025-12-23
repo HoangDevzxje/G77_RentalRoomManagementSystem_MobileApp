@@ -72,7 +72,9 @@ const ContractDetailScreen = ({ navigation, route }) => {
   try {
     if (!isWeb)
       NativeSignature = require("react-native-signature-canvas")?.default;
-  } catch (err) {}
+  } catch (err) {
+    console.log("Signature canvas not available:", err);
+  }
 
   const { width: screenWidth } = useWindowDimensions();
   const contentWidth = Math.max(screenWidth - 48, 300);
@@ -410,7 +412,20 @@ const ContractDetailScreen = ({ navigation, route }) => {
     }
   };
 
-  const submitSignature = async (dataURL) => {
+  // Các hàm xử lý chữ ký
+  const clearSignature = () => {
+    if (nativeSigRef.current) {
+      nativeSigRef.current.clearSignature();
+    }
+  };
+
+  const handleSubmitSignature = async () => {
+    if (nativeSigRef.current) {
+      nativeSigRef.current.readSignature();
+    }
+  };
+
+  const onSignatureOK = async (signature) => {
     const isVerified = contract?.identityVerification?.status === "verified";
     if (!isVerified) {
       Toast.show({
@@ -420,9 +435,10 @@ const ContractDetailScreen = ({ navigation, route }) => {
       });
       return;
     }
+
     setSigLoading(true);
     try {
-      await signByTenant(contract._id, dataURL);
+      await signByTenant(contract._id, signature);
       Toast.show({ type: "success", text1: "Ký thành công!" });
       setSigModalVisible(false);
       fetchDetail(contract._id);
@@ -431,6 +447,10 @@ const ContractDetailScreen = ({ navigation, route }) => {
     } finally {
       setSigLoading(false);
     }
+  };
+
+  const onSignatureEmpty = () => {
+    Toast.show({ type: "info", text1: "Vui lòng ký tên" });
   };
 
   const canEdit = contract?.status === "sent_to_tenant";
@@ -674,7 +694,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
                 (verifyLoading || !isConfirmed) && styles.btnDisabled,
               ]}
               onPress={handleVerifyIdentity}
-              disabled={verifyLoading || !isConfirmed} // Khóa nút nếu chưa tích chọn
+              disabled={verifyLoading || !isConfirmed}
               activeOpacity={0.8}
             >
               {verifyLoading ? (
@@ -711,24 +731,23 @@ const ContractDetailScreen = ({ navigation, route }) => {
 
           {/* Signature Area */}
           <View style={styles.modalContent}>
-            {!isWeb && NativeSignature && (
+            {!isWeb && NativeSignature ? (
               <View style={styles.signatureContainer}>
                 <NativeSignature
                   ref={nativeSigRef}
-                  onOK={submitSignature}
-                  onEmpty={() =>
-                    Toast.show({ type: "info", text1: "Vui lòng ký tên" })
-                  }
+                  onOK={onSignatureOK}
+                  onEmpty={onSignatureEmpty}
                   clearText="Xóa"
                   confirmText="Xác nhận"
                   style={styles.signaturePad}
                 />
               </View>
-            )}
-
-            {/* Nếu cần custom buttons riêng */}
-            {!NativeSignature && (
+            ) : (
               <View style={styles.signatureContainer}>
+                <View style={styles.signaturePlaceholder}>
+                  <Text style={styles.placeholderText}>Vùng ký tên</Text>
+                </View>
+
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity
                     style={[styles.button, styles.clearButton]}
@@ -739,7 +758,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
 
                   <TouchableOpacity
                     style={[styles.button, styles.confirmButton]}
-                    onPress={submitSignature}
+                    onPress={handleSubmitSignature}
                   >
                     <Text style={styles.confirmButtonText}>Xác nhận</Text>
                   </TouchableOpacity>
@@ -764,22 +783,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
-
   signaturePlaceholder: {
-    position: "absolute",
-    top: "50%",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    transform: [{ translateY: -10 }],
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: "#999",
-    fontStyle: "italic",
-  },
-
-  emptySignature: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -790,8 +794,7 @@ const styles = StyleSheet.create({
     margin: 20,
     backgroundColor: "#fafafa",
   },
-
-  emptyText: {
+  placeholderText: {
     fontSize: 18,
     color: "#888",
     fontStyle: "italic",
@@ -804,7 +807,6 @@ const styles = StyleSheet.create({
     borderTopColor: "#f0f0f0",
     backgroundColor: "#fafafa",
   },
-
   button: {
     paddingHorizontal: 32,
     paddingVertical: 14,
@@ -813,31 +815,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   clearButton: {
     backgroundColor: "#f8f8f8",
     borderWidth: 1,
     borderColor: "#e0e0e0",
   },
-
   confirmButton: {
     backgroundColor: "#007AFF",
   },
-
   clearButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#666",
   },
-
   confirmButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#fff",
-  },
-
-  nativeSignatureContainer: {
-    flex: 1,
   },
   screen: { flex: 1, backgroundColor: "#f8fafc" },
   container: { padding: 16, paddingBottom: 32 },
@@ -888,15 +882,6 @@ const styles = StyleSheet.create({
   actionSection: { marginTop: 20, gap: 12 },
   btnSave: {
     backgroundColor: "#0d9488",
-    padding: 14,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  btnAddRoommate: {
-    backgroundColor: "#7c2d12",
     padding: 14,
     borderRadius: 8,
     flexDirection: "row",
@@ -970,13 +955,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  nativeSignatureContainer: {
-    flex: 1,
-    minHeight: 300,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-  },
   section: {
     marginBottom: 24,
     backgroundColor: "#fff",
@@ -1017,7 +995,6 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: "#f8fafc",
     borderRadius: 12,
-
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
@@ -1042,19 +1019,6 @@ const styles = StyleSheet.create({
     color: "#475569",
     lineHeight: 18,
     textAlign: "left",
-  },
-  btnVerifySubmit: {
-    backgroundColor: "#0891b2",
-    padding: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 16,
-    height: 52,
-    justifyContent: "center",
-  },
-  btnDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#94a3b8",
   },
   uploadPlaceholder: { alignItems: "center", justifyContent: "center" },
   uploadPlaceholderText: { marginTop: 8, color: "#64748b", fontSize: 13 },

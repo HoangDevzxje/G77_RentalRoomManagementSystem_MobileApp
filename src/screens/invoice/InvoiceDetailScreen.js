@@ -241,7 +241,7 @@ export default function InvoiceDetailScreen({ route, navigation }) {
 
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Thành tiền</Text>
+            <Text style={styles.summaryLabel}>Tạm tính</Text>
             <Text style={styles.summaryValue}>
               {formatCurrency(invoice.subtotal)}
             </Text>
@@ -287,30 +287,6 @@ export default function InvoiceDetailScreen({ route, navigation }) {
                   {formatCurrency(invoice.paidAmount)}
                 </Text>
               </View>
-            </View>
-          )}
-
-          {remainingAmount > 0 && (
-            <View
-              style={[
-                styles.remainingBox,
-                {
-                  backgroundColor:
-                    invoice.status === "overdue" ? "#fef2f2" : "#eff6ff",
-                },
-              ]}
-            >
-              <Text style={styles.remainingLabel}>Cần thanh toán</Text>
-              <Text
-                style={[
-                  styles.remainingValue,
-                  {
-                    color: invoice.status === "overdue" ? "#ef4444" : "#3b82f6",
-                  },
-                ]}
-              >
-                {formatCurrency(remainingAmount)}
-              </Text>
             </View>
           )}
         </View>

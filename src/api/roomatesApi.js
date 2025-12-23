@@ -126,6 +126,13 @@ export const searchUser = async (q) => {
   return payload ?? res?.data ?? res;
 };
 
+export const leaveRoommate = async (roomId) => {
+  if (!roomId) throw new Error("roomId is required");
+  const res = await baseApi.post("/roommates/leave", { roomId });
+  const payload = normalizeResponse(res);
+  return payload ?? res?.data ?? res;
+};
+
 export const getRoommateDetail = async (userId) => {
   if (!userId) throw new Error("userId is required");
   const res = await baseApi.get(`/roommates/${userId}/detail`);

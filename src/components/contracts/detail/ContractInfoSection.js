@@ -21,12 +21,14 @@ const ContractInfoSection = ({
   const isVerified = identityStatus?.status === "verified";
   const isFailed = identityStatus?.status === "failed";
 
-  // LOGIC KHÓA:
-  // 1. Thông tin cốt lõi (Bên B): Chỉ sửa được khi (Có quyền sửa contract VÀ Chưa verify)
-  const canEditCoreInfo = canEdit && !isVerified;
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(amount);
+  };
 
-  // 2. Thông tin phụ (Xe, Roommates): Sửa được khi (Có quyền sửa contract)
-  // (Kể cả đã verify xong vẫn được thêm xe hoặc thêm bạn)
+  const canEditCoreInfo = canEdit && !isVerified;
   const canEditSubItems = canEdit;
 
   const updateArrayItem = (key, index, field, value) => {
@@ -49,14 +51,12 @@ const ContractInfoSection = ({
 
   const getFieldError = (fieldName, index = null, subField = null) => {
     if (!validationErrors) return null;
-
     if (index !== null) {
       const arrayKey = subField
         ? `${fieldName}[${index}].${subField}`
         : `${fieldName}[${index}]`;
       return validationErrors[arrayKey];
     }
-
     return validationErrors[fieldName];
   };
 
@@ -158,7 +158,10 @@ const ContractInfoSection = ({
                 ]}
                 value={payload.B?.name || ""}
                 onChangeText={(t) =>
-                  setPayload((prev) => ({ ...prev, B: { ...prev.B, name: t } }))
+                  setPayload((prev) => ({
+                    ...prev,
+                    B: { ...prev.B, name: t },
+                  }))
                 }
                 placeholder="Nhập họ tên"
                 placeholderTextColor="#94a3b8"
@@ -712,58 +715,95 @@ const ContractInfoSection = ({
         ))}
       </View>
 
-      {/* --- THÔNG TIN PHÒNG --- */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Thông tin phòng thuê</Text>
+        <Text style={styles.sectionTitle}>Thông tin phòng và tòa nhà</Text>
+
         <View style={styles.infoGrid}>
-          <Text style={styles.infoLabel}>Tòa nhà:</Text>
+          {/* Tên tòa nhà */}
+          <Text style={styles.infoLabel}>Tên tòa nhà:</Text>
           <Text style={styles.infoValue}>
-            {contract.buildingId?.name || "—"}
+            {contract.buildingId?.name || "Không có thông tin"}
           </Text>
 
-          <Text style={styles.infoLabel}>Phòng:</Text>
+          {/* Số phòng */}
+          <Text style={styles.infoLabel}>Số phòng:</Text>
           <Text style={styles.infoValue}>
-            {contract.roomId?.roomNumber
-              ? `Phòng ${contract.roomId.roomNumber}`
-              : "—"}
+            {contract.roomId?.roomNumber || "Không có thông tin"}
           </Text>
 
-          <Text style={styles.infoLabel}>Giá thuê:</Text>
+          {/* Địa chỉ */}
+          <Text style={styles.infoLabel}>Địa chỉ:</Text>
           <Text style={styles.infoValue}>
-            {contract.contract?.price
-              ? `${Number(contract.contract.price).toLocaleString(
-                  "vi-VN"
-                )} VNĐ/tháng`
-              : "—"}
+            {contract.buildingId?.address || "Không có thông tin"}
           </Text>
 
+          {/* Số người tối đa */}
+          <Text style={styles.infoLabel}>Số người tối đa:</Text>
+          <Text style={styles.infoValue}>
+            {contract.roomId?.maxTenants || 0} người
+          </Text>
+          {/* Tiền điện */}
+          <Text style={styles.infoLabel}>Tiền điện:</Text>
+          <View style={styles.complexValueContainer}>
+            <Text
+              style={[styles.infoValue, { width: "100%", marginBottom: 0 }]}
+            >
+              {formatCurrency(contract.buildingId?.ePrice || 0)}
+            </Text>
+            <Text style={styles.subValueText}>
+              {contract.buildingId?.eIndexType === "byNumber"
+                ? "Tính theo chỉ số (kWh)"
+                : "Chưa xác định"}
+            </Text>
+          </View>
+
+          {/* Tiền nước */}
+          <Text style={styles.infoLabel}>Tiền nước:</Text>
+          <View style={styles.complexValueContainer}>
+            <Text
+              style={[styles.infoValue, { width: "100%", marginBottom: 0 }]}
+            >
+              {formatCurrency(contract.buildingId?.wPrice || 0)}
+            </Text>
+            <Text style={styles.subValueText}>
+              {contract.buildingId?.wIndexType === "byNumber"
+                ? "Tính theo khối (m³)"
+                : contract.buildingId?.wIndexType === "byPerson"
+                ? "Tính theo đầu người"
+                : "Chưa xác định"}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Thông tin hợp đồng</Text>
+
+        <View style={styles.infoGrid}>
+          {/* Tiền phòng */}
+          <Text style={styles.infoLabel}>Tiền phòng:</Text>
+          <Text style={styles.infoValue}>
+            {formatCurrency(
+              contract.roomId?.price || contract.contract?.price || 0
+            )}
+          </Text>
+
+          {/* Tiền cọc */}
           <Text style={styles.infoLabel}>Tiền cọc:</Text>
           <Text style={styles.infoValue}>
-            {contract.contract?.deposit
-              ? `${Number(contract.contract.deposit).toLocaleString(
-                  "vi-VN"
-                )} VNĐ`
-              : "—"}
+            {formatCurrency(contract.contract?.deposit || 0)}
           </Text>
 
+          {/* Ngày bắt đầu */}
           <Text style={styles.infoLabel}>Ngày bắt đầu:</Text>
           <Text style={styles.infoValue}>
             {fmtDate(contract.contract?.startDate)}
           </Text>
 
+          {/* Ngày kết thúc */}
           <Text style={styles.infoLabel}>Ngày kết thúc:</Text>
           <Text style={styles.infoValue}>
             {fmtDate(contract.contract?.endDate)}
-          </Text>
-
-          <Text style={styles.infoLabel}>Ngày ký:</Text>
-          <Text style={styles.infoValue}>
-            {fmtDate(contract.contract?.signDate)}
-          </Text>
-
-          <Text style={styles.infoLabel}>Số hợp đồng:</Text>
-          <Text style={styles.infoValue}>
-            {contract.contract?.no || contract._id || "—"}
           </Text>
         </View>
       </View>
@@ -816,6 +856,17 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     marginBottom: 12,
     fontWeight: "500",
+  },
+  // Style hỗ trợ cho phần complex value (điện, nước)
+  complexValueContainer: {
+    width: "70%",
+    marginBottom: 12,
+  },
+  subValueText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontStyle: "italic",
+    marginTop: 2,
   },
   inputContainer: {
     width: "70%",
