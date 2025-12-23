@@ -397,6 +397,99 @@ const ContractInfoSection = ({
         )}
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Thông tin phòng và tòa nhà</Text>
+
+        <View style={styles.infoGrid}>
+          {/* Tên tòa nhà */}
+          <Text style={styles.infoLabel}>Tên tòa nhà:</Text>
+          <Text style={styles.infoValue}>
+            {contract.buildingId?.name || "Không có thông tin"}
+          </Text>
+
+          {/* Số phòng */}
+          <Text style={styles.infoLabel}>Số phòng:</Text>
+          <Text style={styles.infoValue}>
+            {contract.roomId?.roomNumber || "Không có thông tin"}
+          </Text>
+
+          {/* Địa chỉ */}
+          <Text style={styles.infoLabel}>Địa chỉ:</Text>
+          <Text style={styles.infoValue}>
+            {contract.buildingId?.address || "Không có thông tin"}
+          </Text>
+
+          {/* Số người tối đa */}
+          <Text style={styles.infoLabel}>Số người tối đa:</Text>
+          <Text style={styles.infoValue}>
+            {contract.roomId?.maxTenants || 0} người
+          </Text>
+          {/* Tiền điện */}
+          <Text style={styles.infoLabel}>Tiền điện:</Text>
+          <View style={styles.complexValueContainer}>
+            <Text
+              style={[styles.infoValue, { width: "100%", marginBottom: 0 }]}
+            >
+              {formatCurrency(contract.buildingId?.ePrice || 0)}
+            </Text>
+            <Text style={styles.subValueText}>
+              {contract.buildingId?.eIndexType === "byNumber"
+                ? "Tính theo chỉ số (kWh)"
+                : "Chưa xác định"}
+            </Text>
+          </View>
+
+          {/* Tiền nước */}
+          <Text style={styles.infoLabel}>Tiền nước:</Text>
+          <View style={styles.complexValueContainer}>
+            <Text
+              style={[styles.infoValue, { width: "100%", marginBottom: 0 }]}
+            >
+              {formatCurrency(contract.buildingId?.wPrice || 0)}
+            </Text>
+            <Text style={styles.subValueText}>
+              {contract.buildingId?.wIndexType === "byNumber"
+                ? "Tính theo khối (m³)"
+                : contract.buildingId?.wIndexType === "byPerson"
+                ? "Tính theo đầu người"
+                : "Chưa xác định"}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Thông tin hợp đồng</Text>
+
+        <View style={styles.infoGrid}>
+          {/* Tiền phòng */}
+          <Text style={styles.infoLabel}>Tiền phòng:</Text>
+          <Text style={styles.infoValue}>
+            {formatCurrency(
+              contract.roomId?.price || contract.contract?.price || 0
+            )}
+          </Text>
+
+          {/* Tiền cọc */}
+          <Text style={styles.infoLabel}>Tiền cọc:</Text>
+          <Text style={styles.infoValue}>
+            {formatCurrency(contract.contract?.deposit || 0)}
+          </Text>
+
+          {/* Ngày bắt đầu */}
+          <Text style={styles.infoLabel}>Ngày bắt đầu:</Text>
+          <Text style={styles.infoValue}>
+            {fmtDate(contract.contract?.startDate)}
+          </Text>
+
+          {/* Ngày kết thúc */}
+          <Text style={styles.infoLabel}>Ngày kết thúc:</Text>
+          <Text style={styles.infoValue}>
+            {fmtDate(contract.contract?.endDate)}
+          </Text>
+        </View>
+      </View>
+
       {/* --- DANH SÁCH XE (BIKES) --- */}
       <View style={styles.section}>
         <View style={styles.rowBetween}>
@@ -713,99 +806,6 @@ const ContractInfoSection = ({
             </View>
           </View>
         ))}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Thông tin phòng và tòa nhà</Text>
-
-        <View style={styles.infoGrid}>
-          {/* Tên tòa nhà */}
-          <Text style={styles.infoLabel}>Tên tòa nhà:</Text>
-          <Text style={styles.infoValue}>
-            {contract.buildingId?.name || "Không có thông tin"}
-          </Text>
-
-          {/* Số phòng */}
-          <Text style={styles.infoLabel}>Số phòng:</Text>
-          <Text style={styles.infoValue}>
-            {contract.roomId?.roomNumber || "Không có thông tin"}
-          </Text>
-
-          {/* Địa chỉ */}
-          <Text style={styles.infoLabel}>Địa chỉ:</Text>
-          <Text style={styles.infoValue}>
-            {contract.buildingId?.address || "Không có thông tin"}
-          </Text>
-
-          {/* Số người tối đa */}
-          <Text style={styles.infoLabel}>Số người tối đa:</Text>
-          <Text style={styles.infoValue}>
-            {contract.roomId?.maxTenants || 0} người
-          </Text>
-          {/* Tiền điện */}
-          <Text style={styles.infoLabel}>Tiền điện:</Text>
-          <View style={styles.complexValueContainer}>
-            <Text
-              style={[styles.infoValue, { width: "100%", marginBottom: 0 }]}
-            >
-              {formatCurrency(contract.buildingId?.ePrice || 0)}
-            </Text>
-            <Text style={styles.subValueText}>
-              {contract.buildingId?.eIndexType === "byNumber"
-                ? "Tính theo chỉ số (kWh)"
-                : "Chưa xác định"}
-            </Text>
-          </View>
-
-          {/* Tiền nước */}
-          <Text style={styles.infoLabel}>Tiền nước:</Text>
-          <View style={styles.complexValueContainer}>
-            <Text
-              style={[styles.infoValue, { width: "100%", marginBottom: 0 }]}
-            >
-              {formatCurrency(contract.buildingId?.wPrice || 0)}
-            </Text>
-            <Text style={styles.subValueText}>
-              {contract.buildingId?.wIndexType === "byNumber"
-                ? "Tính theo khối (m³)"
-                : contract.buildingId?.wIndexType === "byPerson"
-                ? "Tính theo đầu người"
-                : "Chưa xác định"}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Thông tin hợp đồng</Text>
-
-        <View style={styles.infoGrid}>
-          {/* Tiền phòng */}
-          <Text style={styles.infoLabel}>Tiền phòng:</Text>
-          <Text style={styles.infoValue}>
-            {formatCurrency(
-              contract.roomId?.price || contract.contract?.price || 0
-            )}
-          </Text>
-
-          {/* Tiền cọc */}
-          <Text style={styles.infoLabel}>Tiền cọc:</Text>
-          <Text style={styles.infoValue}>
-            {formatCurrency(contract.contract?.deposit || 0)}
-          </Text>
-
-          {/* Ngày bắt đầu */}
-          <Text style={styles.infoLabel}>Ngày bắt đầu:</Text>
-          <Text style={styles.infoValue}>
-            {fmtDate(contract.contract?.startDate)}
-          </Text>
-
-          {/* Ngày kết thúc */}
-          <Text style={styles.infoLabel}>Ngày kết thúc:</Text>
-          <Text style={styles.infoValue}>
-            {fmtDate(contract.contract?.endDate)}
-          </Text>
-        </View>
       </View>
     </>
   );
