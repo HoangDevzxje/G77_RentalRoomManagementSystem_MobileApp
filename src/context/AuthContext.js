@@ -44,7 +44,6 @@ export const AuthProvider = ({ children }) => {
       setUser(data);
       return data;
     } catch (error) {
-      // Truyền lỗi lên component để xử lý
       throw error;
     }
   };

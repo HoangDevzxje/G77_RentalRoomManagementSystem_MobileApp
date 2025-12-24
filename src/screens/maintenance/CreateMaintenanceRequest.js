@@ -27,15 +27,15 @@ const { width } = Dimensions.get("window");
 const MAX_IMAGES = 5;
 
 const CATEGORIES = [
-  { label: "Điện (Electrical)", value: "electrical", icon: "flash" },
-  { label: "Nước (Plumbing)", value: "plumbing", icon: "water" },
-  { label: "Điều hòa (A/C)", value: "air_conditioning", icon: "thermometer" },
-  { label: "Khóa cửa (Door Lock)", value: "door_lock", icon: "key" },
+  { label: "Điện", value: "electrical", icon: "flash" },
+  { label: "Nước", value: "plumbing", icon: "water" },
+  { label: "Điều hòa", value: "air_conditioning", icon: "thermometer" },
+  { label: "Khóa cửa", value: "door_lock", icon: "key" },
   { label: "Tường/Trần", value: "wall_ceiling", icon: "business" },
   { label: "Sàn nhà", value: "flooring", icon: "layers" },
   { label: "Cửa sổ", value: "windows", icon: "browsers" },
   { label: "Thiết bị gia dụng", value: "appliances", icon: "tv" },
-  { label: "Internet/Wifi", value: "internet_wifi", icon: "wifi" },
+  { label: "Internet", value: "internet_wifi", icon: "wifi" },
   { label: "Côn trùng", value: "pest_control", icon: "bug" },
   { label: "Vệ sinh", value: "cleaning", icon: "trash" },
   { label: "An toàn", value: "safety", icon: "shield-checkmark" },
@@ -514,7 +514,7 @@ export default function CreateMaintenanceRequest({ navigation }) {
             >
               <Text style={styles.selectBtnText}>
                 {furnitureId
-                  ? "Nội thất (Furniture)"
+                  ? "Nội thất"
                   : selectedCategoryLabel || "Chọn danh mục..."}
               </Text>
               {!furnitureId && (

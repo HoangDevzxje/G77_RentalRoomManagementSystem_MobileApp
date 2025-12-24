@@ -44,6 +44,11 @@ const normalizeFileUri = (uri) => {
   return uri;
 };
 
+const conditionMap = {
+  good: "Tốt",
+  damaged: "Hư hỏng",
+  under_repair: "Đang sửa chữa",
+};
 const ContractDetailScreen = ({ navigation, route }) => {
   const routeId = route?.params?.id;
   const [loading, setLoading] = useState(true);
@@ -133,6 +138,11 @@ const ContractDetailScreen = ({ navigation, route }) => {
     return "--/--/----";
   };
 
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return "0 VNĐ";
+    return new Intl.NumberFormat("vi-VN").format(amount) + " VNĐ";
+  };
+
   const fetchDetail = async (id) => {
     setLoading(true);
     try {
@@ -140,17 +150,25 @@ const ContractDetailScreen = ({ navigation, route }) => {
       const data = contractRes?.data || contractRes || null;
       if (!data) throw new Error("Không có dữ liệu hợp đồng");
 
-      const formattedB = { ...data.B };
-      if (formattedB.dob) formattedB.dob = formatDateForDisplay(formattedB.dob);
-      if (formattedB.cccdIssuedDate)
-        formattedB.cccdIssuedDate = formatDateForDisplay(
-          formattedB.cccdIssuedDate
-        );
+      // Format B data from backend
+      const formattedB = {
+        ...data.B,
+        name: data.B?.name || "",
+        dob: data.B?.dob ? formatDateForDisplay(data.B.dob) : "",
+        cccd: data.B?.cccd || "",
+        cccdIssuedDate: data.B?.cccdIssuedDate
+          ? formatDateForDisplay(data.B.cccdIssuedDate)
+          : "",
+        cccdIssuedPlace: data.B?.cccdIssuedPlace || "",
+        phone: data.B?.phone || "",
+        email: data.B?.email || "",
+        permanentAddress: data.B?.permanentAddress || "",
+      };
 
       const formattedRoommates = (data.roommates || []).map((rm) => ({
         ...rm,
-        dob: formatDateForDisplay(rm.dob),
-        cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate),
+        dob: formatDateForDisplay(rm.dob || ""),
+        cccdIssuedDate: formatDateForDisplay(rm.cccdIssuedDate || ""),
       }));
 
       setContract(data);
@@ -237,6 +255,8 @@ const ContractDetailScreen = ({ navigation, route }) => {
           email: cleanStr(rm.email),
           permanentAddress: cleanStr(rm.permanentAddress),
           dob: formatDateForAPI(rm.dob),
+          cccdIssuedDate: formatDateForAPI(rm.cccdIssuedDate),
+          cccdIssuedPlace: cleanStr(rm.cccdIssuedPlace),
         })),
         bikes: payload.bikes.map((bike) => ({
           ...bike,
@@ -277,6 +297,8 @@ const ContractDetailScreen = ({ navigation, route }) => {
           dob: "",
           permanentAddress: "",
           email: "",
+          cccdIssuedDate: "",
+          cccdIssuedPlace: "",
         },
       ],
     }));
@@ -470,7 +492,7 @@ const ContractDetailScreen = ({ navigation, route }) => {
   if (!contract)
     return (
       <View style={styles.center}>
-        <Text>Không tìm thấy</Text>
+        <Text>Không tìm thấy hợp đồng</Text>
       </View>
     );
 
@@ -519,9 +541,23 @@ const ContractDetailScreen = ({ navigation, route }) => {
 
           {contract.furnitures?.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                Nội thất ({contract.furnitures.length})
-              </Text>
+              <Text style={styles.sectionTitle}>Nội thất</Text>
+              <View style={styles.furnitureList}>
+                {contract.furnitures.map((item, index) => (
+                  <View key={index} style={styles.furnitureItem}>
+                    <Text style={styles.furnitureName}>{item.name}</Text>
+                    <Text style={styles.furnitureDetails}>
+                      Số lượng: {item.quantity} • Tình trạng:{" "}
+                      {conditionMap[item.condition]}
+                    </Text>
+                    {item.notes && (
+                      <Text style={styles.furnitureNotes}>
+                        Ghi chú: {item.notes}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
             </View>
           )}
 
@@ -967,6 +1003,85 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
     color: "#0f172a",
+  },
+  roomInfoGrid: {
+    gap: 12,
+  },
+  roomInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  roomInfoLabel: {
+    fontSize: 14,
+    color: "#64748b",
+    flex: 1,
+  },
+  roomInfoValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    textAlign: "right",
+    flex: 1,
+  },
+  roomInfoSubValue: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "right",
+    marginTop: 2,
+  },
+  contractInfoGrid: {
+    gap: 12,
+  },
+  contractInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  contractInfoLabel: {
+    fontSize: 14,
+    color: "#64748b",
+    flex: 1,
+  },
+  contractInfoValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    textAlign: "right",
+    flex: 1,
+  },
+  furnitureList: {
+    marginTop: 8,
+  },
+  furnitureItem: {
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  furnitureName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 4,
+  },
+  furnitureDetails: {
+    fontSize: 12,
+    color: "#64748b",
+    marginBottom: 2,
+  },
+  furnitureNotes: {
+    fontSize: 12,
+    color: "#dc2626",
+    fontStyle: "italic",
   },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   verifyNote: { fontSize: 14, color: "#475569", marginBottom: 20 },

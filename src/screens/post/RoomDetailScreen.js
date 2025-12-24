@@ -10,11 +10,11 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import RenderHtml from "react-native-render-html";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import Toast from "react-native-toast-message";
-import { getPostById } from "../../api/postApi";
+import { getPostById, getRoomById } from "../../api/postApi";
 import { getMyContacts } from "../../api/contactApi";
-import { getRoomById } from "../../api/postApi";
 
 import ImageSlider from "../../components/post/ImageSlider";
 import FurnitureList from "../../components/post/FurnitureList";
@@ -25,6 +25,27 @@ import { useAuth } from "../../context/AuthContext";
 const { width, height } = Dimensions.get("window");
 const DEFAULT_IMAGE =
   "https://bandon.vn/uploads/posts/thiet-ke-nha-tro-dep-2020-bandon-0.jpg";
+
+const tagsStyles = {
+  p: {
+    fontSize: 15,
+    color: "#475569",
+    lineHeight: 24,
+    marginBottom: 10,
+  },
+  strong: {
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
+  h1: { fontSize: 20, color: "#1e293b", marginBottom: 10 },
+  h2: { fontSize: 18, color: "#1e293b", marginBottom: 10 },
+  h3: { fontSize: 16, color: "#1e293b", marginBottom: 8 },
+  li: { fontSize: 15, color: "#475569" },
+  ul: { marginBottom: 10 },
+  img: { marginVertical: 10 },
+};
+
+const SYSTEM_FONTS = ["sans-serif", "Roboto", "Arial", "System"];
 
 export default function RoomDetailScreen({ route, navigation }) {
   const { id: postId } = route.params;
@@ -102,12 +123,17 @@ export default function RoomDetailScreen({ route, navigation }) {
   };
 
   const checkExistingContact = async () => {
-    const response = await getMyContacts({ page: 1, limit: 100 });
-    const contacts = response.data || response.contacts || [];
-    const exists = contacts.some(
-      (c) => c.roomId?._id === selectedRoom._id || c.roomId === selectedRoom._id
-    );
-    setHasExistingContact(exists);
+    try {
+      const response = await getMyContacts({ page: 1, limit: 100 });
+      const contacts = response.data || response.contacts || [];
+      const exists = contacts.some(
+        (c) =>
+          c.roomId?._id === selectedRoom._id || c.roomId === selectedRoom._id
+      );
+      setHasExistingContact(exists);
+    } catch (error) {
+      console.log("Check contact error", error);
+    }
   };
 
   const handleRoomSelect = (room) => {
@@ -312,7 +338,6 @@ export default function RoomDetailScreen({ route, navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Info Card */}
         <View style={styles.infoCard}>
           <Text style={styles.postTitle}>{post.title}</Text>
           <View style={styles.priceRow}>
@@ -346,13 +371,17 @@ export default function RoomDetailScreen({ route, navigation }) {
           )}
         </View>
 
+        {/* --- ĐÃ SỬA LỖI TẠI ĐÂY --- */}
         {post.description && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Mô tả</Text>
             <View style={styles.descriptionCard}>
-              <Text style={styles.descriptionText}>
-                {post.description.replace(/<[^>]*>/g, "")}
-              </Text>
+              <RenderHtml
+                contentWidth={width - 64}
+                source={{ html: post.description }}
+                tagsStyles={tagsStyles}
+                systemFonts={SYSTEM_FONTS}
+              />
             </View>
           </View>
         )}
@@ -600,7 +629,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  descriptionText: { fontSize: 15, color: "#475569", lineHeight: 24 },
   amenitiesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   amenityChip: {
     flexDirection: "row",

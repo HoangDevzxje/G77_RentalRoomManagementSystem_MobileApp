@@ -41,7 +41,6 @@ const { width } = Dimensions.get("window");
 
 const statusOptions = [
   { value: "", label: "Tất cả trạng thái" },
-  { value: "draft", label: "Bản nháp" },
   { value: "sent_to_tenant", label: "Chờ ký" },
   { value: "signed_by_tenant", label: "Đã ký - Chờ chủ" },
   { value: "signed_by_landlord", label: "Đã ký - Chờ người thuê" },
@@ -90,7 +89,10 @@ const ContractsListScreen = ({ navigation }) => {
         ...(opts.keyword ? { keyword: opts.keyword } : {}),
       });
       const items = res.items || res.data || res || [];
-      const prepared = (Array.isArray(items) ? items : []).map((c) => ({
+      const validItems = (Array.isArray(items) ? items : []).filter(
+        (c) => c.status !== "draft"
+      );
+      const prepared = validItems.map((c) => ({
         ...c,
         __daysLeft: computeDaysLeft(c.contract?.endDate),
         __statusFromDates: computeStatusFromDates(c),

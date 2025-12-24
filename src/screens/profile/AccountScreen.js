@@ -375,7 +375,7 @@ export default function AccountScreen() {
                 </View>
 
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Thành viên</Text>
+                  <Text style={styles.badgeText}>Người thuê</Text>
                 </View>
               </View>
             </View>
